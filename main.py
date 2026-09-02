@@ -296,13 +296,17 @@ class Handler(BaseHTTPRequestHandler):
 
 init_db()
 
+import os
+
+PORT = int(os.environ.get("PORT", 8000))
+
 server = HTTPServer(
-    ("0.0.0.0", 8000),
+    ("0.0.0.0", PORT),
     Handler
 )
 
 print(
-    "TGClone server started: http://192.168.134.68:8000"
+    f"TGClone server started on port {PORT}"
 )
 
 server.serve_forever()
