@@ -61,6 +61,13 @@
 [data-chat-theme="waves"] .conv-messages{background:repeating-radial-gradient(ellipse at 50% 110%,transparent 0 28px,#4f8cff22 29px 30px,#7c6cf611 31px 54px);animation:waveDrift 10s ease-in-out infinite;}
 [data-chat-theme="grid"] .conv-messages{background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:28px 28px;animation:gridDrift 14s linear infinite;}
 [data-chat-theme="minimal"] .conv-messages{background:linear-gradient(145deg,var(--bg),var(--surface));}
+[data-chat-theme] .conv-messages{background-color:var(--bg);background-repeat:repeat;}
+[data-chat-theme="aurora"] .conv-messages{animation:auroraMove 14s ease-in-out infinite alternate;}
+[data-chat-theme="embers"] .conv-messages{animation:emberDrift 8s linear infinite;}
+[data-chat-theme="orbit"] .conv-messages{animation:orbitDrift 16s linear infinite;}
+[data-chat-theme="waves"] .conv-messages{animation:waveDrift 10s ease-in-out infinite;}
+[data-chat-theme="grid"] .conv-messages{animation:gridDrift 14s linear infinite;}
+@keyframes auroraMove{from{background-position:0 0;background-size:100% 100%;}to{background-position:34px -22px;background-size:125% 125%;}}
 @keyframes emberDrift{to{background-position:0 -150px,0 -190px,0 0;}}
 @keyframes orbitDrift{to{background-position:90px 90px,-20px 20px;}}
 @keyframes waveDrift{50%{background-position:0 12px;}}
@@ -608,6 +615,20 @@ button, input{font-family:inherit;}
   .modal-backdrop{padding:12px;align-items:end;}.create-sheet,.settings-window{max-height:calc(100dvh - 24px);border-radius:24px 24px 14px 14px;}.settings-layout{grid-template-columns:1fr;}.settings-menu{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border-soft);padding:8px;}.settings-menu-btn{white-space:nowrap;width:auto;margin:0 3px;}.settings-content{padding:20px;}
 }
 
+.settings-layout{display:flex;flex-direction:column;min-height:0;}
+.settings-menu{display:flex;gap:5px;overflow-x:auto;padding:10px 14px;border-right:0;border-bottom:1px solid var(--border-soft);scrollbar-width:none;}
+.settings-menu-btn{width:auto;flex:0 0 auto;white-space:nowrap;margin:0;}
+.settings-content{min-height:0;overflow:visible;}
+.app-shell.chat-open .app-nav{display:none;}
+.conv-input-bar{position:relative;z-index:12;padding-bottom:calc(14px + env(safe-area-inset-bottom));}
+@media (max-width:760px){
+  .app-shell.chat-open .app-nav{display:none;}
+  .conversation.open{z-index:15;}
+  .conv-input-bar{padding-left:12px;padding-right:12px;gap:6px;}
+  .conv-input-bar input{min-width:0;}
+  .settings-window-head{padding:20px 20px 16px;}
+  .settings-content{padding:18px 20px 24px;}
+}
 </style>
 </head>
 <body>
@@ -840,6 +861,11 @@ function closeModal(modal){ modal.hidden = true; }
 navChats.addEventListener('click', () => {
   setNavActive(navChats);
   conversation.classList.remove('open');
+  document.querySelector('.app-shell').classList.remove('chat-open');
+  messageInput.disabled = false;
+  micBtn.disabled = false;
+  videoBtn.disabled = false;
+  messageInput.placeholder = 'Написать сообщение…';
   searchInput.blur();
 });
 
@@ -1162,6 +1188,7 @@ async function setActiveChat(id){
   convEmpty.hidden = true;
   convActive.hidden = false;
   conversation.classList.add('open'); // для мобильной раскладки
+  document.querySelector('.app-shell').classList.add('chat-open');
 
   convAvatar.textContent = initials(chat.display_name);
   convName.textContent = chat.display_name;
@@ -1263,6 +1290,11 @@ function stopPolling(){
 
 convBack.addEventListener('click', () => {
   conversation.classList.remove('open');
+  document.querySelector('.app-shell').classList.remove('chat-open');
+  messageInput.disabled = false;
+  micBtn.disabled = false;
+  videoBtn.disabled = false;
+  messageInput.placeholder = 'Написать сообщение…';
 });
 
 messageForm.addEventListener('submit', async (e) => {
