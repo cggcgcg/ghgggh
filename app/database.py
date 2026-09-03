@@ -19,6 +19,31 @@ CREATE TABLE IF NOT EXISTS messages (
     text TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY,
+    language TEXT NOT NULL DEFAULT 'ru',
+    app_theme TEXT NOT NULL DEFAULT 'night',
+    chat_theme TEXT NOT NULL DEFAULT 'aurora',
+    font_size TEXT NOT NULL DEFAULT 'medium',
+    design TEXT NOT NULL DEFAULT 'glass',
+    density TEXT NOT NULL DEFAULT 'comfortable'
+);
+
+CREATE TABLE IF NOT EXISTS spaces (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('group', 'channel')),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 

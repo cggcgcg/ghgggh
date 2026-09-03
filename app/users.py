@@ -59,3 +59,13 @@ def find_by_username(username):
         return dict(row)
 
     return None
+
+
+def update_user(user_id, username, display_name):
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE users SET username = ?, display_name = ? WHERE id = ?",
+            (username, display_name, user_id),
+        )
+        conn.commit()
+    return get_user(user_id)

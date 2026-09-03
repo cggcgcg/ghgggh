@@ -4,8 +4,9 @@ from urllib.parse import urlsplit, parse_qs
 import json
 
 from app.database import init_db
-from app.users import create_user, get_user, find_by_username
+from app.users import create_user, get_user, find_by_username, update_user
 from app.messages import create_message, get_conversation, get_conversations
+from app.workspace import get_settings, update_settings, create_space, get_spaces, create_device, get_devices
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -22,6 +23,8 @@ class Handler(BaseHTTPRequestHandler):
 
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)
@@ -103,6 +106,24 @@ class Handler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "project": "TGClone"
             })
+            return
+
+        if self.path.startswith("/api/settings/"):
+            user_id = self.path.replace("/api/settings/", "", 1)
+            if not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            self.send_json(200, get_settings(user_id))
+            return
+
+        if self.path.startswith("/api/spaces/"):
+            user_id = self.path.replace("/api/spaces/", "", 1)
+            self.send_json(200, get_spaces(user_id))
+            return
+
+        if self.path.startswith("/api/devices/"):
+            user_id = self.path.replace("/api/devices/", "", 1)
+            self.send_json(200, get_devices(user_id))
             return
 
         # История переписки между двумя пользователями
@@ -269,10 +290,10 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
-            if msg_type == "voice":
+            if msg_type in ("voice", "video"):
                 if not audio_data:
                     self.send_json(400, {
-                        "error": "audio_data is required for voice messages"
+                        "error": "audio_data is required for media messages"
                     })
                     return
             else:
@@ -306,9 +327,61 @@ class Handler(BaseHTTPRequestHandler):
 
             return
 
+        if self.path == "/api/spaces":
+            data = self.read_json_body() or {}
+            owner_id = str(data.get("owner_id", "")).strip()
+            name = str(data.get("name", "")).strip()
+            kind = str(data.get("kind", "")).strip()
+            if not owner_id or not name or kind not in ("group", "channel"):
+                self.send_json(400, {"error": "owner_id, name and valid kind are required"})
+                return
+            if not get_user(owner_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            self.send_json(201, create_space(owner_id, name, kind))
+            return
+
+        if self.path == "/api/devices":
+            data = self.read_json_body() or {}
+            user_id = str(data.get("user_id", "")).strip()
+            name = str(data.get("name", "")).strip() or "Новое устройство"
+            if not user_id or not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            self.send_json(201, create_device(user_id, name))
+            return
+
         self.send_json(404, {
             "error": "Not found"
         })
+
+    def do_PUT(self):
+        if self.path.startswith("/api/users/"):
+            user_id = self.path.replace("/api/users/", "", 1)
+            data = self.read_json_body() or {}
+            current = get_user(user_id)
+            username = str(data.get("username", "")).strip()
+            display_name = str(data.get("display_name", "")).strip()
+            duplicate = find_by_username(username)
+            if not current:
+                self.send_json(404, {"error": "User not found"})
+            elif not username or not display_name:
+                self.send_json(400, {"error": "Username and display_name are required"})
+            elif duplicate and duplicate["id"] != user_id:
+                self.send_json(409, {"error": "Username already exists"})
+            else:
+                self.send_json(200, update_user(user_id, username, display_name))
+            return
+
+        if self.path.startswith("/api/settings/"):
+            user_id = self.path.replace("/api/settings/", "", 1)
+            if not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            self.send_json(200, update_settings(user_id, self.read_json_body() or {}))
+            return
+
+        self.send_json(404, {"error": "Not found"})
 
 
 # =====================================================
