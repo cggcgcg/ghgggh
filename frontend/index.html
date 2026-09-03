@@ -266,6 +266,13 @@ button, input{font-family:inherit;}
 }
 .icon-btn:hover{background:var(--surface-hover); color:var(--text);}
 
+#mic-btn.recording{
+  background:var(--danger);
+  color:#fff;
+  border-color:var(--danger);
+  animation:breathe 1s ease-in-out infinite;
+}
+
 .search-box{
   margin:14px 16px;
   display:flex; align-items:center; gap:8px;
@@ -432,6 +439,10 @@ button, input{font-family:inherit;}
   border:1px solid var(--border-soft);
   border-bottom-left-radius:4px;
 }
+.msg audio{
+  display:block;
+  max-width:220px;
+}
 
 .conv-input-bar{
   display:flex; align-items:center; gap:10px;
@@ -588,6 +599,7 @@ button, input{font-family:inherit;}
 
         <form id="message-form" class="conv-input-bar" autocomplete="off">
           <input id="message-input" type="text" placeholder="Написать сообщение…" maxlength="1000">
+          <button type="button" id="mic-btn" class="icon-btn" aria-label="Голосовое сообщение">🎤</button>
           <button type="submit" class="send-btn" aria-label="Отправить">➤</button>
         </form>
       </div>
@@ -603,9 +615,8 @@ button, input{font-family:inherit;}
 //   POST /api/users
 //   GET  /api/users/<id>
 //   GET  /api/users/search/<username>
-//
-// CHAT / MESSAGE backend ещё не реализован — переписка ниже
-// является визуальной заглушкой (см. README-инструкцию).
+//   GET  /api/messages
+//   POST /api/messages   (type: "text" | "voice")
 // ==========================================================
 
 // Если backend слушает не на 127.0.0.1:8000 — поменяй тут.
@@ -640,6 +651,7 @@ const convMessages  = document.getElementById('conv-messages');
 const convBack      = document.getElementById('conv-back');
 const messageForm   = document.getElementById('message-form');
 const messageInput  = document.getElementById('message-input');
+const micBtn        = document.getElementById('mic-btn');
 
 // открытые (клиентские, не сохраняемые) чаты: id -> {username, display_name}
 const openChats = new Map();
@@ -871,11 +883,12 @@ function renderChatList(){
     const item = document.createElement('div');
     item.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
     const last = chat.messages[chat.messages.length - 1];
+    const lastPreview = last ? (last.type === 'voice' ? '🎤 Голосовое сообщение' : last.text) : '@' + chat.username;
     item.innerHTML = `
       <span class="avatar">${escapeHtml(initials(chat.display_name))}</span>
       <div class="chat-item-body">
         <div class="chat-item-name">${escapeHtml(chat.display_name)}</div>
-        <div class="chat-item-preview">${last ? escapeHtml(last.text) : '@' + escapeHtml(chat.username)}</div>
+        <div class="chat-item-preview">${escapeHtml(lastPreview)}</div>
       </div>
     `;
     item.addEventListener('click', () => setActiveChat(chat.id));
@@ -912,7 +925,13 @@ async function refreshMessages(chat, { silent }){
     const messages = await res.json();
     if(messages.length === chat.lastCount) return; // ничего нового
 
-    chat.messages = messages.map(m => ({ text: m.text, out: m.from_user === me.id, created_at: m.created_at }));
+    chat.messages = messages.map(m => ({
+      text: m.text,
+      out: m.from_user === me.id,
+      created_at: m.created_at,
+      type: m.type || 'text',
+      audio_data: m.audio_data || null
+    }));
     chat.lastCount = messages.length;
 
     if(chat.id === activeChatId){
@@ -937,7 +956,16 @@ function renderMessages(chat){
   for(const m of chat.messages){
     const bubble = document.createElement('div');
     bubble.className = 'msg ' + (m.out ? 'out' : 'in');
-    bubble.textContent = m.text;
+
+    if(m.type === 'voice' && m.audio_data){
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = m.audio_data;
+      bubble.appendChild(audio);
+    }else{
+      bubble.textContent = m.text;
+    }
+
     convMessages.appendChild(bubble);
   }
   convMessages.scrollTop = convMessages.scrollHeight;
@@ -987,6 +1015,93 @@ messageForm.addEventListener('submit', async (e) => {
     alert(err.message);
   }
 });
+
+// ---------- голосовые сообщения ----------
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+function blobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result); // data:audio/webm;base64,....
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function startRecording(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+
+    mediaRecorder.addEventListener('dataavailable', (e) => {
+      if(e.data.size > 0) audioChunks.push(e.data);
+    });
+
+    mediaRecorder.addEventListener('stop', async () => {
+      stream.getTracks().forEach(track => track.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      await sendVoiceMessage(blob);
+    });
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
+  }catch(err){
+    alert('Не удалось получить доступ к микрофону: ' + err.message);
+  }
+}
+
+function stopRecording(){
+  if(mediaRecorder && isRecording){
+    mediaRecorder.stop();
+    isRecording = false;
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎤';
+  }
+}
+
+micBtn.addEventListener('click', () => {
+  if(!activeChatId){
+    alert('Сначала выберите чат');
+    return;
+  }
+  if(isRecording){
+    stopRecording();
+  }else{
+    startRecording();
+  }
+});
+
+async function sendVoiceMessage(blob){
+  const me = getCurrentUser();
+  const chat = openChats.get(activeChatId);
+  if(!me || !chat) return;
+
+  try{
+    const audioBase64 = await blobToBase64(blob);
+
+    const res = await fetch(`${API_BASE}/api/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_user: me.id,
+        to_user: chat.id,
+        type: 'voice',
+        audio_data: audioBase64
+      })
+    });
+
+    if(!res.ok) throw new Error('Голосовое не отправилось (код ' + res.status + ')');
+
+    await refreshMessages(chat, { silent: false });
+  }catch(err){
+    alert(err.message);
+  }
+}
 
 // ---------- инициализация ----------
 (function init(){

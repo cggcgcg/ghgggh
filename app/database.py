@@ -33,7 +33,25 @@ def get_connection():
         conn.close()
 
 
+def _column_exists(conn, table, column):
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(row["name"] == column for row in rows)
+
+
 def init_db():
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+
+        # Миграция: добавляем поддержку голосовых сообщений
+        # в уже существующую таблицу messages (не ломает старые данные).
+        if not _column_exists(conn, "messages", "type"):
+            conn.execute(
+                "ALTER TABLE messages ADD COLUMN type TEXT NOT NULL DEFAULT 'text'"
+            )
+
+        if not _column_exists(conn, "messages", "audio_data"):
+            conn.execute(
+                "ALTER TABLE messages ADD COLUMN audio_data TEXT"
+            )
+
         conn.commit()

@@ -246,7 +246,7 @@ class Handler(BaseHTTPRequestHandler):
 
             return
 
-        # Отправка сообщения
+        # Отправка сообщения (текст или голосовое)
         if self.path == "/api/messages":
 
             data = self.read_json_body()
@@ -260,12 +260,27 @@ class Handler(BaseHTTPRequestHandler):
             from_user = str(data.get("from_user", "")).strip()
             to_user = str(data.get("to_user", "")).strip()
             text = str(data.get("text", "")).strip()
+            msg_type = str(data.get("type", "text")).strip() or "text"
+            audio_data = data.get("audio_data")
 
-            if not from_user or not to_user or not text:
+            if not from_user or not to_user:
                 self.send_json(400, {
-                    "error": "from_user, to_user and text are required"
+                    "error": "from_user and to_user are required"
                 })
                 return
+
+            if msg_type == "voice":
+                if not audio_data:
+                    self.send_json(400, {
+                        "error": "audio_data is required for voice messages"
+                    })
+                    return
+            else:
+                if not text:
+                    self.send_json(400, {
+                        "error": "text is required"
+                    })
+                    return
 
             if not get_user(from_user) or not get_user(to_user):
                 self.send_json(404, {
@@ -274,7 +289,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             try:
-                message = create_message(from_user, to_user, text)
+                message = create_message(
+                    from_user,
+                    to_user,
+                    text=text,
+                    msg_type=msg_type,
+                    audio_data=audio_data,
+                )
                 self.send_json(201, message)
 
             except Exception as error:
