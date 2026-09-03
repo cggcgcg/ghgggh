@@ -631,6 +631,32 @@ button, input{font-family:inherit;}
   .settings-window-head{padding:20px 20px 16px;}
   .settings-content{padding:18px 20px 24px;}
 }
+.settings-window{width:min(700px,100%);border-radius:22px;background:var(--bg-alt);}
+.settings-window-head{background:linear-gradient(135deg,var(--surface),var(--surface-hi));}
+.settings-window-head h2{font-size:26px;margin-top:5px;}
+.settings-menu{gap:7px;padding:12px 16px;background:var(--surface);}
+.settings-menu-btn{padding:9px 13px;border:1px solid transparent;font-weight:600;}
+.settings-menu-btn.active{border-color:var(--accent-b);background:color-mix(in srgb,var(--accent-b) 14%,var(--surface));}
+.settings-content{background:var(--bg-alt);}
+.settings-section h3{font-size:21px;}
+.section-note{max-width:440px;line-height:1.5;}
+.chat-theme-grid,.app-theme-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.theme-swatch{height:78px;border-radius:15px;padding:10px;font-weight:600;transition:transform .15s,border-color .15s;}
+.theme-swatch:hover{transform:translateY(-2px);border-color:var(--text);}
+.theme-swatch.active{outline:2px solid var(--accent-b);outline-offset:2px;transform:translateY(-2px);}
+.chat-theme-grid .theme-swatch{height:72px;}
+.font-scale-row{gap:6px;padding:9px;background:var(--surface);border:1px solid var(--border);border-radius:13px;}
+.font-scale-row button{height:40px;transition:background .15s,transform .15s;}
+.font-scale-row button.active{transform:translateY(-2px);}
+.design-row{gap:10px;}
+.design-btn{padding:14px;border-radius:14px;transition:border-color .15s,background .15s;}
+.design-btn strong{font-size:13px;}.design-btn small{line-height:1.4;}
+.design-btn.active{background:color-mix(in srgb,var(--accent-b) 12%,var(--surface-hi));}
+@media (max-width:760px){
+  .settings-window{width:100%;}
+  .chat-theme-grid,.app-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .settings-window-head h2{font-size:22px;}
+}
 </style>
 </head>
 <body>
@@ -1516,6 +1542,8 @@ async function sendVoiceMessage(blob){
 
 // ---------- инициализация ----------
 (function init(){
+  document.querySelector('.app-shell')?.classList.remove('chat-open');
+  conversation.classList.remove('open');
   const user = getCurrentUser();
   if(user){
     enterApp();
