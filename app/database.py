@@ -79,4 +79,9 @@ def init_db():
                 "ALTER TABLE messages ADD COLUMN audio_data TEXT"
             )
 
+        if not _column_exists(conn, "messages", "waveform"):
+            conn.execute(
+                "ALTER TABLE messages ADD COLUMN waveform TEXT"
+            )
+
         conn.commit()

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from app.database import get_connection
 
 
-def create_message(from_user, to_user, text="", msg_type="text", audio_data=None):
+def create_message(from_user, to_user, text="", msg_type="text", audio_data=None, waveform=None):
     message_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
@@ -12,8 +12,8 @@ def create_message(from_user, to_user, text="", msg_type="text", audio_data=None
         conn.execute(
             """
             INSERT INTO messages
-            (id, from_user, to_user, text, created_at, type, audio_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (id, from_user, to_user, text, created_at, type, audio_data, waveform)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 message_id,
@@ -23,6 +23,7 @@ def create_message(from_user, to_user, text="", msg_type="text", audio_data=None
                 created_at,
                 msg_type,
                 audio_data,
+                waveform,
             ),
         )
         conn.commit()
@@ -35,6 +36,7 @@ def create_message(from_user, to_user, text="", msg_type="text", audio_data=None
         "created_at": created_at,
         "type": msg_type,
         "audio_data": audio_data,
+        "waveform": waveform,
     }
 
 

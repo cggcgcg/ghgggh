@@ -283,6 +283,7 @@ class Handler(BaseHTTPRequestHandler):
             text = str(data.get("text", "")).strip()
             msg_type = str(data.get("type", "text")).strip() or "text"
             audio_data = data.get("audio_data")
+            waveform = data.get("waveform")
 
             if not from_user or not to_user:
                 self.send_json(400, {
@@ -316,6 +317,7 @@ class Handler(BaseHTTPRequestHandler):
                     text=text,
                     msg_type=msg_type,
                     audio_data=audio_data,
+                    waveform=waveform,
                 )
                 self.send_json(201, message)
 
