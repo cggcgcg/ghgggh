@@ -713,8 +713,8 @@ button, input{font-family:inherit;}
 [data-ui-design="glass"] .chat-tab.active {
   background: rgba(255,255,255,.14);
 }
-/* no decorative chat image */
-.conv-messages { background-image: none !important; }
+/* Liquid Glass keeps the animated atmosphere visible behind translucent surfaces. */
+.conv-messages { background-image: transparent; }
 /* compact recording bar inside the composer */
 .recording-preview.voice-mode {
   left: 8px; right: 8px; top: 4px; bottom: 4px;
@@ -725,6 +725,471 @@ button, input{font-family:inherit;}
 .recording-preview.voice-mode .waveform { height: 32px; }
 .recording-preview.voice-mode .recording-cancel { display:flex; }
 
+
+/* =========================================================
+   TGClone — Liquid Glass visual system
+   Visual-only override: existing DOM, API and JS remain intact.
+   ========================================================= */
+:root{
+  --bg:#07101b;
+  --bg-alt:rgba(13,22,34,.48);
+  --surface:rgba(255,255,255,.075);
+  --surface-hi:rgba(255,255,255,.105);
+  --surface-hover:rgba(255,255,255,.14);
+  --border:rgba(255,255,255,.16);
+  --border-soft:rgba(255,255,255,.09);
+  --text:#f7f9ff;
+  --text-dim:rgba(238,244,255,.68);
+  --text-faint:rgba(224,234,250,.42);
+  --accent-a:#8f8cff;
+  --accent-b:#72b7ff;
+  --accent-text:#fff;
+  --danger:#ff6f86;
+  --radius-lg:30px;
+  --radius-md:22px;
+  --radius-sm:16px;
+  --glass-blur:24px;
+  --glass-sat:145%;
+  --spring:cubic-bezier(.22,1.25,.32,1);
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --font-display:'Inter',system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;
+  --font-body:'Inter',system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+}
+
+/* Real background layer: visible behind every transparent glass surface. */
+body{
+  background:#07101b;
+  position:relative;
+  isolation:isolate;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:-18%;
+  z-index:-3;
+  pointer-events:none;
+  background:
+    radial-gradient(42% 38% at 15% 18%, rgba(106,126,255,.42), transparent 70%),
+    radial-gradient(38% 42% at 86% 20%, rgba(80,196,255,.30), transparent 68%),
+    radial-gradient(42% 45% at 72% 88%, rgba(170,103,255,.28), transparent 70%),
+    radial-gradient(32% 34% at 12% 88%, rgba(66,220,190,.18), transparent 70%),
+    linear-gradient(145deg,#07101b 0%,#0b1424 45%,#090f1c 100%);
+  filter:saturate(115%);
+  animation:liquidBackground 18s ease-in-out infinite alternate;
+}
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-2;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(255,255,255,.11), transparent 30%),
+    linear-gradient(120deg, transparent 0 45%, rgba(255,255,255,.018) 50%, transparent 55%);
+  mix-blend-mode:screen;
+}
+@keyframes liquidBackground{
+  0%{transform:translate3d(-2%,-1%,0) scale(1);}
+  50%{transform:translate3d(2%,2%,0) scale(1.045);}
+  100%{transform:translate3d(-1%,3%,0) scale(1.025);}
+}
+
+/* Glass primitive with a fallback when backdrop-filter is unavailable. */
+.sidebar,.conv-header,.conv-input-bar,.search-box,.chat-item.active,
+.app-nav,.settings-window,.create-sheet,.create-action,.profile-field input,
+.font-scale-row,.theme-swatch,.design-btn,.device-placeholder,.recording-preview,
+.search-results,.modal-close,.icon-btn,.chat-tab.active,.settings-menu-btn.active,
+.conv-stub-note,.msg.in,.msg.voice-message,.conv-empty-mark{
+  background:rgba(255,255,255,.075);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.19),
+    inset 0 -1px 0 rgba(0,0,0,.08),
+    0 18px 55px -38px rgba(0,0,0,.9);
+}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .sidebar,.conv-header,.conv-input-bar,.search-box,.chat-item.active,
+  .app-nav,.settings-window,.create-sheet,.create-action,.profile-field input,
+  .font-scale-row,.theme-swatch,.design-btn,.device-placeholder,.recording-preview,
+  .search-results,.modal-close,.icon-btn,.chat-tab.active,.settings-menu-btn.active,
+  .conv-stub-note,.msg.in,.msg.voice-message,.conv-empty-mark{
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+  }
+}
+
+/* Make the old opaque shells genuinely translucent. */
+.app-shell,.conversation,#app-screen,#auth-screen{
+  background:transparent !important;
+}
+.sidebar{
+  width:340px;
+  min-width:340px;
+  background:rgba(10,18,30,.46);
+  border-right:1px solid rgba(255,255,255,.11);
+}
+.conversation{
+  background:rgba(5,12,22,.17);
+}
+.conv-header{
+  background:rgba(255,255,255,.065);
+  border-color:rgba(255,255,255,.11);
+}
+.conv-input-bar{
+  background:rgba(255,255,255,.065);
+  border-color:rgba(255,255,255,.11);
+}
+.search-box{
+  background:rgba(255,255,255,.075);
+}
+.search-box:focus-within,.field input:focus,.conv-input-bar input:focus{
+  border-color:rgba(151,205,255,.62);
+  box-shadow:0 0 0 4px rgba(114,183,255,.08), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.chat-item{
+  border-color:transparent;
+  transition:transform .35s var(--spring),background .25s ease,border-color .25s ease;
+}
+.chat-item:hover{
+  transform:translateX(2px);
+  background:rgba(255,255,255,.08);
+}
+.chat-item.active{
+  background:rgba(255,255,255,.115);
+  border-color:rgba(255,255,255,.18);
+}
+.chat-list-wrap{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.16) transparent;}
+
+.app-nav{
+  margin:12px 14px 16px;
+  padding:6px;
+  border-radius:26px;
+  background:rgba(255,255,255,.085);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.2),
+    0 18px 50px -30px rgba(0,0,0,.9);
+}
+.app-nav-btn{
+  border-radius:20px;
+  transition:transform .35s var(--spring),background .25s,color .25s;
+}
+.app-nav-btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.08);}
+.app-nav-btn:active{transform:scale(.92);}
+.app-nav-btn.active{
+  background:rgba(255,255,255,.15);
+  color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+.avatar{
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 28% 20%,rgba(255,255,255,.62),transparent 24%),
+    linear-gradient(145deg,var(--accent-a),var(--accent-b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 10px 24px -16px rgba(110,180,255,.8);
+}
+.avatar::after{
+  content:"";
+  position:absolute;
+  inset:-45% 45% 45% -45%;
+  transform:rotate(24deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);
+  opacity:.7;
+  animation:avatarSheen 6s ease-in-out infinite;
+}
+@keyframes avatarSheen{
+  0%,55%{transform:translateX(-35%) rotate(24deg);}
+  100%{transform:translateX(170%) rotate(24deg);}
+}
+
+.icon-btn{
+  background:rgba(255,255,255,.065);
+  border-color:rgba(255,255,255,.14);
+  border-radius:14px;
+  transition:transform .35s var(--spring),background .25s,border-color .25s,filter .25s;
+}
+.icon-btn:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.22);transform:translateY(-1px);}
+.icon-btn:active{transform:scale(.91);filter:brightness(1.12);}
+
+.chat-tabs{padding-bottom:12px;}
+.chat-tab{
+  transition:transform .3s var(--spring),background .25s,color .25s;
+}
+.chat-tab.active{background:rgba(255,255,255,.13);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.18);}
+.chat-tab:active{transform:scale(.94);}
+
+.conv-messages{
+  position:relative;
+  background:transparent !important;
+  background-image:none !important;
+  overflow:auto;
+}
+.conv-messages::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(38% 30% at 20% 20%,rgba(118,111,255,.18),transparent 70%),
+    radial-gradient(34% 36% at 85% 72%,rgba(79,198,255,.15),transparent 70%);
+  animation:chatAtmosphere 16s ease-in-out infinite alternate;
+}
+@keyframes chatAtmosphere{
+  from{transform:translate3d(-1%,0,0) scale(1);}
+  to{transform:translate3d(2%,-1%,0) scale(1.06);}
+}
+.conv-stub-note{
+  background:rgba(255,255,255,.065);
+  border-color:rgba(255,255,255,.11);
+}
+.msg{
+  position:relative;
+  border-radius:21px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.2),
+    0 14px 38px -28px rgba(0,0,0,.8);
+  transition:transform .35s var(--spring),filter .25s;
+}
+.msg:hover{filter:brightness(1.04);}
+.msg.in{
+  background:rgba(255,255,255,.085);
+  border-color:rgba(255,255,255,.14);
+}
+.msg.out{
+  background:
+    linear-gradient(145deg,rgba(148,143,255,.70),rgba(88,164,255,.64)),
+    rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.20);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 16px 42px -28px rgba(80,150,255,.7);
+}
+.msg.out::after,.msg.in::after,.create-action::after,.design-btn::after,.theme-swatch::after{
+  content:"";
+  position:absolute;
+  left:10%;
+  right:10%;
+  top:0;
+  height:1px;
+  border-radius:999px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  opacity:.55;
+  pointer-events:none;
+}
+.msg.out,.msg.in,.create-action,.design-btn,.theme-swatch{overflow:hidden;}
+
+.conv-input-bar input,.field input,.profile-field input{
+  background:rgba(255,255,255,.06);
+  border-color:rgba(255,255,255,.13);
+  border-radius:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.13);
+}
+.send-btn,.btn-primary{
+  position:relative;
+  overflow:hidden;
+  background:
+    linear-gradient(145deg,rgba(158,153,255,.82),rgba(88,164,255,.78)),
+    rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 15px 35px -22px rgba(90,160,255,.9);
+  transition:transform .42s var(--spring),filter .25s,box-shadow .25s;
+}
+.send-btn::after,.btn-primary::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(115deg,transparent 25%,rgba(255,255,255,.28) 48%,transparent 70%);
+  transform:translateX(-120%);
+  transition:transform .7s var(--ease);
+}
+.send-btn:hover::after,.btn-primary:hover::after{transform:translateX(120%);}
+.send-btn:hover,.btn-primary:hover{transform:translateY(-2px) scale(1.025);filter:brightness(1.06);}
+.send-btn:active,.btn-primary:active{transform:scale(.94);}
+
+.auth-bg{
+  background:
+    radial-gradient(34% 30% at 18% 20%,rgba(117,110,255,.34),transparent 70%),
+    radial-gradient(34% 32% at 82% 25%,rgba(70,195,255,.27),transparent 70%),
+    radial-gradient(30% 30% at 70% 82%,rgba(185,105,255,.25),transparent 70%);
+}
+.auth-card{
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:32px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 35px 90px -42px rgba(0,0,0,.95);
+}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .auth-card{
+    backdrop-filter:blur(30px) saturate(150%);
+    -webkit-backdrop-filter:blur(30px) saturate(150%);
+  }
+}
+.auth-mark{
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(150,145,255,.78),rgba(91,170,255,.72));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 18px 35px -25px rgba(90,160,255,.8);
+}
+.field input{border-radius:18px;}
+.field input:focus{background:rgba(255,255,255,.09);}
+
+.modal-backdrop{
+  background:rgba(3,8,16,.40);
+}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .modal-backdrop{
+    backdrop-filter:blur(14px) saturate(125%);
+    -webkit-backdrop-filter:blur(14px) saturate(125%);
+  }
+}
+.create-sheet,.settings-window{
+  background:rgba(17,27,42,.57);
+  border-color:rgba(255,255,255,.18);
+  border-radius:30px;
+}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .create-sheet,.settings-window{
+    backdrop-filter:blur(30px) saturate(150%);
+    -webkit-backdrop-filter:blur(30px) saturate(150%);
+  }
+}
+.create-action,.design-btn,.theme-swatch,.device-placeholder,.font-scale-row{
+  position:relative;
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.13);
+  transition:transform .4s var(--spring),background .25s,border-color .25s,filter .25s;
+}
+.create-action:hover,.design-btn:hover,.theme-swatch:hover,.device-placeholder:hover{
+  transform:translateY(-2px) scale(1.01);
+  background:rgba(255,255,255,.115);
+  border-color:rgba(255,255,255,.22);
+}
+.theme-swatch{min-height:82px;}
+.settings-window-head{
+  background:rgba(255,255,255,.055) !important;
+  border-bottom-color:rgba(255,255,255,.10);
+}
+.settings-menu{background:transparent !important;border-color:rgba(255,255,255,.10);}
+.settings-menu-btn.active{
+  background:rgba(255,255,255,.13) !important;
+  border-color:rgba(255,255,255,.17);
+}
+.settings-content{background:transparent !important;}
+.settings-save{
+  background:linear-gradient(145deg,rgba(140,137,255,.78),rgba(85,163,255,.74));
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .4s var(--spring),filter .25s;
+}
+.settings-save:hover{transform:translateY(-1px) scale(1.015);filter:brightness(1.06);}
+.settings-save:active{transform:scale(.95);}
+.modal-close{
+  background:rgba(255,255,255,.10);
+  color:rgba(255,255,255,.72);
+  transition:transform .35s var(--spring),background .25s;
+}
+.modal-close:hover{background:rgba(255,255,255,.17);transform:rotate(4deg) scale(1.05);}
+
+.recording-preview{
+  background:rgba(18,28,44,.64);
+  border-color:rgba(255,255,255,.2);
+}
+
+.empty-icon,.conv-empty-mark{
+  background:rgba(255,255,255,.055);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 20px 50px -30px rgba(80,150,255,.5);
+}
+
+/* Remove the old "iPhone-like glass" block's opaque button override effect. */
+[data-ui-design="glass"] button,
+[data-ui-design="glass"] input{
+  background-color:rgba(255,255,255,.065);
+  border-color:rgba(255,255,255,.13);
+}
+[data-ui-design="glass"] .send-btn,
+[data-ui-design="glass"] .btn-primary{background:linear-gradient(145deg,rgba(158,153,255,.82),rgba(88,164,255,.78));}
+[data-ui-design="glass"] .conv-messages{background:transparent !important;background-image:none !important;}
+
+/* Better mobile Liquid Glass: floating bottom bar, not a flat footer. */
+@media (max-width:760px){
+  body::before{inset:-30%;}
+  .sidebar{
+    width:100%;min-width:0;
+    background:rgba(7,14,24,.28);
+    border-right:0;
+  }
+  .sidebar-top{
+    padding-top:calc(12px + env(safe-area-inset-top));
+    border-bottom:0;
+  }
+  .app-nav{
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    width:min(380px,calc(100vw - 24px));
+    padding:7px;
+    background:rgba(18,27,42,.56);
+    border-color:rgba(255,255,255,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 20px 55px -30px rgba(0,0,0,.95);
+  }
+  @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .app-nav{backdrop-filter:blur(28px) saturate(155%);-webkit-backdrop-filter:blur(28px) saturate(155%);}
+  }
+  .conversation{
+    background:rgba(5,11,20,.15);
+  }
+  .conv-header{
+    padding-top:calc(10px + env(safe-area-inset-top));
+    background:rgba(13,22,34,.46);
+  }
+  @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .conv-header{backdrop-filter:blur(25px) saturate(145%);-webkit-backdrop-filter:blur(25px) saturate(145%);}
+  }
+  .conv-input-bar{
+    padding-top:10px;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    background:rgba(13,22,34,.43);
+  }
+  @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .conv-input-bar{backdrop-filter:blur(25px) saturate(145%);-webkit-backdrop-filter:blur(25px) saturate(145%);}
+  }
+  .msg{max-width:84%;}
+  .create-sheet,.settings-window{border-radius:30px 30px 18px 18px;}
+}
+
+/* Accessibility/performance */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+
+.liquid-orb{
+  position:absolute;
+  width:clamp(180px,28vw,420px);
+  aspect-ratio:1;
+  border-radius:50%;
+  pointer-events:none;
+  filter:blur(1px);
+  opacity:.48;
+  mix-blend-mode:screen;
+  background:
+    radial-gradient(circle at 32% 28%,rgba(255,255,255,.42),transparent 12%),
+    radial-gradient(circle at 38% 36%,rgba(140,160,255,.65),transparent 48%),
+    radial-gradient(circle at 70% 68%,rgba(76,199,255,.34),transparent 58%);
+  box-shadow:inset -30px -25px 60px rgba(0,0,0,.18),inset 25px 20px 50px rgba(255,255,255,.10);
+  animation:orbFloat 14s ease-in-out infinite alternate;
+}
+.orb-a{left:4%;top:8%;}
+.orb-b{right:-3%;top:34%;width:clamp(150px,23vw,340px);animation-delay:-5s;opacity:.35;}
+.orb-c{left:28%;bottom:-18%;width:clamp(160px,25vw,360px);animation-delay:-9s;opacity:.30;}
+@keyframes orbFloat{
+  from{transform:translate3d(-3%,1%,0) scale(.94);}
+  to{transform:translate3d(4%,-4%,0) scale(1.08);}
+}
+
 </style>
 </head>
 <body>
@@ -732,6 +1197,9 @@ button, input{font-family:inherit;}
 <!-- ===== ЭКРАН РЕГИСТРАЦИИ ===== -->
 <section id="auth-screen" class="screen">
   <div class="auth-bg">
+    <span class="liquid-orb orb-a" aria-hidden="true"></span>
+    <span class="liquid-orb orb-b" aria-hidden="true"></span>
+    <span class="liquid-orb orb-c" aria-hidden="true"></span>
     <div class="pulse-ring r1"></div>
     <div class="pulse-ring r2"></div>
     <div class="pulse-ring r3"></div>
