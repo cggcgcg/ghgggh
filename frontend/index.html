@@ -1469,6 +1469,159 @@ body::after{
 }
 .video-message-shell video{object-fit:cover!important;}
 
+
+/* ==========================================================
+   TGClone V4 — clean solid interface + 16 chat backgrounds
+   No glass, no backdrop blur, no transparent UI surfaces.
+   ========================================================== */
+:root{
+  --bg:#111318;--bg-alt:#181b21;--surface:#20242b;--surface-hi:#292e36;--surface-hover:#303640;
+  --border:#3a404a;--border-soft:#2c3139;--text:#f1f3f6;--text-dim:#a9afb8;--text-faint:#747b86;
+}
+[data-ui-theme="day"]{--bg:#f2f4f7;--bg-alt:#ffffff;--surface:#e9edf2;--surface-hi:#f7f8fa;--surface-hover:#dde3ea;--border:#cbd2db;--border-soft:#dce1e7;--text:#1e242b;--text-dim:#5f6874;--text-faint:#8b949f;}
+body,[data-ui-design]{background:var(--bg);}
+.sidebar,.conv-header,.conv-input-bar,.search-box,.chat-item.active,.app-nav,.settings-window,.create-sheet,.create-action,.profile-field input,.font-scale-row,.theme-swatch,.design-btn,.device-placeholder,.recording-preview,.conv-stub-note,.msg.in,.msg.voice-message,.conv-input-bar input{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none;}
+.sidebar,.conv-header,.conv-input-bar,.search-box,.app-nav,.settings-window,.create-sheet,.create-action,.profile-field input,.font-scale-row,.theme-swatch,.design-btn,.device-placeholder,.conv-stub-note{background:var(--surface);}
+.conv-header,.conv-input-bar{background:var(--bg-alt);}
+.search-box input{background:var(--surface);color:var(--text);}
+.search-box input::placeholder,.conv-input-bar input::placeholder{color:var(--text-faint);opacity:1;}
+.chat-item.active,.chat-item:hover{background:var(--surface-hover);}
+.msg.in{background:var(--surface);border-color:var(--border);}
+.msg.voice-message{background:var(--surface-hi);border-color:var(--border);}
+.settings-window-head{background:var(--surface);}
+.settings-menu{background:var(--bg-alt);}
+.design-row{grid-template-columns:repeat(3,minmax(0,1fr));}
+.design-btn{min-height:86px;background:var(--surface);border-color:var(--border);}
+.design-btn.active{background:var(--surface-hover);border-color:var(--accent-b);}
+[data-ui-design="light"]{--bg:#f1f3f6;--bg-alt:#ffffff;--surface:#e7ebf0;--surface-hi:#f7f8fa;--surface-hover:#dce2e8;--border:#c8cfd8;--border-soft:#d9dfe6;--text:#1d232a;--text-dim:#5f6874;--text-faint:#8a939e;--accent-a:#3d78e6;--accent-b:#2764d9;}
+[data-ui-design="light"] .sidebar,[data-ui-design="light"] .conv-header,[data-ui-design="light"] .conv-input-bar,[data-ui-design="light"] .app-nav{background:#fff;}
+[data-ui-design="gamer"]{--bg:#090b10;--bg-alt:#10131a;--surface:#151922;--surface-hi:#1b202b;--surface-hover:#232a38;--border:#343d4d;--border-soft:#262d39;--text:#eef4ff;--text-dim:#9aa8bc;--text-faint:#68758a;--accent-a:#ff2d95;--accent-b:#21d4fd;}
+[data-ui-design="gamer"] .sidebar,[data-ui-design="gamer"] .conv-header,[data-ui-design="gamer"] .conv-input-bar,[data-ui-design="gamer"] .app-nav,[data-ui-design="gamer"] .settings-window{background:#10131a;border-color:#30394a;}
+[data-ui-design="gamer"] .app-shell:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:linear-gradient(115deg,#ff2d9514,#21d4fd10 45%,#7a5cff12);}
+[data-ui-design="gamer"] .app-nav-btn.active,[data-ui-design="gamer"] .settings-menu-btn.active{background:#1e2633;border-color:#21d4fd;box-shadow:0 0 16px #21d4fd22;}
+[data-ui-design="gamer"] .send-btn{box-shadow:0 0 18px #21d4fd44,0 0 28px #ff2d9522;}
+[data-ui-design="gamer"] .media-mode-btn.is-video{box-shadow:0 0 14px #ff2d9544;}
+[data-ui-design="gamer"] .recording-camera-ring{border-color:#21d4fd;box-shadow:0 0 20px #21d4fd55,0 0 36px #ff2d9533;}
+[data-ui-design="gamer"] .recording-preview{border-color:#35435b;}
+[data-ui-design="gamer"] .msg.out{background:linear-gradient(135deg,#d91d7d,#1aaed0);}
+
+/* Chat canvas: messages stay above the animated background. */
+.conv-messages{position:relative;isolation:isolate;overflow-y:auto;background:#151922!important;background-image:none!important;}
+.conv-messages::before,.conv-messages::after{content:"";position:absolute;inset:-20%;z-index:-1;pointer-events:none;}
+.conv-messages>*{position:relative;z-index:1;}
+
+/* 01 Midnight — slow diagonal light */
+[data-chat-theme="midnight"] .conv-messages{background:#111621!important;}
+[data-chat-theme="midnight"] .conv-messages::before{background:linear-gradient(115deg,#111621 0%,#1c2637 45%,#111621 70%);background-size:220% 220%;animation:ctMidnight 14s linear infinite;}
+@keyframes ctMidnight{to{background-position:100% 0;}}
+/* 02 Paper — subtle moving paper bands */
+[data-chat-theme="paper"] .conv-messages{background:#e7e2d8!important;}
+[data-chat-theme="paper"] .conv-messages::before{background:repeating-linear-gradient(0deg,#e7e2d8 0 42px,#ddd6ca 43px 44px);animation:ctPaper 11s linear infinite;}
+@keyframes ctPaper{to{transform:translateY(44px);}}
+/* 03 Rain — vertical streaks */
+[data-chat-theme="rain"] .conv-messages{background:#101a24!important;}
+[data-chat-theme="rain"] .conv-messages::before{background:repeating-linear-gradient(105deg,#101a24 0 18px,#1b3447 19px 20px,#101a24 21px 42px);background-size:100px 100%;animation:ctRain 1.8s linear infinite;}
+@keyframes ctRain{to{transform:translateY(70px);}}
+/* 04 Ocean — broad horizontal current */
+[data-chat-theme="ocean"] .conv-messages{background:#0b2130!important;}
+[data-chat-theme="ocean"] .conv-messages::before{background:repeating-linear-gradient(168deg,#0b2130 0 70px,#123d55 71px 78px,#0e2c40 79px 120px);background-size:100% 260px;animation:ctOcean 8s ease-in-out infinite alternate;}
+@keyframes ctOcean{to{transform:translateX(70px);}}
+/* 05 Ember — warm rising bands */
+[data-chat-theme="ember"] .conv-messages{background:#241714!important;}
+[data-chat-theme="ember"] .conv-messages::before{background:repeating-linear-gradient(160deg,#241714 0 36px,#51301f 37px 42px,#302017 43px 76px);animation:ctEmber 7s linear infinite;}
+@keyframes ctEmber{to{transform:translateY(-80px);}}
+/* 06 Lavender — calm diagonal layers */
+[data-chat-theme="lavender"] .conv-messages{background:#211d31!important;}
+[data-chat-theme="lavender"] .conv-messages::before{background:linear-gradient(145deg,#211d31 0 32%,#342d4d 33% 50%,#27213a 51% 70%,#211d31 71%);background-size:170% 170%;animation:ctLavender 12s ease-in-out infinite alternate;}
+@keyframes ctLavender{to{transform:translate(-55px,35px);}}
+/* 07 Forest — vertical leaf-like stripes */
+[data-chat-theme="forest2"] .conv-messages{background:#102117!important;}
+[data-chat-theme="forest2"] .conv-messages::before{background:repeating-linear-gradient(75deg,#102117 0 54px,#1d3a25 55px 62px,#142b1d 63px 92px);animation:ctForest 9s linear infinite;}
+@keyframes ctForest{to{transform:translateX(92px);}}
+/* 08 Sunset — horizontal warm gradient */
+[data-chat-theme="sunset2"] .conv-messages{background:#2a1c20!important;}
+[data-chat-theme="sunset2"] .conv-messages::before{background:linear-gradient(180deg,#44242b,#2a1c20 45%,#3d2920);background-size:100% 220%;animation:ctSunset 10s ease-in-out infinite alternate;}
+@keyframes ctSunset{to{transform:translateY(80px);}}
+/* 09 Neon Grid — moving grid, controlled */
+[data-chat-theme="neon-grid"] .conv-messages{background:#0d1118!important;}
+[data-chat-theme="neon-grid"] .conv-messages::before{background-image:linear-gradient(#223448 1px,transparent 1px),linear-gradient(90deg,#223448 1px,transparent 1px);background-size:46px 46px;animation:ctGrid 8s linear infinite;}
+@keyframes ctGrid{to{background-position:46px 46px;}}
+/* 10 Stars — simple star field */
+[data-chat-theme="stars2"] .conv-messages{background:#0b1020!important;}
+[data-chat-theme="stars2"] .conv-messages::before{background-image:radial-gradient(circle,#d7e5ff 1px,transparent 1.5px),radial-gradient(circle,#8fb5ff 1px,transparent 1.5px);background-size:76px 91px,123px 137px;animation:ctStars 18s linear infinite;}
+@keyframes ctStars{to{background-position:76px 91px,-123px -137px;}}
+/* 11 Waves — layered clean curves */
+[data-chat-theme="waves2"] .conv-messages{background:#0c1f2b!important;}
+[data-chat-theme="waves2"] .conv-messages::before{background:repeating-radial-gradient(ellipse at 50% 110%,#0c1f2b 0 35px,#17445a 36px 40px,#0f2d3d 41px 74px);animation:ctWaves 7s ease-in-out infinite alternate;}
+@keyframes ctWaves{to{transform:translateY(-30px) scale(1.04);}}
+/* 12 Clouds — slow large rounded fields */
+[data-chat-theme="clouds"] .conv-messages{background:#263442!important;}
+[data-chat-theme="clouds"] .conv-messages::before{background:radial-gradient(ellipse at 20% 30%,#526878 0 12%,#263442 13% 100%),radial-gradient(ellipse at 80% 70%,#435968 0 14%,#263442 15% 100%);animation:ctClouds 15s ease-in-out infinite alternate;}
+@keyframes ctClouds{to{transform:translate(55px,-35px) scale(1.06);}}
+/* 13 Dots — orderly moving dot matrix */
+[data-chat-theme="dots2"] .conv-messages{background:#191d24!important;}
+[data-chat-theme="dots2"] .conv-messages::before{background-image:radial-gradient(circle,#68717d 2px,transparent 2.5px);background-size:28px 28px;animation:ctDots 6s linear infinite;}
+@keyframes ctDots{to{background-position:28px 28px;}}
+/* 14 Blueprint — technical lines */
+[data-chat-theme="blueprint"] .conv-messages{background:#102b45!important;}
+[data-chat-theme="blueprint"] .conv-messages::before{background-image:linear-gradient(#24547b 1px,transparent 1px),linear-gradient(90deg,#24547b 1px,transparent 1px),linear-gradient(#1b456a 1px,transparent 1px),linear-gradient(90deg,#1b456a 1px,transparent 1px);background-size:64px 64px,64px 64px,16px 16px,16px 16px;animation:ctBlueprint 10s linear infinite;}
+@keyframes ctBlueprint{to{background-position:64px 0,0 64px,16px 0,0 16px;}}
+/* 15 Terminal — scanline motion */
+[data-chat-theme="terminal"] .conv-messages{background:#0b1711!important;}
+[data-chat-theme="terminal"] .conv-messages::before{background:repeating-linear-gradient(0deg,#0b1711 0 7px,#16351f 8px 9px);animation:ctTerminal 2.8s linear infinite;}
+@keyframes ctTerminal{to{transform:translateY(16px);}}
+/* 16 Candy — gentle diagonal color blocks */
+[data-chat-theme="candy"] .conv-messages{background:#321d2b!important;}
+[data-chat-theme="candy"] .conv-messages::before{background:linear-gradient(135deg,#321d2b 0 28%,#4b2740 29% 46%,#2d2446 47% 64%,#321d2b 65%);background-size:180% 180%;animation:ctCandy 9s ease-in-out infinite alternate;}
+@keyframes ctCandy{to{transform:translate(-45px,35px);}}
+
+/* 16 matching thumbnails: visible and distinct, not blank boxes. */
+#chat-theme-grid .theme-swatch{position:relative;overflow:hidden;min-height:76px;}
+#chat-theme-grid .sw-midnight{background:linear-gradient(120deg,#111621,#29364b)!important;}
+#chat-theme-grid .sw-paper{background:repeating-linear-gradient(0deg,#e7e2d8 0 14px,#d6d0c6 15px 16px)!important;color:#24272b;}
+#chat-theme-grid .sw-rain{background:repeating-linear-gradient(105deg,#101a24 0 9px,#23445a 10px 11px,#101a24 12px 25px)!important;}
+#chat-theme-grid .sw-ocean2{background:repeating-linear-gradient(168deg,#0b2130 0 20px,#174b63 21px 25px,#0e2e41 26px 42px)!important;}
+#chat-theme-grid .sw-ember{background:repeating-linear-gradient(160deg,#241714 0 14px,#61331f 15px 19px,#302017 20px 30px)!important;}
+#chat-theme-grid .sw-lavender{background:linear-gradient(145deg,#211d31,#403653,#28213d)!important;}
+#chat-theme-grid .sw-forest2{background:repeating-linear-gradient(75deg,#102117 0 18px,#2a5534 19px 23px,#163020 24px 34px)!important;}
+#chat-theme-grid .sw-sunset2{background:linear-gradient(180deg,#512733,#2b1d20,#553620)!important;}
+#chat-theme-grid .sw-neon-grid{background-image:linear-gradient(#2b4358 1px,transparent 1px),linear-gradient(90deg,#2b4358 1px,transparent 1px)!important;background-color:#0d1118!important;background-size:16px 16px!important;}
+#chat-theme-grid .sw-stars2{background-image:radial-gradient(circle,#fff 1px,transparent 1.5px),radial-gradient(circle,#84b0ff 1px,transparent 1.5px)!important;background-color:#0b1020!important;background-size:22px 22px,31px 31px!important;}
+#chat-theme-grid .sw-waves2{background:repeating-radial-gradient(ellipse at 50% 110%,#0c1f2b 0 12px,#20556e 13px 16px,#0f3041 17px 25px)!important;}
+#chat-theme-grid .sw-clouds{background:radial-gradient(ellipse at 25% 35%,#6f8492 0 18%,#263442 19% 100%),radial-gradient(ellipse at 75% 70%,#536b79 0 20%,#263442 21% 100%)!important;}
+#chat-theme-grid .sw-dots2{background-image:radial-gradient(circle,#aeb7c2 1.5px,transparent 2px)!important;background-color:#191d24!important;background-size:12px 12px!important;}
+#chat-theme-grid .sw-blueprint{background-image:linear-gradient(#3a6f97 1px,transparent 1px),linear-gradient(90deg,#3a6f97 1px,transparent 1px)!important;background-color:#102b45!important;background-size:14px 14px!important;}
+#chat-theme-grid .sw-terminal{background:repeating-linear-gradient(0deg,#0b1711 0 4px,#1d4528 5px 6px)!important;}
+#chat-theme-grid .sw-candy{background:linear-gradient(135deg,#321d2b,#562a48,#302447)!important;}
+#chat-theme-grid .theme-swatch::after{content:"";position:absolute;inset:0;background:none;animation:none;}
+
+/* Recording: voice stays in composer; video preview is centered and large. */
+.recording-preview{background:var(--surface)!important;border:1px solid var(--border)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+.recording-preview.is-video{position:fixed!important;left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;width:min(360px,calc(100vw - 28px))!important;height:auto!important;min-height:390px!important;padding:18px!important;border-radius:22px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:12px!important;z-index:100!important;background:#171b22!important;box-shadow:0 18px 55px #000!important;}
+.recording-preview.is-video .recording-head{width:100%;}
+.recording-preview.is-video .recording-body{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:14px!important;flex:0 0 auto!important;width:100%;}
+.recording-preview.is-video .recording-video-stage{width:280px!important;height:280px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 280px!important;}
+.recording-preview.is-video .recording-video-stage video{width:270px!important;height:270px!important;border-radius:50%!important;object-fit:cover!important;transform:scaleX(-1)!important;border:3px solid var(--accent-b)!important;box-shadow:0 0 0 5px #11151b,0 0 24px #21d4fd44!important;}
+.recording-preview.is-video .recording-camera-ring{width:284px!important;height:284px!important;border:2px solid var(--accent-b)!important;}
+.recording-preview.is-video .recording-actions{display:flex!important;justify-content:center!important;gap:9px!important;width:100%;}
+.recording-preview.is-video .recording-actions button{width:42px!important;height:42px!important;background:var(--surface-hi)!important;border-color:var(--border)!important;}
+.recording-preview.is-video .recording-hint{display:block!important;width:100%;font-size:10px!important;}
+.recording-preview.is-video .recording-cancel{position:absolute!important;top:14px!important;left:14px!important;width:34px!important;height:34px!important;}
+.recording-preview.is-video .recording-flip-btn{display:grid!important;}
+.recording-preview.is-video .recording-send-btn{background:var(--accent-b)!important;color:#fff!important;}
+.recording-preview.is-video .recording-lock-btn{background:var(--surface-hi)!important;}
+.camera-preview{transform:scaleX(-1);}
+.msg-video,.video-message-shell{width:210px!important;height:210px!important;border-radius:50%!important;overflow:hidden!important;}
+.video-message-shell video{width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;transform:none!important;}
+@media(max-width:760px){
+  .design-row{grid-template-columns:1fr;}
+  .recording-preview.is-video{min-height:360px!important;}
+  .recording-preview.is-video .recording-video-stage{width:250px!important;height:250px!important;flex-basis:250px!important;}
+  .recording-preview.is-video .recording-video-stage video{width:242px!important;height:242px!important;}
+  .recording-preview.is-video .recording-camera-ring{width:256px!important;height:256px!important;}
+  .msg-video,.video-message-shell{width:180px!important;height:180px!important;}
+}
+
 </style>
 </head>
 <body>
@@ -1546,8 +1699,8 @@ body::after{
           <!-- пустое состояние -->
           <div class="empty-state">
             <span class="empty-icon">◌</span>
-            <p class="empty-title">Пока пусто</p>
-            <p class="empty-text">Найдите собеседника через поиск —<br>переписка появится здесь, как только заработает CHAT.</p>
+            <p class="empty-title" data-empty-title>Пока пусто</p>
+            <p class="empty-text" data-empty-text>Найдите собеседника через поиск —<br>переписка появится здесь.</p>
           </div>
         </div>
       </div>
@@ -1569,8 +1722,8 @@ body::after{
     <main class="conversation" id="conversation">
       <div class="conv-empty" id="conv-empty">
         <span class="conv-empty-mark"></span>
-        <h2>Выберите чат</h2>
-        <p>Или найдите пользователя, чтобы начать переписку.</p>
+        <h2 data-conv-select>Выберите чат</h2>
+        <p data-conv-start>Или найдите пользователя, чтобы начать переписку.</p>
       </div>
 
       <div class="conv-active" id="conv-active" hidden>
@@ -1579,15 +1732,12 @@ body::after{
           <span class="avatar" id="conv-avatar"></span>
           <div class="conv-header-info">
             <span class="conv-header-name" id="conv-header-name">—</span>
-            <span class="conv-header-status" id="conv-header-status">черновик · сообщения ещё не сохраняются</span>
+            <span class="conv-header-status" id="conv-header-status">Готов к сообщениям</span>
           </div>
         </header>
 
         <div class="conv-messages" id="conv-messages">
-          <div class="conv-stub-note">
-            Это визуальный черновик переписки. Backend CHAT/MESSAGE ещё не подключён —
-            сообщения не сохраняются и не доставляются собеседнику.
-          </div>
+          
         </div>
 
         <form id="message-form" class="conv-input-bar" autocomplete="off">
@@ -1650,7 +1800,11 @@ body::after{
       <div class="settings-content">
         <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username<input id="profile-username" type="text"></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button></div>
         <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div></div>
-        <div class="settings-section" data-settings-panel="theme"><h3>Тема приложения</h3><p class="section-note">Цвет интерфейса меняется сразу.</p><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row"><button class="design-btn active" data-design="glass" type="button"><strong>Стеклянное</strong><small>Мягкий blur и прозрачность</small></button></div></div>
+        <div class="settings-section" data-settings-panel="theme"><h3>Тема приложения</h3><p class="section-note">Цвет интерфейса меняется сразу.</p><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
+<button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
+<button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
+<button class="design-btn" data-design="gamer" type="button"><strong>Gamer</strong><small>Тёмная игровая тема с аккуратной RGB-подсветкой</small></button>
+</div></div>
         <div class="settings-section" data-settings-panel="language"><h3>Язык интерфейса</h3><p class="section-note">Выберите язык меню и подписей.</p><div class="language-grid" id="language-grid"></div></div>
         <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
       </div>
@@ -1758,16 +1912,28 @@ document.querySelectorAll('[data-settings-section]').forEach(button => button.ad
 }));
 
 const chatThemes = [
-  ['glass-mist','Mist','sw-glass-mist'],
-  ['glass-sunrise','Sunrise','sw-glass-sunrise'],
-  ['glass-ocean','Ocean','sw-glass-ocean'],
-  ['glass-violet','Violet','sw-glass-violet'],
-  ['glass-forest','Forest','sw-glass-forest'],
-  ['glass-rose','Rose','sw-glass-rose'],
-  ['glass-amber','Amber','sw-glass-amber'],
-  ['glass-night','Night','sw-glass-night']
+  ['midnight','Midnight','sw-midnight'],
+  ['paper','Paper','sw-paper'],
+  ['rain','Rain','sw-rain'],
+  ['ocean','Ocean','sw-ocean2'],
+  ['ember','Ember','sw-ember'],
+  ['lavender','Lavender','sw-lavender'],
+  ['forest2','Forest','sw-forest2'],
+  ['sunset2','Sunset','sw-sunset2'],
+  ['neon-grid','Neon Grid','sw-neon-grid'],
+  ['stars2','Stars','sw-stars2'],
+  ['waves2','Waves','sw-waves2'],
+  ['clouds','Clouds','sw-clouds'],
+  ['dots2','Dots','sw-dots2'],
+  ['blueprint','Blueprint','sw-blueprint'],
+  ['terminal','Terminal','sw-terminal'],
+  ['candy','Candy','sw-candy']
 ];
-const appThemes = [['night','Ночь','sw-orbit'],['mint','Мята','sw-mint'],['sunset','Закат','sw-sunset'],['ocean','Океан','sw-cobalt'],['rose','Розовый','sw-rose'],['forest','Лес','sw-forest'],['coral','Коралловый','sw-coral'],['mono','Чёрно-белый','sw-minimal'],['sky','Небо','sw-aurora'],['amber','Янтарный','sw-embers'],['berry','Ягодный','sw-rose'],['citrus','Лайм','sw-mint']];
+const appThemes = [
+  ['night','Ночь','sw-midnight'],['mint','Мята','sw-forest2'],['sunset','Закат','sw-sunset2'],['ocean','Океан','sw-ocean2'],
+  ['rose','Розовый','sw-candy'],['forest','Лес','sw-forest2'],['coral','Коралловый','sw-ember'],['mono','Чёрно-белый','sw-paper'],
+  ['sky','Небо','sw-clouds'],['amber','Янтарный','sw-ember'],['berry','Ягодный','sw-lavender'],['citrus','Лайм','sw-neon-grid']
+];
 const languages = [['ru','Русский'],['uz','O\'zbekcha'],['en','English'],['de','Deutsch'],['fr','Français'],['es','Español'],['tr','Türkçe'],['zh','中文'],['ja','日本語'],['ko','한국어']];
 const UI_TEXT = {
   ru:{chats:'Чаты',newChat:'Новый чат',settings:'Настройки',search:'Найти пользователя…',all:'Все',personal:'Личные',groups:'Группы',channels:'Каналы',profile:'Профиль',chatSettings:'Чаты',theme:'Тема',language:'Язык',devices:'Устройства',create:'Создать',addUser:'Добавить пользователя',createGroup:'Создать группу',createChannel:'Создать канал',name:'Имя',username:'Username',save:'Сохранить изменения'},
@@ -1782,16 +1948,16 @@ const UI_TEXT = {
   ko:{chats:'채팅',newChat:'새 채팅',settings:'설정',search:'사용자 검색…',all:'전체',personal:'개인',groups:'그룹',channels:'채널',profile:'프로필',chatSettings:'채팅',theme:'테마',language:'언어',devices:'기기',create:'만들기',addUser:'사용자 추가',createGroup:'그룹 만들기',createChannel:'채널 만들기',name:'이름',username:'사용자 이름',save:'변경사항 저장'}
 };
 const UI_COMMON = {
-  ru:{select:'Выберите чат',start:'Или найдите пользователя, чтобы начать переписку.',send:'Отправить',back:'Назад',logout:'Выйти',write:'Написать сообщение…',speak:'Говорите…',camera:'Камера включена…',empty:'Сообщений пока нет — напиши первым.'},
-  uz:{select:'Suhbatni tanlang',start:'Yoki yozish uchun foydalanuvchini toping.',send:'Yuborish',back:'Orqaga',logout:'Chiqish',write:'Xabar yozing…',speak:'Gapiring…',camera:'Kamera yoqildi…',empty:'Hali xabarlar yo‘q — birinchi bo‘lib yozing.'},
-  en:{select:'Choose a chat',start:'Or find a user to start messaging.',send:'Send',back:'Back',logout:'Log out',write:'Write a message…',speak:'Speak…',camera:'Camera is on…',empty:'No messages yet — write first.'},
-  de:{select:'Chat auswählen',start:'Oder einen Benutzer finden.',send:'Senden',back:'Zurück',logout:'Abmelden',write:'Nachricht schreiben…',speak:'Sprechen…',camera:'Kamera ist an…',empty:'Noch keine Nachrichten — schreibe zuerst.'},
-  fr:{select:'Choisir une discussion',start:'Ou recherchez un utilisateur.',send:'Envoyer',back:'Retour',logout:'Déconnexion',write:'Écrire un message…',speak:'Parlez…',camera:'Caméra activée…',empty:'Aucun message — écrivez le premier.'},
-  es:{select:'Elige un chat',start:'O busca un usuario para empezar.',send:'Enviar',back:'Atrás',logout:'Cerrar sesión',write:'Escribe un mensaje…',speak:'Habla…',camera:'Cámara activa…',empty:'Aún no hay mensajes — escribe primero.'},
-  tr:{select:'Sohbet seçin',start:'Mesajlaşmak için kullanıcı bulun.',send:'Gönder',back:'Geri',logout:'Çıkış',write:'Mesaj yazın…',speak:'Konuşun…',camera:'Kamera açık…',empty:'Henüz mesaj yok — ilk mesajı yazın.'},
-  zh:{select:'选择聊天',start:'或查找用户开始聊天。',send:'发送',back:'返回',logout:'退出',write:'输入消息…',speak:'请说话…',camera:'摄像头已开启…',empty:'还没有消息，请发送第一条。'},
-  ja:{select:'チャットを選択',start:'またはユーザーを検索します。',send:'送信',back:'戻る',logout:'ログアウト',write:'メッセージを入力…',speak:'話してください…',camera:'カメラがオンです…',empty:'まだメッセージはありません。'},
-  ko:{select:'채팅 선택',start:'또는 사용자를 찾아보세요.',send:'보내기',back:'뒤로',logout:'로그아웃',write:'메시지 입력…',speak:'말하세요…',camera:'카메라 켜짐…',empty:'아직 메시지가 없습니다.'}
+  ru:{select:'Выберите чат',start:'Или найдите пользователя, чтобы начать переписку.',send:'Отправить',back:'Назад',logout:'Выйти',write:'Написать сообщение…',speak:'Говорите…',camera:'Камера включена…',empty:'Сообщений пока нет — напиши первым.',noChats:'Пока пусто',noChatsHint:'Найдите собеседника через поиск.',voicePreview:'🎤 Голосовое сообщение',videoPreview:'◉ Видеосообщение',spacePlaceholder:'Публикации скоро будут доступны',groupCreated:'Группа создана. Функции участников и публикаций появятся позже.',channelCreated:'Канал создан. Публикации появятся позже.'},
+  uz:{select:'Suhbatni tanlang',start:'Yoki yozish uchun foydalanuvchini toping.',send:'Yuborish',back:'Orqaga',logout:'Chiqish',write:'Xabar yozing…',speak:'Gapiring…',camera:'Kamera yoqildi…',empty:'Hali xabarlar yo‘q — birinchi bo‘lib yozing.',noChats:'Hozircha bo‘sh',noChatsHint:'Suhbatni qidiruv orqali toping.',voicePreview:'🎤 Ovozli xabar',videoPreview:'◉ Video xabar',spacePlaceholder:'Nashrlar tez orada mavjud bo‘ladi',groupCreated:'Guruh yaratildi. Aʼzolar va nashrlar funksiyasi keyinroq qo‘shiladi.',channelCreated:'Kanal yaratildi. Nashrlar keyinroq paydo bo‘ladi.'},
+  en:{select:'Choose a chat',start:'Or find a user to start messaging.',send:'Send',back:'Back',logout:'Log out',write:'Write a message…',speak:'Speak…',camera:'Camera is on…',empty:'No messages yet — write first.',noChats:'Nothing here yet',noChatsHint:'Find a person using search.',voicePreview:'🎤 Voice message',videoPreview:'◉ Video message',spacePlaceholder:'Posts will be available later',groupCreated:'Group created. Member and post features will come later.',channelCreated:'Channel created. Posts will be available later.'},
+  de:{select:'Chat auswählen',start:'Oder einen Benutzer finden.',send:'Senden',back:'Zurück',logout:'Abmelden',write:'Nachricht schreiben…',speak:'Sprechen…',camera:'Kamera ist an…',empty:'Noch keine Nachrichten — schreibe zuerst.',noChats:'Noch leer',noChatsHint:'Finde eine Person über die Suche.',voicePreview:'🎤 Sprachnachricht',videoPreview:'◉ Videonachricht',spacePlaceholder:'Beiträge folgen später',groupCreated:'Gruppe erstellt. Mitglieder und Beiträge folgen später.',channelCreated:'Kanal erstellt. Beiträge folgen später.'},
+  fr:{select:'Choisir une discussion',start:'Ou recherchez un utilisateur.',send:'Envoyer',back:'Retour',logout:'Déconnexion',write:'Écrire un message…',speak:'Parlez…',camera:'Caméra activée…',empty:'Aucun message — écrivez le premier.',noChats:'Encore vide',noChatsHint:'Recherchez une personne.',voicePreview:'🎤 Message vocal',videoPreview:'◉ Message vidéo',spacePlaceholder:'Les publications seront disponibles plus tard',groupCreated:'Groupe créé. Les fonctions de membres et de publications viendront plus tard.',channelCreated:'Canal créé. Les publications viendront plus tard.'},
+  es:{select:'Elige un chat',start:'O busca un usuario para empezar.',send:'Enviar',back:'Atrás',logout:'Cerrar sesión',write:'Escribe un mensaje…',speak:'Habla…',camera:'Cámara activa…',empty:'Aún no hay mensajes — escribe primero.',noChats:'Aún está vacío',noChatsHint:'Busca una persona.',voicePreview:'🎤 Mensaje de voz',videoPreview:'◉ Mensaje de vídeo',spacePlaceholder:'Las publicaciones estarán disponibles más tarde',groupCreated:'Grupo creado. Las funciones de miembros y publicaciones llegarán después.',channelCreated:'Canal creado. Las publicaciones llegarán después.'},
+  tr:{select:'Sohbet seçin',start:'Mesajlaşmak için kullanıcı bulun.',send:'Gönder',back:'Geri',logout:'Çıkış',write:'Mesaj yazın…',speak:'Konuşun…',camera:'Kamera açık…',empty:'Henüz mesaj yok — ilk mesajı yazın.',noChats:'Henüz boş',noChatsHint:'Aramadan bir kullanıcı bulun.',voicePreview:'🎤 Sesli mesaj',videoPreview:'◉ Video mesajı',spacePlaceholder:'Gönderiler daha sonra kullanılacak',groupCreated:'Grup oluşturuldu. Üye ve gönderi özellikleri daha sonra gelecek.',channelCreated:'Kanal oluşturuldu. Gönderiler daha sonra gelecek.'},
+  zh:{select:'选择聊天',start:'或查找用户开始聊天。',send:'发送',back:'返回',logout:'退出',write:'输入消息…',speak:'请说话…',camera:'摄像头已开启…',empty:'还没有消息，请发送第一条。',noChats:'这里还没有内容',noChatsHint:'通过搜索查找用户。',voicePreview:'🎤 语音消息',videoPreview:'◉ 视频消息',spacePlaceholder:'帖子功能稍后开放',groupCreated:'群组已创建，成员和帖子功能稍后开放。',channelCreated:'频道已创建，帖子功能稍后开放。'},
+  ja:{select:'チャットを選択',start:'またはユーザーを検索します。',send:'送信',back:'戻る',logout:'ログアウト',write:'メッセージを入力…',speak:'話してください…',camera:'カメラがオンです…',empty:'まだメッセージはありません。',noChats:'まだありません',noChatsHint:'検索からユーザーを探してください。',voicePreview:'🎤 音声メッセージ',videoPreview:'◉ 動画メッセージ',spacePlaceholder:'投稿機能は後ほど利用できます',groupCreated:'グループを作成しました。メンバーと投稿機能は後ほど追加します。',channelCreated:'チャンネルを作成しました。投稿機能は後ほど追加します。'},
+  ko:{select:'채팅 선택',start:'또는 사용자를 찾아보세요.',send:'보내기',back:'뒤로',logout:'로그아웃',write:'메시지 입력…',speak:'말하세요…',camera:'카메라 켜짐…',empty:'아직 메시지가 없습니다.',noChats:'아직 비어 있습니다',noChatsHint:'검색에서 사용자를 찾아보세요.',voicePreview:'🎤 음성 메시지',videoPreview:'◉ 동영상 메시지',spacePlaceholder:'게시물 기능은 나중에 제공됩니다',groupCreated:'그룹이 생성되었습니다. 멤버 및 게시물 기능은 나중에 추가됩니다.',channelCreated:'채널이 생성되었습니다. 게시물 기능은 나중에 추가됩니다.'}
 };
 const UI_EXTRA = {
   ru:{profileHint:'Ваши данные отображаются в списке чатов.',chatHint:'Настройте привычный ритм переписки.',font:'Размер текста',background:'Фон чата',appTheme:'Тема приложения',languageHint:'Выберите язык интерфейса.',devicesHint:'Сессии, подключённые к вашему аккаунту.'},
@@ -1818,6 +1984,18 @@ const RECORDER_TEXT = {
   zh:{voice:'语音',video:'视频消息',speak:'请说话…',camera:'摄像头已开启…',cancel:'取消',cancelRecording:'取消录音'},
   ja:{voice:'音声',video:'動画メッセージ',speak:'話してください…',camera:'カメラがオンです…',cancel:'キャンセル',cancelRecording:'録音をキャンセル'},
   ko:{voice:'음성',video:'동영상 메시지',speak:'말하세요…',camera:'카메라 켜짐…',cancel:'취소',cancelRecording:'녹음 취소'}
+};
+const RECORDER_ACTIONS = {
+  ru:{flip:'Переключить камеру',lock:'Зафиксировать запись',send:'Отправить запись',hint:'Нажмите отправить или отмену'},
+  uz:{flip:'Kamerani almashtirish',lock:'Yozuvni qulflash',send:'Yozuvni yuborish',hint:'Yuborish yoki bekor qilishni bosing'},
+  en:{flip:'Switch camera',lock:'Lock recording',send:'Send recording',hint:'Press send or cancel'},
+  de:{flip:'Kamera wechseln',lock:'Aufnahme sperren',send:'Aufnahme senden',hint:'Senden oder abbrechen'},
+  fr:{flip:'Changer de caméra',lock:'Verrouiller',send:'Envoyer',hint:'Envoyez ou annulez'},
+  es:{flip:'Cambiar cámara',lock:'Bloquear grabación',send:'Enviar',hint:'Envía o cancela'},
+  tr:{flip:'Kamerayı değiştir',lock:'Kaydı kilitle',send:'Kaydı gönder',hint:'Gönder veya iptal et'},
+  zh:{flip:'切换摄像头',lock:'锁定录制',send:'发送录制',hint:'点击发送或取消'},
+  ja:{flip:'カメラ切替',lock:'録画を固定',send:'録画を送信',hint:'送信またはキャンセル'},
+  ko:{flip:'카메라 전환',lock:'녹화 잠금',send:'녹화 보내기',hint:'보내거나 취소하세요'}
 };
 function currentRecorderText(){
   return RECORDER_TEXT[document.documentElement.lang] || RECORDER_TEXT.ru;
@@ -1886,13 +2064,37 @@ function applyInterfaceLanguage(lang){
 
 }
 
+/* V4 localization cleanup: no hardcoded Russian UI remains in runtime placeholders/states. */
+function applyV4RuntimeLocalization(lang){
+  const t=UI_TEXT[lang]||UI_TEXT.ru, c=UI_COMMON[lang]||UI_COMMON.ru, e=UI_EXTRA[lang]||UI_EXTRA.ru;
+  const rec=RECORDER_TEXT[lang]||RECORDER_TEXT.ru, act=RECORDER_ACTIONS[lang]||RECORDER_ACTIONS.ru;
+  const setText=(sel,text)=>{const el=document.querySelector(sel);if(el)el.textContent=text;};
+  const setAttr=(sel,a,text)=>{const el=document.querySelector(sel);if(el)el.setAttribute(a,text);};
+  setText('.chat-list-label',t.chats);
+  const tabs=[t.all,t.personal,t.groups,t.channels]; document.querySelectorAll('.chat-tab').forEach((el,i)=>el.textContent=tabs[i]||'');
+  setText('#nav-chats .app-nav-label',t.chats); setText('#nav-new-chat .app-nav-label',t.newChat); setText('#nav-settings .app-nav-label',t.settings);
+  setAttr('#logout-btn','aria-label',c.logout); setAttr('#logout-btn','title',c.logout);
+  setText('#conv-empty [data-conv-select]',c.select); setText('#conv-empty [data-conv-start]',c.start);
+  setAttr('#conv-back','aria-label',c.back); setAttr('#message-form .send-btn','aria-label',c.send);
+  setText('#message-form .send-btn', '➤');
+  setText('[data-empty-title]',c.noChats); setText('[data-empty-text]',c.noChatsHint);
+  setAttr('#search-input','aria-label',t.search); setAttr('#message-input','aria-label',t.chats);
+  setAttr('#media-mode-btn','aria-label',rec.video); setAttr('#media-btn','aria-label',rec.voice);
+  setAttr('#recording-cancel','aria-label',rec.cancelRecording);
+  setAttr('#recording-flip-btn','aria-label',act.flip); setAttr('#recording-lock-btn','aria-label',act.lock); setAttr('#recording-send-btn','aria-label',act.send);
+  const hint=document.getElementById('recording-hint'); if(hint) hint.textContent=act.hint;
+  const title=document.getElementById('create-title'); if(title) title.textContent=t.create;
+  const cp=document.querySelector('#create-modal>p'); if(cp) cp.textContent=e.createDesc;
+  const labels=document.querySelectorAll('.settings-menu-btn'); const menu=[t.profile,t.chatSettings,t.theme,t.language,t.devices]; const icons=['◉ ','▣ ','✦ ','文 ','▤ ']; labels.forEach((el,i)=>el.textContent=icons[i]+menu[i]);
+}
+
 /* Full interface localization layer. It updates the static settings text too. */
 const SETTINGS_I18N = {
   ru:{profile:'Профиль',chats:'Чаты',theme:'Тема',language:'Язык',devices:'Устройства',fontSmall:'Очень маленькое',fontLarge:'Очень большое',
-      appTheme:'Тема приложения',appThemeHint:'Цвет интерфейса меняется сразу.',design:'Дизайн',glass:'Стеклянное',glassHint:'Мягкий blur и прозрачность',
+      appTheme:'Тема приложения',appThemeHint:'Цвет интерфейса меняется сразу.',design:'Дизайн',glass:'Тёмный',glassHint:'Простой тёмный интерфейс без прозрачности',
       languageTitle:'Язык интерфейса',languageHint:'Выберите язык меню и подписей.',chatThemeTitle:'Фон чата'},
   uz:{profile:'Profil',chats:'Suhbatlar',theme:'Mavzu',language:'Til',devices:'Qurilmalar',fontSmall:'Juda kichik',fontLarge:'Juda katta',
-      appTheme:'Ilova mavzusi',appThemeHint:'Interfeys rangi darhol o‘zgaradi.',design:'Dizayn',glass:'Shishasimon',glassHint:'Yumshoq blur va shaffoflik',
+      appTheme:'Ilova mavzusi',appThemeHint:'Interfeys rangi darhol o‘zgaradi.',design:'Dizayn',glass:'To‘q',glassHint:'Shaffofliksiz oddiy qorong‘i interfeys',
       languageTitle:'Interfeys tili',languageHint:'Menyu va yozuvlar tilini tanlang.',chatThemeTitle:'Suhbat foni'},
   en:{profile:'Profile',chats:'Chats',theme:'Theme',language:'Language',devices:'Devices',fontSmall:'Very small',fontLarge:'Very large',
       appTheme:'App theme',appThemeHint:'The interface color changes instantly.',design:'Design',glass:'Glass',glassHint:'Soft blur and transparency',
@@ -1947,9 +2149,9 @@ const APP_THEME_NAMES = {
 
 function relabelThemeButtons(lang){
   const chatNames=CHAT_THEME_NAMES[lang]||CHAT_THEME_NAMES.ru;
-  document.querySelectorAll('#chat-theme-grid .theme-swatch').forEach((b,i)=>b.childNodes[b.childNodes.length-1].nodeType===3 ? b.childNodes[b.childNodes.length-1].textContent=chatNames[i] : b.append(chatNames[i]));
+  document.querySelectorAll('#chat-theme-grid .theme-swatch').forEach((b,i)=>{const el=b.querySelector('.theme-label'); if(el) el.textContent=chatNames[i]||'';});
   const appNames=APP_THEME_NAMES[lang]||APP_THEME_NAMES.ru;
-  document.querySelectorAll('#app-theme-grid .theme-swatch').forEach((b,i)=>b.childNodes[b.childNodes.length-1].nodeType===3 ? b.childNodes[b.childNodes.length-1].textContent=appNames[i] : b.append(appNames[i]));
+  document.querySelectorAll('#app-theme-grid .theme-swatch').forEach((b,i)=>{const el=b.querySelector('.theme-label'); if(el) el.textContent=appNames[i]||'';});
 }
 
 function applyStaticLocalization(lang){
@@ -1989,18 +2191,19 @@ const _applyInterfaceLanguage = applyInterfaceLanguage;
 applyInterfaceLanguage = function(lang){
   _applyInterfaceLanguage(lang);
   applyStaticLocalization(lang);
+  applyV4RuntimeLocalization(lang);
 };
 
-const makeSwatches = (items, target, type) => { document.getElementById(target).innerHTML = items.map(([value,label,klass]) => `<button class="theme-swatch ${klass}" data-${type}="${value}" type="button">${label}</button>`).join(''); };
+const makeSwatches = (items, target, type) => { document.getElementById(target).innerHTML = items.map(([value,label,klass]) => `<button class="theme-swatch ${klass}" data-${type}="${value}" type="button"><span class="theme-label">${label}</span></button>`).join(''); };
 makeSwatches(chatThemes, 'chat-theme-grid', 'chat-theme');
 makeSwatches(appThemes, 'app-theme-grid', 'app-theme');
 document.getElementById('language-grid').innerHTML = languages.map(([value,label]) => `<button data-language="${value}" type="button">${label}</button>`).join('');
-document.querySelector('#chat-theme-grid [data-chat-theme="glass-mist"]').classList.add('active');
+document.querySelector('#chat-theme-grid [data-chat-theme="midnight"]').classList.add('active');
 document.querySelector('#app-theme-grid [data-app-theme="night"]').classList.add('active');
 
 document.getElementById('chat-theme-grid').addEventListener('click', event => { const button = event.target.closest('[data-chat-theme]'); if(!button) return; document.body.dataset.chatTheme = button.dataset.chatTheme; document.querySelectorAll('[data-chat-theme]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({chat_theme:button.dataset.chatTheme}); });
 document.getElementById('app-theme-grid').addEventListener('click', event => { const button = event.target.closest('[data-app-theme]'); if(!button) return; document.body.dataset.appTheme = button.dataset.appTheme; document.querySelectorAll('[data-app-theme]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({app_theme:button.dataset.appTheme}); });
-document.querySelectorAll('[data-design]').forEach(button => button.addEventListener('click', () => { document.body.dataset.uiDesign = button.dataset.design; document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({design:button.dataset.design}); }));
+document.querySelectorAll('[data-design]').forEach(button => button.addEventListener('click', () => { document.body.dataset.uiDesign = ['dark','light','gamer'].includes(button.dataset.design) ? button.dataset.design : 'dark'; document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({design:button.dataset.design}); }));
 document.getElementById('language-grid').addEventListener('click', event => { const button = event.target.closest('[data-language]'); if(!button) return; applyInterfaceLanguage(button.dataset.language); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({language:button.dataset.language}); });
 
 const fontButtons = [...document.querySelectorAll('[data-font]')];
@@ -2020,8 +2223,8 @@ document.getElementById('profile-save').addEventListener('click', async () => { 
 
 window.settingsReady = false;
 async function saveSettings(values){ const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}); }
-function applySettings(settings){ document.body.dataset.appTheme = settings.app_theme; document.body.dataset.chatTheme = settings.chat_theme; document.body.dataset.uiDesign = settings.design; document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('[data-chat-theme]').forEach(item => item.classList.toggle('active', item.dataset.chatTheme === settings.chat_theme)); document.querySelectorAll('[data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === settings.app_theme)); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === settings.design)); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
-async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok) applySettings(await res.json()); window.settingsReady = true; }
+function applySettings(settings){ document.body.dataset.appTheme = settings.app_theme; document.body.dataset.chatTheme = chatThemes.some(x=>x[0]===settings.chat_theme) ? settings.chat_theme : 'midnight'; document.body.dataset.uiDesign = ['dark','light','gamer'].includes(settings.design) ? settings.design : 'dark'; document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('[data-chat-theme]').forEach(item => item.classList.toggle('active', item.dataset.chatTheme === settings.chat_theme)); document.querySelectorAll('[data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === settings.app_theme)); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === settings.design)); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
+async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!['dark','light','gamer'].includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!chatThemes.some(x=>x[0]===settings.chat_theme)){ settings.chat_theme='midnight'; saveSettings({chat_theme:'midnight'}); } applySettings(settings); } window.settingsReady = true; }
 document.getElementById('add-device').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/devices`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id,name:'Новое устройство'})}); loadDevices(); });
 async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
 async function loadSpaces(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(user.id)}`); if(!res.ok) return; const spaces = await res.json(); spaces.forEach(space => { if(!openChats.has(space.id)) openChats.set(space.id, {id:space.id, username:space.kind, display_name:space.name, kind:space.kind, messages:[], lastCount:0}); }); renderChatList(); }
@@ -2260,7 +2463,7 @@ function renderChatList(){
     chatList.innerHTML = `
       <div class="empty-state">
         <span class="empty-icon">◌</span>
-        <p class="empty-title">Пока пусто</p>
+        <p class="empty-title" data-empty-title>Пока пусто</p>
         <p class="empty-text">Найдите собеседника через поиск —<br>здесь появится переписка с ним.</p>
       </div>`;
     return;
@@ -2272,7 +2475,7 @@ function renderChatList(){
     const item = document.createElement('div');
     item.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
     const last = chat.messages[chat.messages.length - 1];
-    const lastPreview = last ? (last.type === 'voice' ? '🎤 Голосовое сообщение' : last.type === 'video' ? '◉ Видеосообщение' : last.text) : '@' + chat.username;
+    const lastPreview = last ? (last.type === 'voice' ? currentUi().voicePreview : last.type === 'video' ? currentUi().videoPreview : last.text) : '@' + chat.username;
     item.innerHTML = `
       <span class="avatar">${escapeHtml(initials(chat.display_name))}</span>
       <div class="chat-item-body">
@@ -2285,7 +2488,7 @@ function renderChatList(){
   }
 
   if(!chatList.children.length){
-    chatList.innerHTML = '<div class="empty-state"><span class="empty-icon">◌</span><p class="empty-title">Пока пусто</p><p class="empty-text">В этой категории ещё нет чатов.</p></div>';
+    chatList.innerHTML = '<div class="empty-state"><span class="empty-icon">◌</span><p class="empty-title" data-empty-title>Пока пусто</p><p class="empty-text">В этой категории ещё нет чатов.</p></div>';
   }
 }
 
@@ -2304,12 +2507,12 @@ async function setActiveChat(id){
   document.getElementById('conv-header-status').textContent = '@' + chat.username;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   messageInput.disabled = isSpace;
-  messageInput.placeholder = isSpace ? 'Публикации подключим позже' : currentUi().write;
+  messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
   mediaBtn.disabled = isSpace;
 
   renderChatList();
   if(isSpace){
-    convMessages.innerHTML = `<div class="conv-stub-note">${chat.kind === 'group' ? 'Группа' : 'Канал'} создана. Участники и публикации подключим следующим шагом.</div>`;
+    convMessages.innerHTML = `<div class="conv-stub-note">${chat.kind === 'group' ? currentUi().groupCreated : currentUi().channelCreated}</div>`;
     return;
   }
   await refreshMessages(chat, { silent: false });
@@ -2752,26 +2955,51 @@ function useAudioRecorder(){
 }
 
 function useVideoRecorder(){
-  let recorder = null;
-  let chunks = [];
-  let stream = null;
-  let facingMode = 'user';
+  let recorder=null, chunks=[], cameraStream=null, audioTrack=null, previewVideo=null, canvas=null, ctx=null, drawFrameId=null, facingMode='user';
+  const draw=()=>{
+    if(!ctx || !canvas || !previewVideo) return;
+    if(previewVideo.readyState>=2 && previewVideo.videoWidth){
+      const sw=previewVideo.videoWidth, sh=previewVideo.videoHeight;
+      const side=Math.min(sw,sh), sx=(sw-side)/2, sy=(sh-side)/2;
+      ctx.save();
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(facingMode==='user'){
+        ctx.translate(canvas.width,0); ctx.scale(-1,1);
+      }
+      ctx.drawImage(previewVideo,sx,sy,side,side,0,0,canvas.width,canvas.height);
+      ctx.restore();
+    }
+    drawFrameId=requestAnimationFrame(draw);
+  };
   return {
     async start(){
-      stream = await MediaStreamService.request('video',facingMode);
-      const mimeType = MediaRecorderService.pickMime('video');
-      recorder = mimeType ? new MediaRecorder(stream,{mimeType}) : new MediaRecorder(stream);
-      chunks = [];
-      recorder.addEventListener('dataavailable',e=>{ if(e.data.size) chunks.push(e.data); });
-      recorder.start(200);
-      return {stream,recorder};
+      cameraStream=await MediaStreamService.request('video',facingMode);
+      audioTrack=cameraStream.getAudioTracks()[0]||null;
+      previewVideo=document.createElement('video');
+      previewVideo.autoplay=true; previewVideo.muted=true; previewVideo.playsInline=true;
+      previewVideo.srcObject=cameraStream;
+      await previewVideo.play().catch(()=>{});
+      canvas=document.createElement('canvas'); canvas.width=720; canvas.height=720;
+      ctx=canvas.getContext('2d',{alpha:false});
+      if(!ctx || !canvas.captureStream) throw new Error('Запись видео не поддерживается этим браузером');
+      const composed=canvas.captureStream(30);
+      if(audioTrack) composed.addTrack(audioTrack);
+      const mimeType=MediaRecorderService.pickMime('video');
+      recorder=mimeType ? new MediaRecorder(composed,{mimeType,videoBitsPerSecond:650000,audioBitsPerSecond:64000}) : new MediaRecorder(composed,{videoBitsPerSecond:650000,audioBitsPerSecond:64000});
+      chunks=[];
+      recorder.addEventListener('dataavailable',e=>{if(e.data?.size)chunks.push(e.data);});
+      recorder.start(250);
+      draw();
+      return {stream:cameraStream,recorder};
     },
-    async stop(){
+    stop(){
       return new Promise(resolve=>{
-        if(!recorder){ resolve(null); return; }
+        if(!recorder){resolve(null);return;}
         const done=()=>{
-          const blob = new Blob(chunks,{type:recorder.mimeType||'video/webm'});
-          MediaStreamService.stop(stream); stream=null; recorder=null; chunks=[];
+          if(drawFrameId)cancelAnimationFrame(drawFrameId); drawFrameId=null;
+          const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
+          try{recorder.stream?.getTracks().forEach(t=>t.stop());}catch{}
+          MediaStreamService.stop(cameraStream); cameraStream=null; audioTrack=null; previewVideo=null; canvas=null; ctx=null; recorder=null; chunks=[];
           resolve(blob);
         };
         recorder.addEventListener('stop',done,{once:true});
@@ -2779,22 +3007,25 @@ function useVideoRecorder(){
       });
     },
     cancel(){
-      try{ if(recorder?.state!=='inactive') recorder?.stop(); }catch{}
-      MediaStreamService.stop(stream); stream=null; recorder=null; chunks=[];
+      if(drawFrameId)cancelAnimationFrame(drawFrameId); drawFrameId=null;
+      try{if(recorder?.state!=='inactive')recorder.stop();}catch{}
+      MediaStreamService.stop(cameraStream); cameraStream=null; audioTrack=null; previewVideo=null; canvas=null; ctx=null; recorder=null; chunks=[];
     },
     async switchCamera(){
-      facingMode = facingMode === 'user' ? 'environment' : 'user';
-      if(!stream) return;
-      const old = stream;
-      const next = await MediaStreamService.request('video',facingMode);
-      old?.getTracks().forEach(t=>t.stop());
-      stream = next;
-      return stream;
+      if(!cameraStream || !previewVideo) return null;
+      facingMode=facingMode==='user'?'environment':'user';
+      const next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facingMode},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
+      const nextVideo=next.getVideoTracks()[0];
+      const oldVideo=cameraStream.getVideoTracks()[0];
+      oldVideo?.stop();
+      cameraStream=new MediaStream([...(audioTrack?[audioTrack]:[]),nextVideo]);
+      previewVideo.srcObject=cameraStream;
+      await previewVideo.play().catch(()=>{});
+      return cameraStream;
     },
-    getStream(){return stream;}
+    getStream(){return cameraStream;}
   };
 }
-
 const audioRecorderService = useAudioRecorder();
 const videoRecorderService = useVideoRecorder();
 const mediaStreamService = useMediaStream();
@@ -2925,8 +3156,7 @@ function updateRecordingTimer(){
 
 async function startMediaRecording(){
   if(isRecording || !activeChatId) return;
-  recordingCanceled=false;
-  recordingLocked=false;
+  isRecording=true; recordingCanceled=false; recordingLocked=false; recordStartedAt=Date.now(); updateRecordingUI();
   try{
     let result;
     if(recordingMode==='voice'){
@@ -2942,8 +3172,6 @@ async function startMediaRecording(){
       cameraPreview.muted=true;
     }
 
-    isRecording=true;
-    recordStartedAt=Date.now();
     updateRecordingUI();
     stopRecordingTimer();
     recordTimer=setInterval(updateRecordingTimer,250);
@@ -2952,7 +3180,7 @@ async function startMediaRecording(){
     alert((recordingMode==='voice'
       ? 'Не удалось получить доступ к микрофону: '
       : 'Не удалось получить доступ к камере: ') + err.message);
-    isRecording=false;
+    isRecording=false; stopRecordingPreview();
   }
 }
 
@@ -3034,6 +3262,8 @@ async function sendRecordedMedia(blob,mode){
   convMessages.scrollTop=convMessages.scrollHeight;
 
   try{
+    if(mode==='video' && blob.size > 10*1024*1024) throw new Error('Видео слишком большое. Запишите короткий кружочек и попробуйте снова.');
+    if(mode==='voice' && blob.size > 6*1024*1024) throw new Error('Голосовое слишком большое. Запишите более короткое сообщение.');
     const data=await MediaRecorderService.blobToDataURL(blob);
     const body={
       from_user:me.id,
@@ -3060,7 +3290,7 @@ async function sendRecordedMedia(blob,mode){
     await refreshMessages(chat,{silent:false});
   }catch(err){
     pending.remove();
-    alert(err.message);
+    alert(err.message || 'Не удалось отправить запись');
   }
 }
 
@@ -3129,7 +3359,7 @@ updateMediaButton();
   }else{
     showScreen('auth');
   }
-})(); 
+})();
 
 </script>
 </body>
