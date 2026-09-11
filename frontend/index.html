@@ -714,7 +714,7 @@ button, input{font-family:inherit;}
   background: rgba(255,255,255,.14);
 }
 /* no decorative chat image */
-.conv-messages { background-image: none !important; }
+/* legacy chat image disabling rule removed: theme visuals stay visible */
 /* compact recording bar inside the composer */
 .recording-preview.voice-mode {
   left: 8px; right: 8px; top: 4px; bottom: 4px;
@@ -1259,7 +1259,7 @@ body::after{
 .recording-preview.is-voice .recording-voice-stage{display:flex;}
 
 /* Don't use the old decorative chat-image disabling rule. */
-.conv-messages{background-image:initial !important;}
+.conv-messages{background-image:initial;}
 [data-ui-design="glass"] .conv-messages{background-color:transparent!important;}
 
 /* Keep motion off only when the user explicitly requests reduced motion. */
@@ -1333,6 +1333,141 @@ body::after{
   color:var(--text-dim);
 }
 @keyframes mediaPendingSpin{to{transform:rotate(360deg);}}
+
+
+/* Visible theme thumbnails: each option previews its real animated identity. */
+#chat-theme-grid .sw-glass-mist{
+  background:radial-gradient(circle at 20% 25%,rgba(126,219,255,.95) 0 7%,transparent 8%),
+             radial-gradient(circle at 80% 70%,rgba(190,158,255,.85) 0 8%,transparent 9%),
+             linear-gradient(135deg,#12283a,#35416e)!important;
+}
+#chat-theme-grid .sw-glass-sunrise{
+  background:radial-gradient(circle at 75% 22%,rgba(255,195,110,.95) 0 10%,transparent 11%),
+             radial-gradient(circle at 20% 80%,rgba(255,104,161,.8) 0 9%,transparent 10%),
+             linear-gradient(135deg,#351d27,#6d3948)!important;
+}
+#chat-theme-grid .sw-glass-ocean{
+  background:radial-gradient(circle at 18% 78%,rgba(54,210,255,.95) 0 10%,transparent 11%),
+             radial-gradient(circle at 84% 20%,rgba(84,116,255,.9) 0 9%,transparent 10%),
+             linear-gradient(135deg,#09283a,#162d61)!important;
+}
+#chat-theme-grid .sw-glass-violet{
+  background:radial-gradient(circle at 24% 24%,rgba(192,126,255,.95) 0 10%,transparent 11%),
+             radial-gradient(circle at 78% 78%,rgba(105,133,255,.9) 0 9%,transparent 10%),
+             linear-gradient(135deg,#28153d,#182a58)!important;
+}
+#chat-theme-grid .sw-glass-forest{
+  background:radial-gradient(circle at 16% 76%,rgba(99,218,155,.92) 0 10%,transparent 11%),
+             radial-gradient(circle at 84% 18%,rgba(190,226,111,.82) 0 9%,transparent 10%),
+             linear-gradient(135deg,#123425,#263c25)!important;
+}
+#chat-theme-grid .sw-glass-rose{
+  background:radial-gradient(circle at 82% 22%,rgba(255,112,177,.95) 0 10%,transparent 11%),
+             radial-gradient(circle at 15% 78%,rgba(182,112,255,.82) 0 9%,transparent 10%),
+             linear-gradient(135deg,#3a172b,#2a1a4b)!important;
+}
+#chat-theme-grid .sw-glass-amber{
+  background:radial-gradient(circle at 25% 24%,rgba(255,202,92,.95) 0 10%,transparent 11%),
+             radial-gradient(circle at 82% 76%,rgba(255,130,91,.82) 0 9%,transparent 10%),
+             linear-gradient(135deg,#3b2a0e,#49251c)!important;
+}
+#chat-theme-grid .sw-glass-night{
+  background:radial-gradient(circle at 72% 26%,rgba(157,184,255,.7) 0 7%,transparent 8%),
+             radial-gradient(circle at 22% 76%,rgba(112,142,197,.52) 0 7%,transparent 8%),
+             linear-gradient(135deg,#090e17,#131c2c)!important;
+}
+#chat-theme-grid .theme-swatch{
+  position:relative;
+  overflow:hidden;
+  background-size:140% 140%!important;
+}
+#chat-theme-grid .theme-swatch::after{
+  content:"";
+  position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 28%,rgba(255,255,255,.18) 44%,transparent 58%);
+  transform:translateX(-130%);
+  animation:themeSheen 4.8s ease-in-out infinite;
+  pointer-events:none;
+}
+#chat-theme-grid .theme-swatch:nth-child(2)::after{animation-delay:.6s}
+#chat-theme-grid .theme-swatch:nth-child(3)::after{animation-delay:1.2s}
+#chat-theme-grid .theme-swatch:nth-child(4)::after{animation-delay:1.8s}
+#chat-theme-grid .theme-swatch:nth-child(5)::after{animation-delay:2.4s}
+#chat-theme-grid .theme-swatch:nth-child(6)::after{animation-delay:3s}
+#chat-theme-grid .theme-swatch:nth-child(7)::after{animation-delay:3.6s}
+#chat-theme-grid .theme-swatch:nth-child(8)::after{animation-delay:4.2s}
+@keyframes themeSheen{0%,58%{transform:translateX(-130%)}82%,100%{transform:translateX(130%)}}
+
+
+/* Recording lives exactly in the composer, never outside the viewport. */
+.conv-input-bar{min-height:68px;}
+.recording-preview{
+  position:absolute!important;
+  inset:5px 8px 5px 8px!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  transform:none!important;
+  border-radius:20px!important;
+  overflow:hidden;
+  display:flex;
+  z-index:30!important;
+}
+.recording-preview.is-voice{
+  flex-direction:column;
+  justify-content:center;
+}
+.recording-preview.is-video{
+  flex-direction:row;
+  align-items:center;
+  justify-content:center;
+}
+.recording-preview.is-video .recording-body{
+  justify-content:center;
+}
+.recording-preview.is-video .recording-video-stage{
+  flex:0 0 auto;
+  width:58px;height:58px;
+}
+.recording-preview.is-video .recording-video-stage video{
+  width:58px!important;height:58px!important;
+  min-width:58px;min-height:58px;
+  border-radius:50%!important;
+  object-fit:cover!important;
+  transform:scaleX(-1)!important;
+  clip-path:circle(50% at 50% 50%);
+}
+.recording-preview.is-video .recording-camera-ring{
+  width:64px;height:64px;border-radius:50%;
+}
+.recording-preview.is-video .recording-body{
+  flex:1;
+}
+.recording-preview.is-video .recording-actions{
+  flex:0 0 auto;
+}
+.recording-preview.is-video .recording-hint{
+  display:none;
+}
+.recording-preview.is-video .recording-voice-stage{display:none!important;}
+.recording-preview.is-voice .recording-video-stage{display:none!important;}
+.recording-preview.is-voice .recording-voice-stage{display:flex!important;flex:1;width:100%;}
+.recording-preview.is-voice .recording-body{width:100%;}
+.recording-preview.is-voice .recording-actions{flex:0 0 auto;}
+.recording-preview.is-recording .recording-level-ring{animation:recordRing 1s ease-in-out infinite;}
+@keyframes recordRing{
+  0%,100%{opacity:.65;transform:scale(1)}
+  50%{opacity:1;transform:scale(1.12)}
+}
+/* Every received/sent video message remains circular and uses the same orientation. */
+.video-message-shell,
+.video-message-shell video,
+.msg-video,
+.msg-video video{
+  border-radius:50%!important;
+  clip-path:circle(50% at 50% 50%);
+}
+.video-message-shell video{object-fit:cover!important;}
 
 </style>
 </head>
@@ -1750,6 +1885,112 @@ function applyInterfaceLanguage(lang){
   if(window.updateMediaButton) updateMediaButton();
 
 }
+
+/* Full interface localization layer. It updates the static settings text too. */
+const SETTINGS_I18N = {
+  ru:{profile:'Профиль',chats:'Чаты',theme:'Тема',language:'Язык',devices:'Устройства',fontSmall:'Очень маленькое',fontLarge:'Очень большое',
+      appTheme:'Тема приложения',appThemeHint:'Цвет интерфейса меняется сразу.',design:'Дизайн',glass:'Стеклянное',glassHint:'Мягкий blur и прозрачность',
+      languageTitle:'Язык интерфейса',languageHint:'Выберите язык меню и подписей.',chatThemeTitle:'Фон чата'},
+  uz:{profile:'Profil',chats:'Suhbatlar',theme:'Mavzu',language:'Til',devices:'Qurilmalar',fontSmall:'Juda kichik',fontLarge:'Juda katta',
+      appTheme:'Ilova mavzusi',appThemeHint:'Interfeys rangi darhol o‘zgaradi.',design:'Dizayn',glass:'Shishasimon',glassHint:'Yumshoq blur va shaffoflik',
+      languageTitle:'Interfeys tili',languageHint:'Menyu va yozuvlar tilini tanlang.',chatThemeTitle:'Suhbat foni'},
+  en:{profile:'Profile',chats:'Chats',theme:'Theme',language:'Language',devices:'Devices',fontSmall:'Very small',fontLarge:'Very large',
+      appTheme:'App theme',appThemeHint:'The interface color changes instantly.',design:'Design',glass:'Glass',glassHint:'Soft blur and transparency',
+      languageTitle:'Interface language',languageHint:'Choose the language for menus and labels.',chatThemeTitle:'Chat background'},
+  de:{profile:'Profil',chats:'Chats',theme:'Design',language:'Sprache',devices:'Geräte',fontSmall:'Sehr klein',fontLarge:'Sehr groß',
+      appTheme:'App-Design',appThemeHint:'Die Interface-Farbe ändert sich sofort.',design:'Design',glass:'Glas',glassHint:'Weicher Blur und Transparenz',
+      languageTitle:'Oberflächensprache',languageHint:'Wähle die Sprache für Menüs und Beschriftungen.',chatThemeTitle:'Chat-Hintergrund'},
+  fr:{profile:'Profil',chats:'Discussions',theme:'Thème',language:'Langue',devices:'Appareils',fontSmall:'Très petit',fontLarge:'Très grand',
+      appTheme:'Thème de l’application',appThemeHint:'La couleur de l’interface change instantanément.',design:'Design',glass:'Verre',glassHint:'Flou doux et transparence',
+      languageTitle:'Langue de l’interface',languageHint:'Choisissez la langue des menus et des libellés.',chatThemeTitle:'Fond du chat'},
+  es:{profile:'Perfil',chats:'Chats',theme:'Tema',language:'Idioma',devices:'Dispositivos',fontSmall:'Muy pequeño',fontLarge:'Muy grande',
+      appTheme:'Tema de la aplicación',appThemeHint:'El color de la interfaz cambia al instante.',design:'Diseño',glass:'Cristal',glassHint:'Desenfoque suave y transparencia',
+      languageTitle:'Idioma de la interfaz',languageHint:'Elige el idioma de los menús y etiquetas.',chatThemeTitle:'Fondo del chat'},
+  tr:{profile:'Profil',chats:'Sohbetler',theme:'Tema',language:'Dil',devices:'Cihazlar',fontSmall:'Çok küçük',fontLarge:'Çok büyük',
+      appTheme:'Uygulama teması',appThemeHint:'Arayüz rengi anında değişir.',design:'Tasarım',glass:'Cam',glassHint:'Yumuşak bulanıklık ve şeffaflık',
+      languageTitle:'Arayüz dili',languageHint:'Menü ve etiketlerin dilini seçin.',chatThemeTitle:'Sohbet arka planı'},
+  zh:{profile:'个人资料',chats:'聊天',theme:'主题',language:'语言',devices:'设备',fontSmall:'很小',fontLarge:'很大',
+      appTheme:'应用主题',appThemeHint:'界面颜色会立即改变。',design:'设计',glass:'玻璃',glassHint:'柔和模糊与透明效果',
+      languageTitle:'界面语言',languageHint:'选择菜单和标签的语言。',chatThemeTitle:'聊天背景'},
+  ja:{profile:'プロフィール',chats:'チャット',theme:'テーマ',language:'言語',devices:'デバイス',fontSmall:'とても小さい',fontLarge:'とても大きい',
+      appTheme:'アプリのテーマ',appThemeHint:'インターフェースの色がすぐに変わります。',design:'デザイン',glass:'ガラス',glassHint:'柔らかなぼかしと透明感',
+      languageTitle:'インターフェース言語',languageHint:'メニューとラベルの言語を選択します。',chatThemeTitle:'チャット背景'},
+  ko:{profile:'프로필',chats:'채팅',theme:'테마',language:'언어',devices:'기기',fontSmall:'매우 작게',fontLarge:'매우 크게',
+      appTheme:'앱 테마',appThemeHint:'인터페이스 색상이 즉시 변경됩니다.',design:'디자인',glass:'글래스',glassHint:'부드러운 블러와 투명도',
+      languageTitle:'인터페이스 언어',languageHint:'메뉴와 라벨의 언어를 선택하세요.',chatThemeTitle:'채팅 배경'}
+};
+
+const CHAT_THEME_NAMES = {
+  ru:['Туман','Рассвет','Океан','Фиолетовый','Лес','Роза','Янтарь','Ночь'],
+  uz:['Tuman','Tong','Okean','Binafsha','O‘rmon','Atirgul','Qahrabo','Tun'],
+  en:['Mist','Sunrise','Ocean','Violet','Forest','Rose','Amber','Night'],
+  de:['Nebel','Sonnenaufgang','Ozean','Violett','Wald','Rose','Bernstein','Nacht'],
+  fr:['Brume','Aube','Océan','Violet','Forêt','Rose','Ambre','Nuit'],
+  es:['Niebla','Amanecer','Océano','Violeta','Bosque','Rosa','Ámbar','Noche'],
+  tr:['Sis','Gün doğumu','Okyanus','Mor','Orman','Gül','Kehribar','Gece'],
+  zh:['薄雾','日出','海洋','紫罗兰','森林','玫瑰','琥珀','夜晚'],
+  ja:['ミスト','日の出','オーシャン','バイオレット','フォレスト','ローズ','アンバー','ナイト'],
+  ko:['안개','일출','오션','바이올렛','포레스트','로즈','앰버','밤']
+};
+const APP_THEME_NAMES = {
+  ru:['Ночь','Мята','Закат','Океан','Розовый','Лес','Коралловый','Чёрно-белый','Небо','Янтарный','Ягодный','Лайм'],
+  uz:['Tun','Yalpiz','Quyosh botishi','Okean','Pushti','O‘rmon','Marjon','Oq-qora','Osmon','Qahrabo','Rezavor','Laym'],
+  en:['Night','Mint','Sunset','Ocean','Rose','Forest','Coral','Monochrome','Sky','Amber','Berry','Lime'],
+  de:['Nacht','Minze','Sonnenuntergang','Ozean','Rosa','Wald','Koralle','Monochrom','Himmel','Bernstein','Beere','Limette'],
+  fr:['Nuit','Menthe','Coucher de soleil','Océan','Rose','Forêt','Corail','Monochrome','Ciel','Ambre','Baies','Citron vert'],
+  es:['Noche','Menta','Atardecer','Océano','Rosa','Bosque','Coral','Monocromo','Cielo','Ámbar','Baya','Lima'],
+  tr:['Gece','Nane','Gün batımı','Okyanus','Pembe','Orman','Mercan','Tek renk','Gökyüzü','Kehribar','Meyve','Limon'],
+  zh:['夜','薄荷','日落','海洋','玫瑰','森林','珊瑚','黑白','天空','琥珀','莓果','青柠'],
+  ja:['ナイト','ミント','サンセット','オーシャン','ローズ','フォレスト','コーラル','モノクロ','スカイ','アンバー','ベリー','ライム'],
+  ko:['나이트','민트','선셋','오션','로즈','포레스트','코랄','흑백','스카이','앰버','베리','라임']
+};
+
+function relabelThemeButtons(lang){
+  const chatNames=CHAT_THEME_NAMES[lang]||CHAT_THEME_NAMES.ru;
+  document.querySelectorAll('#chat-theme-grid .theme-swatch').forEach((b,i)=>b.childNodes[b.childNodes.length-1].nodeType===3 ? b.childNodes[b.childNodes.length-1].textContent=chatNames[i] : b.append(chatNames[i]));
+  const appNames=APP_THEME_NAMES[lang]||APP_THEME_NAMES.ru;
+  document.querySelectorAll('#app-theme-grid .theme-swatch').forEach((b,i)=>b.childNodes[b.childNodes.length-1].nodeType===3 ? b.childNodes[b.childNodes.length-1].textContent=appNames[i] : b.append(appNames[i]));
+}
+
+function applyStaticLocalization(lang){
+  const t=SETTINGS_I18N[lang]||SETTINGS_I18N.ru;
+  const sections=document.querySelectorAll('[data-settings-panel]');
+  const byPanel={};
+  sections.forEach(s=>byPanel[s.dataset.settingsPanel]=s);
+
+  if(byPanel.profile){
+    byPanel.profile.querySelector('h3').textContent=t.profile;
+  }
+  if(byPanel.chats){
+    byPanel.chats.querySelector('h3').textContent=t.chats;
+    byPanel.chats.querySelectorAll('h4')[0].textContent=t.fontSmall===SETTINGS_I18N.ru.fontSmall ? 'Размер текста' : ({
+      uz:'Matn o‘lchami',en:'Text size',de:'Textgröße',fr:'Taille du texte',es:'Tamaño del texto',tr:'Metin boyutu',zh:'文字大小',ja:'文字サイズ',ko:'글자 크기'
+    }[lang]||'Размер текста');
+    byPanel.chats.querySelectorAll('.font-scale-labels span')[0].textContent=t.fontSmall;
+    byPanel.chats.querySelectorAll('.font-scale-labels span')[1].textContent=t.fontLarge;
+    byPanel.chats.querySelectorAll('h4')[1].textContent=t.chatThemeTitle;
+  }
+  if(byPanel.theme){
+    byPanel.theme.querySelector('h3').textContent=t.appTheme;
+    byPanel.theme.querySelector('.section-note').textContent=t.appThemeHint;
+    byPanel.theme.querySelector('h4').textContent=t.design;
+    byPanel.theme.querySelector('.design-btn strong').textContent=t.glass;
+    byPanel.theme.querySelector('.design-btn small').textContent=t.glassHint;
+  }
+  if(byPanel.language){
+    byPanel.language.querySelector('h3').textContent=t.languageTitle;
+    byPanel.language.querySelector('.section-note').textContent=t.languageHint;
+  }
+  relabelThemeButtons(lang);
+}
+
+/* Wrap the existing language function so all static settings labels follow it. */
+const _applyInterfaceLanguage = applyInterfaceLanguage;
+applyInterfaceLanguage = function(lang){
+  _applyInterfaceLanguage(lang);
+  applyStaticLocalization(lang);
+};
+
 const makeSwatches = (items, target, type) => { document.getElementById(target).innerHTML = items.map(([value,label,klass]) => `<button class="theme-swatch ${klass}" data-${type}="${value}" type="button">${label}</button>`).join(''); };
 makeSwatches(chatThemes, 'chat-theme-grid', 'chat-theme');
 makeSwatches(appThemes, 'app-theme-grid', 'app-theme');
@@ -2834,12 +3075,11 @@ mediaModeBtn.addEventListener('click',cycleMediaMode);
 mediaBtn.addEventListener('pointerdown',event=>{
   if(!activeChatId){ alert('Сначала выберите чат'); return; }
   event.preventDefault();
-  mediaBtn.setPointerCapture?.(event.pointerId);
   holdStartX=event.clientX;
   holdStartY=event.clientY;
   holdActive=true;
-  window.clearTimeout(mediaBtn._holdTimer);
-  mediaBtn._holdTimer=window.setTimeout(()=>startMediaRecording(),180);
+  mediaBtn.setPointerCapture?.(event.pointerId);
+  if(!isRecording) startMediaRecording();
 });
 
 mediaBtn.addEventListener('pointermove',event=>{
@@ -2848,6 +3088,7 @@ mediaBtn.addEventListener('pointermove',event=>{
   const dy=event.clientY-holdStartY;
   if(dx < -70){
     cancelMediaRecording();
+    holdActive=false;
     return;
   }
   if(dy < -70){
@@ -2856,17 +3097,8 @@ mediaBtn.addEventListener('pointermove',event=>{
   }
 });
 
-mediaBtn.addEventListener('pointerup',()=>{
-  window.clearTimeout(mediaBtn._holdTimer);
-  if(!holdActive) return;
-  holdActive=false;
-  if(isRecording && !recordingLocked) stopMediaRecording();
-});
-mediaBtn.addEventListener('pointercancel',()=>{
-  window.clearTimeout(mediaBtn._holdTimer);
-  if(holdActive && isRecording && !recordingLocked) cancelMediaRecording();
-  holdActive=false;
-});
+mediaBtn.addEventListener('pointerup',()=>{ holdActive=false; });
+mediaBtn.addEventListener('pointercancel',()=>{ holdActive=false; });
 
 recordingFlipBtn.addEventListener('click',async()=>{
   if(!isRecording || recordingMode!=='video') return;
@@ -2897,7 +3129,7 @@ updateMediaButton();
   }else{
     showScreen('auth');
   }
-})();
+})(); 
 
 </script>
 </body>
