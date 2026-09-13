@@ -2670,7 +2670,7 @@ const MediaRecorderService = {
   pickMime(kind){
     const candidates = kind === 'voice'
       ? ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/aac']
-      : ['video/mp4;codecs=h264,aac','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+      : ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
     return candidates.find(type => window.MediaRecorder && MediaRecorder.isTypeSupported(type)) || '';
   },
   blobToDataURL(blob){
