@@ -2737,7 +2737,7 @@ function useAudioRecorder(){
       return new Promise(resolve=>{
         if(!recorder){ resolve(null); return; }
         const done=async()=>{
-          const blob = new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
+          const blob = new Blob(chunks,{type:(recorder.mimeType||'audio/webm').split(';')[0]});
           MediaStreamService.stop(stream); stream=null; recorder=null; chunks=[];
           resolve(blob);
         };
@@ -2771,7 +2771,7 @@ function useVideoRecorder(){
       return new Promise(resolve=>{
         if(!recorder){resolve(null);return;}
         const done=()=>{
-          const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
+          const blob=new Blob(chunks,{type:(recorder.mimeType||'video/webm').split(';')[0]});
           MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[];
           resolve(blob);
         };
