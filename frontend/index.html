@@ -1759,7 +1759,7 @@ body,[data-ui-design]{background:var(--bg);}
     </div>
     <div class="recording-actions">
       <button class="recording-flip-btn" id="recording-flip-btn" type="button" aria-label="Переключить камеру">↻</button>
-      <button class="recording-lock-btn" id="recording-lock-btn" type="button" aria-label="Зафиксировать запись">⌃</button>
+      
       <button class="recording-send-btn" id="recording-send-btn" type="button" aria-label="Отправить запись">➤</button>
     </div>
   </div>
@@ -2463,8 +2463,8 @@ function renderChatList(){
     chatList.innerHTML = `
       <div class="empty-state">
         <span class="empty-icon">◌</span>
-        <p class="empty-title" data-empty-title>Пока пусто</p>
-        <p class="empty-text">Найдите собеседника через поиск —<br>здесь появится переписка с ним.</p>
+        <p class="empty-title" data-empty-title></p>
+        <p class="empty-text" data-empty-hint></p>
       </div>`;
     return;
   }
@@ -2488,7 +2488,7 @@ function renderChatList(){
   }
 
   if(!chatList.children.length){
-    chatList.innerHTML = '<div class="empty-state"><span class="empty-icon">◌</span><p class="empty-title" data-empty-title>Пока пусто</p><p class="empty-text">В этой категории ещё нет чатов.</p></div>';
+    chatList.innerHTML = '<div class="empty-state"><span class="empty-icon">◌</span><p class="empty-title" data-empty-title></p><p class="empty-text" data-empty-hint></p></div>';
   }
 }
 
@@ -3046,7 +3046,7 @@ const mediaModeBtn = document.getElementById('media-mode-btn');
 const recordingTimer = document.getElementById('recording-timer');
 const recordingVoiceStage = document.getElementById('recording-voice-stage');
 const recordingVideoStage = document.getElementById('recording-video-stage');
-const recordingLockBtn = document.getElementById('recording-lock-btn');
+const recordingLockBtn = null;
 const recordingSendBtn = document.getElementById('recording-send-btn');
 const recordingFlipBtn = document.getElementById('recording-flip-btn');
 const recordingHint = document.getElementById('recording-hint');
@@ -3084,7 +3084,7 @@ function stopRecordingPreview(){
   recordingVoiceStage.hidden = true;
   recordingVideoStage.hidden = true;
   cameraPreview.srcObject = null;
-  recordingLock.hidden = true;
+  if(recordingLock) recordingLock.hidden = true;
   stopAudioLevel();
   stopRecordingTimer();
   recordingTimer.textContent='0:00';
@@ -3140,8 +3140,8 @@ function updateRecordingUI(){
   recordingVoiceStage.hidden=recordingMode!=='voice';
   recordingVideoStage.hidden=recordingMode!=='video';
   recordingHint.textContent = recordingLocked
-    ? 'Запись зафиксирована · нажмите отправить или отмену'
-    : 'Свайп влево — отмена · вверх — зафиксировать';
+    ? 'Запись готова к отправке'
+    : 'Идёт запись';
   document.getElementById('recording-label').textContent =
     recordingMode==='voice' ? currentRecorderText().voice : currentRecorderText().video;
 }
@@ -3240,13 +3240,14 @@ function lockMediaRecording(){
   if(!isRecording) return;
   recordingLocked=true;
   recordingPreview.classList.add('is-locked');
-  recordingHint.textContent='Запись зафиксирована · отправьте или отмените';
+  recordingHint.textContent='Запись готова к отправке';
 }
 
 async function sendRecordedMedia(blob,mode){
   const me=getCurrentUser();
   const chat=openChats.get(activeChatId);
-  if(!me || !chat || chat.kind) return;
+  if(!me || !chat){ alert('Не удалось определить чат'); return; }
+  if(chat.kind==='group' || chat.kind==='channel'){ alert('Медиа пока можно отправлять только в личный чат'); return; }
 
   const pending = document.createElement('div');
   pending.className = 'msg out ' + (mode==='video' ? 'video-message' : 'voice-message');
@@ -3287,6 +3288,7 @@ async function sendRecordedMedia(blob,mode){
     });
     if(!res.ok) throw new Error(await messageError(res,'Медиа-сообщение не отправилось'));
     pending.remove();
+    chat.lastCount = -1;
     await refreshMessages(chat,{silent:false});
   }catch(err){
     pending.remove();
@@ -3312,21 +3314,7 @@ mediaBtn.addEventListener('pointerdown',event=>{
   if(!isRecording) startMediaRecording();
 });
 
-mediaBtn.addEventListener('pointermove',event=>{
-  if(!holdActive || !isRecording || recordingLocked) return;
-  const dx=event.clientX-holdStartX;
-  const dy=event.clientY-holdStartY;
-  if(dx < -70){
-    cancelMediaRecording();
-    holdActive=false;
-    return;
-  }
-  if(dy < -70){
-    lockMediaRecording();
-    holdActive=false;
-  }
-});
-
+mediaBtn.addEventListener('pointermove',()=>{});
 mediaBtn.addEventListener('pointerup',()=>{ holdActive=false; });
 mediaBtn.addEventListener('pointercancel',()=>{ holdActive=false; });
 
@@ -3337,6 +3325,10 @@ recordingFlipBtn.addEventListener('click',async()=>{
     if(next){
       mediaStreamService.set(next);
       cameraPreview.srcObject = next;
+      const rear = videoRecorderService.facingMode === 'environment';
+      cameraPreview.classList.toggle('rear-camera', rear);
+      cameraPreview.classList.toggle('front-camera', !rear);
+      cameraPreview.style.transform = rear ? 'none' : 'scaleX(-1)';
     }
   }catch(err){
     alert('Не удалось переключить камеру: ' + err.message);
@@ -3345,7 +3337,7 @@ recordingFlipBtn.addEventListener('click',async()=>{
 
 recordingCancel.addEventListener('click',cancelMediaRecording);
 recordingSendBtn.addEventListener('click',()=>{ if(isRecording) finishMediaRecording(); });
-recordingLockBtn.addEventListener('click',lockMediaRecording);
+
 
 updateMediaButton();
 
@@ -3362,5 +3354,48 @@ updateMediaButton();
 })();
 
 </script>
+
+<style id="v6-fixed-css">
+/* V6: solid, visible animated chat backgrounds */
+.conv-messages { position: relative; isolation: isolate; overflow: hidden; }
+.conv-messages::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  opacity: .24; background-size: 180px 180px;
+  animation: tgcloneBgFloat 18s linear infinite;
+}
+.conv-messages > * { position: relative; z-index: 1; }
+.chat-theme-midnight::before { background: radial-gradient(circle at 20% 20%, #6d5dfc 0 2px, transparent 3px), radial-gradient(circle at 80% 70%, #00d4ff 0 2px, transparent 3px); }
+.chat-theme-rain::before { background: repeating-linear-gradient(115deg, transparent 0 18px, #70b7ff 19px 21px, transparent 22px 42px); animation-duration: 2.8s; }
+.chat-theme-ocean::before { background: radial-gradient(ellipse at 50% 100%, #00a6c7 0 12%, transparent 13%), repeating-radial-gradient(ellipse at 50% 100%, transparent 0 24px, #00a6c7 25px 27px); animation-duration: 7s; }
+.chat-theme-forest2::before { background: radial-gradient(circle at 20% 80%, #42c883 0 4px, transparent 5px), radial-gradient(circle at 70% 30%, #9be15d 0 3px, transparent 4px); }
+.chat-theme-sunset2::before { background: linear-gradient(135deg, #ff9966, transparent 45%), linear-gradient(315deg, #ff5e62, transparent 45%); animation-duration: 12s; }
+.chat-theme-stars2::before { background-image: radial-gradient(#fff 1px, transparent 1.5px); background-size: 32px 32px; animation-duration: 25s; }
+.chat-theme-waves2::before { background: repeating-radial-gradient(ellipse at 0 100%, transparent 0 20px, #54c8ff 21px 23px); animation-duration: 9s; }
+.chat-theme-dots2::before { background-image: radial-gradient(#8d7cff 2px, transparent 2.5px); background-size: 24px 24px; animation-duration: 14s; }
+@keyframes tgcloneBgFloat { from { transform: translate3d(0,0,0); } to { transform: translate3d(90px,45px,0); } }
+
+/* V6: camera direction */
+.camera-preview.rear-camera { transform: none !important; }
+.camera-preview.front-camera { transform: scaleX(-1) !important; }
+
+/* V6: softer light design */
+body.theme-light { background: #e9eef5 !important; color: #263246 !important; }
+body.theme-light .app-shell,
+body.theme-light .sidebar,
+body.theme-light .conversation,
+body.theme-light .settings-panel,
+body.theme-light .composer { background: #f7f9fc !important; }
+body.theme-light .chat-item:hover,
+body.theme-light .chat-item.active { background: #dce8f7 !important; }
+body.theme-light input, body.theme-light textarea, body.theme-light select { background: #edf2f8 !important; color: #263246 !important; }
+
+/* V6: visible app theme swatches */
+.app-theme-grid .sw-mint { background: linear-gradient(135deg,#b8f2df,#46c7a1) !important; }
+.app-theme-grid .sw-ocean { background: linear-gradient(135deg,#b8e7ff,#238bd1) !important; }
+.app-theme-grid .sw-sunset { background: linear-gradient(135deg,#ffd0a8,#f06b7d) !important; }
+.app-theme-grid .sw-night { background: linear-gradient(135deg,#27324d,#111827) !important; }
+.app-theme-grid .sw-gamer { background: linear-gradient(135deg,#ff00cc,#3333ff,#00ffff) !important; }
+</style>
+
 </body>
-</html> 
+</html>
