@@ -1002,7 +1002,17 @@ body::after{
   isolation:isolate;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 12px 35px rgba(0,0,0,.25);
   cursor:pointer;
-  transform:translateZ(0);
+  transform:translateZ(0) scale(1);
+  transition:transform .28s var(--lg-spring,cubic-bezier(.2,.9,.25,1)), box-shadow .28s ease;
+  transform-origin:center center;
+}
+/* Noticeably bigger while actually playing (not just paused/idle), so the
+   circle you're currently listening to/watching stands out from the rest
+   of the conversation. */
+.video-message-shell:not(.paused):not(.is-entering){
+  transform:translateZ(0) scale(1.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 20px 48px rgba(0,0,0,.42);
+  z-index:2;
 }
 .video-message-shell video{
   width:100%;height:100%;display:block;
@@ -1017,8 +1027,8 @@ body::after{
   pointer-events:none;
 }
 .video-progress-ring{
-  position:absolute;inset:-4px;
-  width:calc(100% + 8px);height:calc(100% + 8px);
+  position:absolute;inset:5px;
+  width:calc(100% - 10px);height:calc(100% - 10px);
   transform:rotate(-90deg);
   pointer-events:none;
 }
@@ -1045,6 +1055,7 @@ body::after{
   transition:opacity .18s ease,transform .22s var(--lg-spring);
   pointer-events:none;
 }
+.video-message-shell:not(.paused):hover .video-center-play{opacity:0;}
 .video-message-shell:hover .video-center-play,
 .video-message-shell.paused .video-center-play{opacity:1;transform:translate(-50%,-50%) scale(1);}
 .video-message-skeleton{
@@ -1614,14 +1625,12 @@ body,[data-ui-design]{background:var(--bg);}
       <nav class="settings-menu" aria-label="Разделы настроек">
         <button class="settings-menu-btn active" data-settings-section="profile" type="button">◉ Профиль</button>
         <button class="settings-menu-btn" data-settings-section="chats" type="button">▣ Чаты</button>
-        <button class="settings-menu-btn" data-settings-section="theme" type="button">✦ Тема</button>
         <button class="settings-menu-btn" data-settings-section="language" type="button">文 Язык</button>
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
       </nav>
       <div class="settings-content">
         <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username<input id="profile-username" type="text"></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button></div>
-        <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div></div>
-        <div class="settings-section" data-settings-panel="theme"><h3>Тема приложения</h3><p class="section-note">Цвет интерфейса меняется сразу.</p><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
+        <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div><h4>Цвет интерфейса</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
 <button class="design-btn" data-design="gamer" type="button"><strong>Gamer</strong><small>Тёмная игровая тема с аккуратной RGB-подсветкой</small></button>
@@ -1825,7 +1834,7 @@ function applyInterfaceLanguage(lang){
   searchInput.placeholder=t.search;
   document.querySelector('.chat-list-label').textContent=t.chats;
   const tabLabels=[t.all,t.personal,t.groups,t.channels]; document.querySelectorAll('.chat-tab').forEach((item,index)=>item.textContent=tabLabels[index]);
-  const menu=[t.profile,t.chatSettings,t.theme,t.language,t.devices]; document.querySelectorAll('.settings-menu-btn').forEach((item,index)=>item.textContent=['◉ ','▣ ','✦ ','文 ','▤ '][index]+menu[index]);
+  const menu=[t.profile,t.chatSettings,t.language,t.devices]; document.querySelectorAll('.settings-menu-btn').forEach((item,index)=>item.textContent=['◉ ','▣ ','文 ','▤ '][index]+menu[index]);
   document.querySelector('#settings-title').textContent=t.settings;
   document.querySelector('#create-title').textContent=t.create;
   document.querySelector('#add-user-action strong').textContent=t.addUser;
@@ -1845,7 +1854,6 @@ function applyInterfaceLanguage(lang){
   document.querySelector('[data-settings-panel="chats"] .section-note').textContent=x.chatHint;
   document.querySelector('[data-settings-panel="chats"] h4').textContent=x.font;
   document.querySelectorAll('[data-settings-panel="chats"] h4')[1].textContent=x.background;
-  document.querySelector('[data-settings-panel="theme"] .section-note').textContent=x.appTheme;
   document.querySelector('[data-settings-panel="language"] .section-note').textContent=x.languageHint;
   document.querySelector('[data-settings-panel="devices"] .section-note').textContent=x.devicesHint;
   document.querySelector('#auth-screen .auth-subtitle').textContent = lang === 'ru' ? 'Свой канал связи. Без посредников.' : lang === 'en' ? 'Your private channel. No middlemen.' : lang === 'uz' ? 'Shaxsiy aloqa kanalingiz.' : lang === 'de' ? 'Dein eigener Kanal. Ohne Umwege.' : lang === 'fr' ? 'Votre canal privé. Sans intermédiaire.' : lang === 'es' ? 'Tu canal privado. Sin intermediarios.' : lang === 'tr' ? 'Kendi iletişim kanalınız.' : lang === 'zh' ? '你的私人通信频道。' : lang === 'ja' ? 'あなた専用の通信チャンネル。' : '나만의 소통 채널입니다.';
@@ -1898,7 +1906,7 @@ function applyV4RuntimeLocalization(lang){
   const hint=document.getElementById('recording-hint'); if(hint) hint.textContent=act.hint;
   const title=document.getElementById('create-title'); if(title) title.textContent=t.create;
   const cp=document.querySelector('#create-modal>p'); if(cp) cp.textContent=e.createDesc;
-  const labels=document.querySelectorAll('.settings-menu-btn'); const menu=[t.profile,t.chatSettings,t.theme,t.language,t.devices]; const icons=['◉ ','▣ ','✦ ','文 ','▤ ']; labels.forEach((el,i)=>el.textContent=icons[i]+menu[i]);
+  const labels=document.querySelectorAll('.settings-menu-btn'); const menu=[t.profile,t.chatSettings,t.language,t.devices]; const icons=['◉ ','▣ ','文 ','▤ ']; labels.forEach((el,i)=>el.textContent=icons[i]+menu[i]);
 }
 
 /* Full interface localization layer. It updates the static settings text too. */
@@ -2517,13 +2525,54 @@ function ProgressRing(){
   circle.setAttribute('cx','50'); circle.setAttribute('cy','50'); circle.setAttribute('r','48');
   circle.style.strokeDasharray = '301.59';
   circle.style.strokeDashoffset = '301.59';
-  svg.appendChild(circle);
+  // Wide, invisible "hit ring" just for grabbing/dragging along the edge —
+  // wider than the visible stroke so it's actually easy to grab on touch,
+  // without stealing taps meant for the center play/pause toggle.
+  const hit = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  hit.setAttribute('cx','50'); hit.setAttribute('cy','50'); hit.setAttribute('r','48');
+  hit.setAttribute('fill','none');
+  hit.setAttribute('stroke','transparent');
+  hit.setAttribute('stroke-width','16');
+  hit.style.pointerEvents='stroke';
+  hit.style.cursor='pointer';
+  svg.append(hit, circle);
+
+  let seekHandler=null;
+  let dragging=false;
+  function progressFromEvent(event){
+    const rect=svg.getBoundingClientRect();
+    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    const dx=event.clientX-cx, dy=event.clientY-cy;
+    // atan2 gives 0 at 3 o'clock; the ring itself is drawn rotated -90deg so
+    // its own 0% sits at 12 o'clock — rotate here to match, then normalize
+    // clockwise into 0..1.
+    let deg=Math.atan2(dy,dx)*180/Math.PI;
+    deg=(deg+90+360)%360;
+    return deg/360;
+  }
+  svg.addEventListener('pointerdown',event=>{
+    event.stopPropagation();
+    dragging=true;
+    svg.setPointerCapture?.(event.pointerId);
+    seekHandler?.(progressFromEvent(event));
+  });
+  svg.addEventListener('pointermove',event=>{
+    if(!dragging) return;
+    event.stopPropagation();
+    seekHandler?.(progressFromEvent(event));
+  });
+  svg.addEventListener('pointerup',event=>{ dragging=false; event.stopPropagation(); });
+  svg.addEventListener('pointercancel',()=>{ dragging=false; });
+  svg.addEventListener('click',event=>event.stopPropagation());
+
   return {
     element:svg,
     setProgress(value){
       const p = Math.max(0,Math.min(1,value||0));
       circle.style.strokeDashoffset = String(301.59 * (1-p));
-    }
+    },
+    onSeek(fn){ seekHandler=fn; },
+    isDragging(){ return dragging; }
   };
 }
 
@@ -2550,6 +2599,13 @@ function VideoMessage(message){
   const ring = ProgressRing();
   shell.append(video, skeleton, ring.element, play);
   bubble.appendChild(shell);
+  shell.addEventListener('animationend',()=>{ shell.classList.remove('is-entering'); },{once:true});
+
+  ring.onSeek(p=>{
+    if(!duration) return;
+    video.currentTime = duration * p;
+    ring.setProgress(p);
+  });
 
   let duration = 0;
   let ready = false;
