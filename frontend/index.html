@@ -2638,6 +2638,14 @@ function VideoMessage(message){
     const err = document.createElement('div');
     err.className = 'video-message-error';
     err.textContent = formatMediaError('video');
+    if(message.audio_data){
+      const dl = document.createElement('a');
+      dl.href = message.audio_data;
+      dl.download = 'video-message';
+      dl.textContent = 'Скачать';
+      dl.style.cssText = 'display:block;margin-top:6px;color:var(--accent-b);text-decoration:underline;font-size:11px;';
+      err.appendChild(dl);
+    }
     shell.appendChild(err);
   });
   shell.addEventListener('click',async()=>{
@@ -2736,7 +2744,7 @@ const MediaRecorderService = {
   pickMime(kind){
     const candidates = kind === 'voice'
       ? ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/aac']
-      : ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+      : ['video/mp4;codecs=h264,aac','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
     return candidates.find(type => window.MediaRecorder && MediaRecorder.isTypeSupported(type)) || '';
   },
   blobToDataURL(blob){
@@ -3174,8 +3182,15 @@ recordingFlipBtn.addEventListener('click',async()=>{
     const next = await videoRecorderService.switchCamera();
     if(next){
       mediaStreamService.set(next);
-      cameraPreview.srcObject = next;
-      await cameraPreview.play().catch(()=>{});
+      // Reassigning the SAME stream object as srcObject is a no-op in most
+      // browsers even after a track swap, so the preview keeps showing the
+      // old camera. Force a rebind: detach, then reattach next frame.
+      cameraPreview.srcObject = null;
+      cameraPreview.load?.();
+      requestAnimationFrame(()=>{
+        cameraPreview.srcObject = next;
+        cameraPreview.play().catch(()=>{});
+      });
       const rear = videoRecorderService.getFacingMode() === 'environment';
       cameraPreview.classList.toggle('rear-camera', rear);
       cameraPreview.classList.toggle('front-camera', !rear);
