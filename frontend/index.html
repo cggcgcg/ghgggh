@@ -2447,9 +2447,27 @@ function VoiceMessage(message){
   }
 
   audio.addEventListener('loadedmetadata',()=>{
-    durationValue = Number.isFinite(audio.duration) ? audio.duration : 0;
-    duration.textContent = formatTime(durationValue);
-    bubble.classList.remove('loading');
+    if(Number.isFinite(audio.duration)){
+      durationValue = audio.duration;
+      duration.textContent = formatTime(durationValue);
+      bubble.classList.remove('loading');
+      return;
+    }
+    // Chrome/Firefox write blobs coming out of MediaRecorder without a
+    // duration in the container header, so audio.duration reads Infinity
+    // right after load — which broke both the progress bar (always stuck
+    // at 0%) and seeking (seekFromEvent bails out whenever !durationValue).
+    // Seeking to a huge currentTime forces the browser to scan the file and
+    // resolve the real duration; we then snap back to the start.
+    audio.currentTime = 1e101;
+    const resolveDuration = ()=>{
+      audio.removeEventListener('timeupdate', resolveDuration);
+      audio.currentTime = 0;
+      durationValue = Number.isFinite(audio.duration) ? audio.duration : 0;
+      duration.textContent = formatTime(durationValue);
+      bubble.classList.remove('loading');
+    };
+    audio.addEventListener('timeupdate', resolveDuration, {once:true});
   });
   audio.addEventListener('timeupdate', update);
   audio.addEventListener('play',()=>setPlaying(true));
@@ -2538,9 +2556,26 @@ function VideoMessage(message){
   let userInitiated = false;
 
   video.addEventListener('loadedmetadata',()=>{
-    duration = Number.isFinite(video.duration) ? video.duration : 0;
     ready = true;
-    skeleton.remove();
+    if(Number.isFinite(video.duration)){
+      duration = video.duration;
+      skeleton.remove();
+      return;
+    }
+    // Same Chrome/Firefox MediaRecorder-blob quirk as voice messages: no
+    // duration written into the container, so video.duration is Infinity
+    // until we force a seek-scan. Without this the progress ring around the
+    // circle never advances even though playback works fine.
+    const wasMuted = video.muted, wasTime = video.currentTime;
+    video.currentTime = 1e101;
+    const resolveDuration = ()=>{
+      video.removeEventListener('timeupdate', resolveDuration);
+      video.currentTime = wasTime;
+      video.muted = wasMuted;
+      duration = Number.isFinite(video.duration) ? video.duration : 0;
+      skeleton.remove();
+    };
+    video.addEventListener('timeupdate', resolveDuration, {once:true});
   });
   video.addEventListener('loadeddata',()=>{
     skeleton.remove();
@@ -2767,25 +2802,96 @@ function useAudioRecorder(){
 }
 
 function useVideoRecorder(){
-  let recorder=null, chunks=[], cameraStream=null, facingMode='user';
+  let recorder=null, chunks=[], cameraStream=null, canvasStream=null;
+  let hiddenVideo=null, canvas=null, ctx=null, rafId=null, drawing=false;
+  let facingMode='user';
+
+  // Whether the ACTUAL active track is a rear camera. Trust the track's own
+  // reported facingMode when available (this is what catches Android devices
+  // that silently hand back an already-mirrored rear-camera stream); fall
+  // back to the facingMode we requested only if the browser doesn't expose it
+  // (common on laptops with a single, non-facing-aware webcam).
+  function isActuallyRear(){
+    const track=cameraStream?.getVideoTracks()[0];
+    const actual=track?.getSettings?.().facingMode;
+    return actual ? actual==='environment' : facingMode==='environment';
+  }
+
+  function drawFrame(){
+    if(!drawing) return;
+    if(hiddenVideo.readyState>=2){
+      const w=canvas.width, h=canvas.height;
+      const vw=hiddenVideo.videoWidth||w, vh=hiddenVideo.videoHeight||h;
+      const scale=Math.max(w/vw,h/vh);
+      const dw=vw*scale, dh=vh*scale;
+      const dx=(w-dw)/2, dy=(h-dh)/2;
+      ctx.save();
+      // This is the actual fix: we redraw every frame onto a canvas before
+      // it ever reaches MediaRecorder, and mirror it here in pixels when the
+      // active track is a true rear camera. Unlike a CSS transform on the
+      // preview <video> (which only changes how the local sender sees their
+      // own preview), this changes the bytes that get encoded and sent — so
+      // the recipient now sees the correctly-oriented video too.
+      if(isActuallyRear()){
+        ctx.translate(w,0);
+        ctx.scale(-1,1);
+      }
+      ctx.drawImage(hiddenVideo,dx,dy,dw,dh);
+      ctx.restore();
+    }
+    rafId=requestAnimationFrame(drawFrame);
+  }
+
+  function teardownPipeline(){
+    drawing=false;
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId=null;
+    canvasStream?.getTracks().forEach(t=>t.stop());
+    canvasStream=null;
+    if(hiddenVideo){ hiddenVideo.srcObject=null; hiddenVideo=null; }
+    canvas=null; ctx=null;
+  }
+
   return {
     async start(){
       cameraStream=await MediaStreamService.request('video',facingMode);
+
+      hiddenVideo=document.createElement('video');
+      hiddenVideo.muted=true;
+      hiddenVideo.playsInline=true;
+      hiddenVideo.srcObject=cameraStream;
+      await hiddenVideo.play().catch(()=>{});
+
+      canvas=document.createElement('canvas');
+      canvas.width=720; canvas.height=720;
+      ctx=canvas.getContext('2d');
+      drawing=true;
+      drawFrame();
+
+      canvasStream=canvas.captureStream(30);
+      const audioTrack=cameraStream.getAudioTracks()[0];
+      if(audioTrack) canvasStream.addTrack(audioTrack);
+
       const mimeType=MediaRecorderService.pickMime('video');
       recorder=mimeType
-        ? new MediaRecorder(cameraStream,{mimeType,videoBitsPerSecond:1000000,audioBitsPerSecond:64000})
-        : new MediaRecorder(cameraStream);
+        ? new MediaRecorder(canvasStream,{mimeType,videoBitsPerSecond:1000000,audioBitsPerSecond:64000})
+        : new MediaRecorder(canvasStream);
       chunks=[];
       recorder.addEventListener('dataavailable',e=>{if(e.data?.size)chunks.push(e.data);});
       recorder.start(250);
+      // The live local preview still binds to the raw camera stream (and
+      // still gets its own CSS mirror for a natural selfie-style view) —
+      // it's the canvas pipeline above, invisible to the user, that actually
+      // gets encoded by MediaRecorder and sent to the other person.
       return {stream:cameraStream,recorder};
     },
     stop(){
       return new Promise(resolve=>{
-        if(!recorder){resolve(null);return;}
+        if(!recorder){teardownPipeline(); resolve(null);return;}
         const done=()=>{
           const blob=new Blob(chunks,{type:(recorder.mimeType||'video/webm').split(';')[0]});
           MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[];
+          teardownPipeline();
           resolve(blob);
         };
         recorder.addEventListener('stop',done,{once:true});
@@ -2795,6 +2901,7 @@ function useVideoRecorder(){
     cancel(){
       try{if(recorder?.state!=='inactive')recorder.stop();}catch{}
       MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[];
+      teardownPipeline();
     },
     async switchCamera(){
       if(!cameraStream) return null;
@@ -2807,6 +2914,16 @@ function useVideoRecorder(){
       // gap and no re-encoding pipeline (that's what used to break playback).
       if(oldVideo){ cameraStream.removeTrack(oldVideo); oldVideo.stop(); }
       cameraStream.addTrack(nextVideo);
+      // The hidden <video> feeding the canvas has the same srcObject-is-a-
+      // no-op quirk as the visible preview, so force a rebind here too —
+      // otherwise the canvas (and therefore the recording) would keep
+      // drawing frames from the old camera even after the flip.
+      if(hiddenVideo){
+        hiddenVideo.srcObject=null;
+        hiddenVideo.load();
+        hiddenVideo.srcObject=cameraStream;
+        await hiddenVideo.play().catch(()=>{});
+      }
       return cameraStream;
     },
     getStream(){return cameraStream;},
