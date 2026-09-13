@@ -1422,7 +1422,7 @@ body,[data-ui-design]{background:var(--bg);}
 .recording-preview.is-video .recording-video-stage{width:280px!important;height:280px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 280px!important;}
 .recording-preview.is-video .recording-video-stage video{width:270px!important;height:270px!important;border-radius:50%!important;object-fit:cover!important;border:3px solid var(--accent-b)!important;box-shadow:0 0 0 5px #11151b,0 0 24px #21d4fd44!important;}
 .recording-preview.is-video .recording-video-stage video.front-camera{transform:scaleX(-1)!important;}
-.recording-preview.is-video .recording-video-stage video.rear-camera{transform:none!important;}
+.recording-preview.is-video .recording-video-stage video.rear-camera{transform:scaleX(-1)!important;}
 .recording-preview.is-video .recording-camera-ring{width:284px!important;height:284px!important;border:2px solid var(--accent-b)!important;}
 .recording-preview.is-video .recording-actions{display:flex!important;justify-content:center!important;gap:9px!important;width:100%;}
 .recording-preview.is-video .recording-actions button{width:42px!important;height:42px!important;background:var(--surface-hi)!important;border-color:var(--border)!important;}
@@ -2535,6 +2535,7 @@ function VideoMessage(message){
 
   let duration = 0;
   let ready = false;
+  let userInitiated = false;
 
   video.addEventListener('loadedmetadata',()=>{
     duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -2548,6 +2549,14 @@ function VideoMessage(message){
     ring.setProgress(duration ? video.currentTime / duration : 0);
   });
   video.addEventListener('play',()=>{
+    if(!userInitiated){
+      // Some browsers auto-start muted, inline videos as a preview even
+      // without an autoplay attribute or a JS .play() call from us. Stop
+      // any playback we didn't explicitly trigger from a tap.
+      video.pause();
+      video.currentTime = 0;
+      return;
+    }
     shell.classList.remove('paused');
   });
   video.addEventListener('pause',()=>{
@@ -2558,6 +2567,7 @@ function VideoMessage(message){
     video.currentTime = 0;
     ring.setProgress(0);
     shell.classList.add('paused');
+    userInitiated = false;
   });
   video.addEventListener('error',()=>{
     skeleton.remove();
@@ -2578,11 +2588,14 @@ function VideoMessage(message){
     if(!ready && video.readyState < 1) return;
     if(video.paused){
       try{
+        userInitiated = true;
+        video.muted = false;
         await video.play();
-        // A video message starts muted by design; the browser never gets surprise audio.
-        video.muted = true;
-      }catch{}
+      }catch{
+        userInitiated = false;
+      }
     }else{
+      userInitiated = false;
       video.pause();
     }
   });
@@ -3117,7 +3130,15 @@ recordingFlipBtn.addEventListener('click',async()=>{
         cameraPreview.srcObject = next;
         cameraPreview.play().catch(()=>{});
       });
-      const rear = videoRecorderService.getFacingMode() === 'environment';
+      const actualTrack = next.getVideoTracks()[0];
+      const actualFacing = actualTrack?.getSettings?.().facingMode;
+      // If the browser couldn't actually honor 'environment' (common on
+      // laptops with a single webcam — it silently keeps serving the same
+      // front camera), keep mirroring it like a front camera. Only treat
+      // it as a true rear camera when the track itself confirms it.
+      const rear = actualFacing
+        ? actualFacing === 'environment'
+        : videoRecorderService.getFacingMode() === 'environment';
       cameraPreview.classList.toggle('rear-camera', rear);
       cameraPreview.classList.toggle('front-camera', !rear);
     }
@@ -3148,7 +3169,7 @@ updateMediaButton();
 
 <style id="v6-fixed-css">
 /* V6: camera direction */
-.camera-preview.rear-camera { transform: none !important; }
+.camera-preview.rear-camera { transform: scaleX(-1) !important; }
 .camera-preview.front-camera { transform: scaleX(-1) !important; }
 </style>
 
