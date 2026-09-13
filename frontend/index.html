@@ -1370,104 +1370,30 @@ body,[data-ui-design]{background:var(--bg);}
 .conv-messages::before{content:"";position:absolute;inset:-15%;z-index:0;pointer-events:none;}
 .conv-messages>*{position:relative;z-index:1;}
 
-/* 8 premium ambient wallpapers — soft drifting light, no cheap tiling patterns.
-   Each recipe is shared between the real chat background and its settings
-   swatch, so what you see in the picker is exactly what you get in the chat. */
+/* 8 simple flat-color chat backgrounds — no gradients, no animation. */
 [data-chat-theme="mist"] .conv-messages{background:#0d1420!important;}
-[data-chat-theme="mist"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="mist"]::before{
-  background:
-    radial-gradient(42% 40% at 20% 22%, rgba(94,200,255,.32), transparent 70%),
-    radial-gradient(38% 42% at 82% 78%, rgba(155,123,255,.26), transparent 70%),
-    linear-gradient(160deg,#0d1420,#131a2a);
-  background-size:175% 175%,175% 175%,100% 100%;
-  animation:themeMist 17s ease-in-out infinite alternate;
-}
-@keyframes themeMist{from{background-position:8% 10%,92% 90%,0 0;}to{background-position:26% 24%,74% 76%,0 0;}}
+#chat-theme-grid [data-chat-theme="mist"]::before{background:#0d1420;}
 
 [data-chat-theme="sunrise"] .conv-messages{background:#1c1220!important;}
-[data-chat-theme="sunrise"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="sunrise"]::before{
-  background:
-    radial-gradient(40% 38% at 80% 18%, rgba(255,179,122,.30), transparent 70%),
-    radial-gradient(36% 40% at 18% 82%, rgba(255,122,168,.22), transparent 72%),
-    linear-gradient(155deg,#1c1220,#231522);
-  background-size:175% 175%,175% 175%,100% 100%;
-  animation:themeSunrise 19s ease-in-out infinite alternate;
-}
-@keyframes themeSunrise{from{background-position:92% 8%,8% 92%,0 0;}to{background-position:72% 26%,28% 74%,0 0;}}
+#chat-theme-grid [data-chat-theme="sunrise"]::before{background:#1c1220;}
 
 [data-chat-theme="ocean"] .conv-messages{background:#071a24!important;}
-[data-chat-theme="ocean"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="ocean"]::before{
-  background:
-    radial-gradient(46% 34% at 18% 80%, rgba(58,208,255,.32), transparent 70%),
-    radial-gradient(36% 42% at 86% 20%, rgba(79,107,255,.24), transparent 70%),
-    linear-gradient(155deg,#071a24,#0a2233);
-  background-size:180% 180%,180% 180%,100% 100%;
-  animation:themeOcean 15s ease-in-out infinite alternate;
-}
-@keyframes themeOcean{from{background-position:10% 88%,88% 12%,0 0;}to{background-position:30% 68%,68% 32%,0 0;}}
+#chat-theme-grid [data-chat-theme="ocean"]::before{background:#071a24;}
 
 [data-chat-theme="violet"] .conv-messages{background:#150f22!important;}
-[data-chat-theme="violet"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="violet"]::before{
-  background:
-    radial-gradient(38% 38% at 24% 24%, rgba(178,107,255,.30), transparent 70%),
-    radial-gradient(34% 42% at 78% 78%, rgba(107,123,255,.24), transparent 70%),
-    linear-gradient(150deg,#150f22,#191029);
-  background-size:170% 170%,170% 170%,100% 100%;
-  animation:themeViolet 20s ease-in-out infinite alternate;
-}
-@keyframes themeViolet{from{background-position:14% 16%,86% 84%,0 0;}to{background-position:32% 34%,68% 66%,0 0;}}
+#chat-theme-grid [data-chat-theme="violet"]::before{background:#150f22;}
 
 [data-chat-theme="forest"] .conv-messages{background:#0d1912!important;}
-[data-chat-theme="forest"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="forest"]::before{
-  background:
-    radial-gradient(42% 32% at 16% 78%, rgba(95,209,143,.28), transparent 70%),
-    radial-gradient(34% 36% at 84% 20%, rgba(184,224,106,.18), transparent 70%),
-    linear-gradient(150deg,#0d1912,#0f1f16);
-  background-size:175% 175%,175% 175%,100% 100%;
-  animation:themeForest 22s ease-in-out infinite alternate;
-}
-@keyframes themeForest{from{background-position:12% 82%,84% 18%,0 0;}to{background-position:30% 62%,64% 38%,0 0;}}
+#chat-theme-grid [data-chat-theme="forest"]::before{background:#0d1912;}
 
 [data-chat-theme="rose"] .conv-messages{background:#1c0f18!important;}
-[data-chat-theme="rose"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="rose"]::before{
-  background:
-    radial-gradient(38% 36% at 82% 22%, rgba(255,110,168,.30), transparent 70%),
-    radial-gradient(34% 38% at 16% 80%, rgba(178,107,255,.22), transparent 70%),
-    linear-gradient(150deg,#1c0f18,#211324);
-  background-size:172% 172%,172% 172%,100% 100%;
-  animation:themeRose 16s ease-in-out infinite alternate;
-}
-@keyframes themeRose{from{background-position:88% 16%,12% 86%,0 0;}to{background-position:68% 34%,32% 66%,0 0;}}
+#chat-theme-grid [data-chat-theme="rose"]::before{background:#1c0f18;}
 
 [data-chat-theme="amber"] .conv-messages{background:#1a1108!important;}
-[data-chat-theme="amber"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="amber"]::before{
-  background:
-    radial-gradient(38% 38% at 24% 22%, rgba(255,194,94,.30), transparent 70%),
-    radial-gradient(36% 34% at 80% 78%, rgba(255,138,94,.22), transparent 70%),
-    linear-gradient(150deg,#1a1108,#20140a);
-  background-size:172% 172%,172% 172%,100% 100%;
-  animation:themeAmber 18s ease-in-out infinite alternate;
-}
-@keyframes themeAmber{from{background-position:16% 14%,82% 84%,0 0;}to{background-position:34% 32%,64% 66%,0 0;}}
+#chat-theme-grid [data-chat-theme="amber"]::before{background:#1a1108;}
 
 [data-chat-theme="night"] .conv-messages{background:#0a0c12!important;}
-[data-chat-theme="night"] .conv-messages::before,
-#chat-theme-grid [data-chat-theme="night"]::before{
-  background:
-    radial-gradient(30% 28% at 72% 26%, rgba(125,141,176,.16), transparent 70%),
-    radial-gradient(28% 26% at 22% 76%, rgba(88,101,168,.13), transparent 70%),
-    linear-gradient(150deg,#0a0c12,#0d0f16);
-  background-size:165% 165%,165% 165%,100% 100%;
-  animation:themeNight 24s ease-in-out infinite alternate;
-}
-@keyframes themeNight{from{background-position:66% 22%,26% 72%,0 0;}to{background-position:46% 42%,46% 52%,0 0;}}
+#chat-theme-grid [data-chat-theme="night"]::before{background:#0a0c12;}
 
 /* Swatches: real animated preview, exactly the theme it represents. */
 #chat-theme-grid .theme-swatch{position:relative;overflow:hidden;min-height:76px;background:#12131c;}
