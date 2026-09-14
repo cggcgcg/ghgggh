@@ -469,12 +469,6 @@ button, input{font-family:inherit;}
   text-align:center;
   padding:24px;
 }
-.conv-empty-mark{
-  width:56px; height:56px; border-radius:50%;
-  border:1px solid var(--border);
-  margin-bottom:8px;
-  background:radial-gradient(circle at 30% 30%, var(--surface-hover), var(--bg-alt));
-}
 .conv-empty h2{margin:0; font-family:var(--font-display); font-size:18px; color:var(--text);}
 .conv-empty p{margin:0; font-size:13px;}
 
@@ -490,6 +484,65 @@ button, input{font-family:inherit;}
 .conv-header-info{display:flex; flex-direction:column; min-width:0;}
 .conv-header-name{font-size:14px; font-weight:600;}
 .conv-header-status{font-size:11px; color:var(--text-faint);}
+.conv-header-actions{display:flex; gap:6px; margin-left:auto;}
+
+/* ---------- Звонки ---------- */
+.call-overlay{
+  position:fixed;inset:0;z-index:60;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:22px;padding:32px;text-align:center;color:var(--text);
+  background:radial-gradient(circle at 50% 20%,#1b1c2e,var(--bg) 70%);
+}
+.call-overlay[hidden]{display:none;}
+.call-avatar-big{
+  width:112px;height:112px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font:700 34px var(--font-display);color:#fff;
+  background:linear-gradient(135deg,var(--accent-a),var(--accent-b));
+  position:relative;
+}
+.call-overlay.ringing .call-avatar-big::before,
+.call-overlay.ringing .call-avatar-big::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:2px solid var(--accent-b);
+  animation:callPulse 1.6s ease-out infinite;
+}
+.call-overlay.ringing .call-avatar-big::after{animation-delay:.5s;}
+@keyframes callPulse{
+  0%{transform:scale(1);opacity:.55;}
+  100%{transform:scale(1.85);opacity:0;}
+}
+.call-name{font:700 20px var(--font-display);position:relative;z-index:1;}
+.call-status{color:var(--text-dim);font-size:13px;min-height:18px;position:relative;z-index:1;}
+.call-timer{color:var(--text-dim);font-size:13px;font-variant-numeric:tabular-nums;position:relative;z-index:1;}
+
+.call-videos{position:fixed;inset:0;display:none;background:#000;}
+.call-overlay.video-active .call-videos{display:block;}
+.call-overlay.video-active .call-avatar-big{display:none;}
+.call-overlay.video-active{justify-content:flex-end;padding-bottom:40px;}
+.call-overlay.video-active .call-name,
+.call-overlay.video-active .call-status,
+.call-overlay.video-active .call-timer{text-shadow:0 2px 10px rgba(0,0,0,.6);}
+#call-remote-video{width:100%;height:100%;object-fit:cover;}
+#call-local-video{
+  position:absolute;right:16px;bottom:150px;
+  width:104px;height:150px;object-fit:cover;
+  border-radius:14px;border:1px solid rgba(255,255,255,.25);
+  background:#000;box-shadow:0 12px 30px rgba(0,0,0,.45);
+  transform:scaleX(-1);
+}
+
+.call-controls{display:flex;gap:16px;position:relative;z-index:1;}
+.call-btn{
+  width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#fff;background:var(--surface-hover);
+  transition:transform .15s, background .15s;
+}
+.call-btn:active{transform:scale(.92);}
+.call-btn.active{background:#fff;color:#111;}
+.call-btn.accept{background:#33c15a;}
+.call-btn.decline,.call-btn.hangup{background:var(--danger);}
 
 .conv-messages{
   flex:1;
@@ -1553,7 +1606,6 @@ body,[data-ui-design]{background:var(--bg);}
     <!-- Область переписки -->
     <main class="conversation" id="conversation">
       <div class="conv-empty" id="conv-empty">
-        <span class="conv-empty-mark"></span>
         <h2 data-conv-select>Выберите чат</h2>
         <p data-conv-start>Или найдите пользователя, чтобы начать переписку.</p>
       </div>
@@ -1565,6 +1617,10 @@ body,[data-ui-design]{background:var(--bg);}
           <div class="conv-header-info">
             <span class="conv-header-name" id="conv-header-name">—</span>
             <span class="conv-header-status" id="conv-header-status">Готов к сообщениям</span>
+          </div>
+          <div class="conv-header-actions">
+            <button class="icon-btn" id="call-audio-btn" type="button" title="Аудиозвонок">☎</button>
+            <button class="icon-btn" id="call-video-btn" type="button" title="Видеозвонок">📹</button>
           </div>
         </header>
 
@@ -1640,6 +1696,26 @@ body,[data-ui-design]{background:var(--bg);}
       </div>
     </div>
   </section>
+</div>
+
+<div class="call-overlay" id="call-overlay" hidden>
+  <div class="call-videos">
+    <video id="call-remote-video" autoplay playsinline></video>
+    <video id="call-local-video" autoplay playsinline muted hidden></video>
+  </div>
+  <div class="call-avatar-big" id="call-avatar-big">?</div>
+  <div class="call-name" id="call-peer-name">—</div>
+  <div class="call-status" id="call-status-text">Вызов…</div>
+  <div class="call-timer" id="call-timer" hidden>00:00</div>
+  <div class="call-controls" id="call-controls-idle" hidden>
+    <button class="call-btn decline" id="call-decline-btn" type="button" title="Отклонить">✕</button>
+    <button class="call-btn accept" id="call-accept-btn" type="button" title="Ответить">✓</button>
+  </div>
+  <div class="call-controls" id="call-controls-active" hidden>
+    <button class="call-btn" id="call-mute-btn" type="button" title="Микрофон">🎤</button>
+    <button class="call-btn" id="call-camera-btn" type="button" title="Камера">📷</button>
+    <button class="call-btn hangup" id="call-hangup-btn" type="button" title="Завершить">✕</button>
+  </div>
 </div>
 
 <script>
@@ -2146,6 +2222,7 @@ async function enterApp(){
   loadSpaces();
   loadConversations();
   startPolling();
+  CallManager.connect(user.id);
 }
 
 async function loadConversations(){
@@ -2174,6 +2251,7 @@ async function loadConversations(){
 
 logoutBtn.addEventListener('click', () => {
   stopPolling();
+  CallManager.disconnect();
   localStorage.removeItem(STORAGE_KEY);
   openChats.clear();
   activeChatId = null;
@@ -2330,6 +2408,8 @@ async function setActiveChat(id){
   messageInput.disabled = isSpace;
   messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
   mediaBtn.disabled = isSpace;
+  document.getElementById('call-audio-btn').hidden = isSpace;
+  document.getElementById('call-video-btn').hidden = isSpace;
 
   renderChatList();
   if(isSpace){
@@ -2813,6 +2893,367 @@ function useMediaStream(){
     stop(){ MediaStreamService.stop(stream); stream = null; }
   };
 }
+
+// ================= Звонки (WebRTC + сигналинг по WebSocket) =================
+const CallManager = (() => {
+  const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+  const overlay        = document.getElementById('call-overlay');
+  const avatarBig       = document.getElementById('call-avatar-big');
+  const peerNameEl      = document.getElementById('call-peer-name');
+  const statusEl        = document.getElementById('call-status-text');
+  const timerEl         = document.getElementById('call-timer');
+  const idleControls    = document.getElementById('call-controls-idle');
+  const activeControls  = document.getElementById('call-controls-active');
+  const acceptBtn       = document.getElementById('call-accept-btn');
+  const declineBtn      = document.getElementById('call-decline-btn');
+  const muteBtn         = document.getElementById('call-mute-btn');
+  const cameraBtn       = document.getElementById('call-camera-btn');
+  const hangupBtn       = document.getElementById('call-hangup-btn');
+  const remoteVideo     = document.getElementById('call-remote-video');
+  const localVideo      = document.getElementById('call-local-video');
+
+  let ws = null;
+  let wsReconnectTimer = null;
+  let myId = null;
+
+  let pc = null;
+  let localStream = null;
+  let pendingCandidates = [];
+  let remoteDescSet = false;
+
+  let peerId = null;
+  let mode = 'audio';   // 'audio' | 'video'
+  let role = null;      // 'caller' | 'callee'
+  let pendingOffer = null;
+
+  let ringCtx = null;
+  let ringInterval = null;
+
+  let timerInterval = null;
+  let startedAt = 0;
+
+  function wsUrl(){
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}/ws/calls`;
+  }
+
+  function connect(userId){
+    myId = userId;
+    if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    try{
+      ws = new WebSocket(wsUrl());
+    }catch{
+      scheduleReconnect();
+      return;
+    }
+    ws.addEventListener('open', () => send({ type:'hello', user_id: myId }));
+    ws.addEventListener('message', (event) => {
+      let msg;
+      try{ msg = JSON.parse(event.data); }catch{ return; }
+      handleSignal(msg);
+    });
+    ws.addEventListener('close', scheduleReconnect);
+    ws.addEventListener('error', () => {});
+  }
+
+  function scheduleReconnect(){
+    if(!myId || wsReconnectTimer) return;
+    wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connect(myId); }, 2000);
+  }
+
+  function disconnect(){
+    const id = myId;
+    myId = null;
+    if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    if(id) endCall({ notifyPeer:true, silent:true });
+    try{ ws?.close(); }catch{}
+    ws = null;
+  }
+
+  function send(obj){
+    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+  }
+
+  function handleSignal(msg){
+    switch(msg.type){
+      case 'call-offer': onIncomingOffer(msg); break;
+      case 'call-answer': onRemoteAnswer(msg); break;
+      case 'ice-candidate': onRemoteIce(msg); break;
+      case 'call-reject': onRemoteReject(); break;
+      case 'call-busy': onRemoteBusy(); break;
+      case 'call-end': onRemoteEnd(); break;
+      case 'call-unavailable': onUnavailable(); break;
+      case 'replaced': try{ ws?.close(); }catch{} break;
+      default: break;
+    }
+  }
+
+  // ---------- UI ----------
+
+  function showOverlay(){ overlay.hidden = false; }
+  function hideOverlay(){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
+
+  function setPeerLabel(id, name){
+    const label = name || id;
+    peerNameEl.textContent = label;
+    avatarBig.textContent = initials(label);
+  }
+
+  function startTimer(){
+    startedAt = Date.now();
+    timerEl.hidden = false;
+    statusEl.hidden = true;
+    timerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      timerEl.textContent = `${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+    }, 500);
+  }
+
+  function stopTimer(){
+    if(timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+    timerEl.hidden = true;
+    statusEl.hidden = false;
+  }
+
+  // Простой бип вместо файла-рингтона — коротким тоном раз в 1.5с, пока
+  // экран входящего звонка открыт.
+  function playRingtone(){
+    stopRingtone();
+    try{ ringCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch{ return; }
+    const beep = () => {
+      if(!ringCtx) return;
+      const osc = ringCtx.createOscillator();
+      const gain = ringCtx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ringCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ringCtx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ringCtx.currentTime + 0.35);
+      osc.connect(gain).connect(ringCtx.destination);
+      osc.start();
+      osc.stop(ringCtx.currentTime + 0.4);
+    };
+    beep();
+    ringInterval = setInterval(beep, 1500);
+  }
+
+  function stopRingtone(){
+    if(ringInterval) clearInterval(ringInterval);
+    ringInterval = null;
+    if(ringCtx){ try{ ringCtx.close(); }catch{} ringCtx = null; }
+  }
+
+  // ---------- WebRTC ----------
+
+  function createPeerConnection(){
+    const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    connection.addEventListener('icecandidate', (event) => {
+      if(event.candidate) send({ type:'ice-candidate', to: peerId, candidate: event.candidate });
+    });
+    connection.addEventListener('track', (event) => {
+      remoteVideo.srcObject = event.streams[0];
+      if(mode === 'video') overlay.classList.add('video-active');
+    });
+    connection.addEventListener('connectionstatechange', () => {
+      if(connection.connectionState === 'failed') endCall({ notifyPeer:true });
+    });
+    return connection;
+  }
+
+  async function getMedia(wantVideo){
+    const constraints = wantVideo
+      ? { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video:{width:{ideal:1280},height:{ideal:720}} }
+      : { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true} };
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  async function startCall(targetId, targetName, wantVideo){
+    if(!overlay.hidden) return; // уже в звонке
+    peerId = targetId;
+    mode = wantVideo ? 'video' : 'audio';
+    role = 'caller';
+    setPeerLabel(targetId, targetName);
+    statusEl.textContent = 'Вызов…';
+    overlay.classList.add('ringing');
+    activeControls.hidden = true;
+    idleControls.hidden = false;
+    acceptBtn.hidden = true;
+    declineBtn.title = 'Отменить';
+    showOverlay();
+
+    try{
+      localStream = await getMedia(wantVideo);
+    }catch{
+      statusEl.textContent = 'Нет доступа к камере/микрофону';
+      setTimeout(() => endCall({ notifyPeer:false }), 1500);
+      return;
+    }
+
+    if(wantVideo){ localVideo.srcObject = localStream; localVideo.hidden = false; }
+
+    pc = createPeerConnection();
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send({ type:'call-offer', to: targetId, mode, sdp: offer });
+  }
+
+  async function onIncomingOffer(msg){
+    if(!overlay.hidden){
+      send({ type:'call-busy', to: msg.from });
+      return;
+    }
+    peerId = msg.from;
+    mode = msg.mode === 'video' ? 'video' : 'audio';
+    role = 'callee';
+    pendingOffer = msg.sdp;
+    remoteDescSet = false;
+    pendingCandidates = [];
+
+    let chat = openChats.get(msg.from);
+    if(!chat){
+      try{
+        const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(msg.from)}`);
+        if(res.ok) chat = await res.json();
+      }catch{}
+    }
+    setPeerLabel(msg.from, chat?.display_name);
+    statusEl.textContent = mode === 'video' ? 'Входящий видеозвонок' : 'Входящий звонок';
+    overlay.classList.add('ringing');
+    declineBtn.title = 'Отклонить';
+    acceptBtn.hidden = false;
+    idleControls.hidden = false;
+    activeControls.hidden = true;
+    showOverlay();
+    playRingtone();
+  }
+
+  async function acceptCall(){
+    stopRingtone();
+    overlay.classList.remove('ringing');
+    idleControls.hidden = true;
+    statusEl.textContent = 'Соединение…';
+
+    try{
+      localStream = await getMedia(mode === 'video');
+    }catch{
+      statusEl.textContent = 'Нет доступа к камере/микрофону';
+      send({ type:'call-reject', to: peerId });
+      setTimeout(() => endCall({ notifyPeer:false }), 1500);
+      return;
+    }
+
+    if(mode === 'video'){ localVideo.srcObject = localStream; localVideo.hidden = false; }
+
+    pc = createPeerConnection();
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+    remoteDescSet = true;
+    for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
+    pendingCandidates = [];
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    send({ type:'call-answer', to: peerId, sdp: answer });
+
+    cameraBtn.hidden = mode !== 'video';
+    activeControls.hidden = false;
+    startTimer();
+  }
+
+  function declineCall(){
+    stopRingtone();
+    send({ type: role === 'callee' ? 'call-reject' : 'call-end', to: peerId });
+    endCall({ notifyPeer:false });
+  }
+
+  async function onRemoteAnswer(msg){
+    if(!pc || role !== 'caller') return;
+    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+    remoteDescSet = true;
+    for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
+    pendingCandidates = [];
+    overlay.classList.remove('ringing');
+    idleControls.hidden = true;
+    cameraBtn.hidden = mode !== 'video';
+    activeControls.hidden = false;
+    startTimer();
+  }
+
+  async function onRemoteIce(msg){
+    if(!msg.candidate) return;
+    if(pc && remoteDescSet){
+      try{ await pc.addIceCandidate(msg.candidate); }catch{}
+    }else{
+      pendingCandidates.push(msg.candidate);
+    }
+  }
+
+  function onRemoteReject(){ statusEl.textContent = 'Отклонено'; setTimeout(() => endCall({ notifyPeer:false }), 900); }
+  function onRemoteBusy(){ statusEl.textContent = 'Собеседник уже разговаривает'; setTimeout(() => endCall({ notifyPeer:false }), 1400); }
+  function onRemoteEnd(){ statusEl.textContent = 'Звонок завершён'; setTimeout(() => endCall({ notifyPeer:false }), 600); }
+  function onUnavailable(){ statusEl.textContent = 'Пользователь не в сети'; setTimeout(() => endCall({ notifyPeer:false }), 1400); }
+
+  function endCall({ notifyPeer=true, silent=false } = {}){
+    stopRingtone();
+    stopTimer();
+    if(notifyPeer && peerId) send({ type:'call-end', to: peerId });
+
+    if(pc){ try{ pc.close(); }catch{} pc = null; }
+    if(localStream){ MediaStreamService.stop(localStream); localStream = null; }
+    remoteVideo.srcObject = null;
+    localVideo.srcObject = null;
+    localVideo.hidden = true;
+    muteBtn.classList.remove('active');
+    cameraBtn.classList.remove('active');
+
+    peerId = null; role = null; pendingOffer = null;
+    pendingCandidates = []; remoteDescSet = false;
+
+    if(silent){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
+    else hideOverlay();
+  }
+
+  function toggleMute(){
+    const track = localStream?.getAudioTracks()[0];
+    if(!track) return;
+    track.enabled = !track.enabled;
+    muteBtn.classList.toggle('active', !track.enabled);
+  }
+
+  function toggleCamera(){
+    const track = localStream?.getVideoTracks()[0];
+    if(!track) return;
+    track.enabled = !track.enabled;
+    cameraBtn.classList.toggle('active', !track.enabled);
+  }
+
+  acceptBtn.addEventListener('click', acceptCall);
+  declineBtn.addEventListener('click', declineCall);
+  hangupBtn.addEventListener('click', () => { send({ type:'call-end', to: peerId }); endCall({ notifyPeer:false }); });
+  muteBtn.addEventListener('click', toggleMute);
+  cameraBtn.addEventListener('click', toggleCamera);
+
+  return {
+    connect,
+    disconnect,
+    call: (targetId, targetName, wantVideo) => startCall(targetId, targetName, wantVideo)
+  };
+})();
+
+document.getElementById('call-audio-btn').addEventListener('click', () => {
+  const chat = openChats.get(activeChatId);
+  if(!chat || chat.kind === 'group' || chat.kind === 'channel') return;
+  CallManager.call(chat.id, chat.display_name, false);
+});
+document.getElementById('call-video-btn').addEventListener('click', () => {
+  const chat = openChats.get(activeChatId);
+  if(!chat || chat.kind === 'group' || chat.kind === 'channel') return;
+  CallManager.call(chat.id, chat.display_name, true);
+});
 
 function useAudioPlayer(audio){
   return {

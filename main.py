@@ -1,12 +1,15 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import json
+import socket
+import threading
 
 from app.database import init_db
 from app.users import create_user, get_user, find_by_username, update_user
 from app.messages import create_message, get_conversation, get_conversations
 from app.workspace import get_settings, update_settings, create_space, get_spaces, create_device, get_devices
+from app import calls
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -28,6 +31,76 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)
+
+    # ---- WebSocket (звонки) ----------------------------------------
+
+    def send_ws_json(self, message):
+        """Thread-safe: вызывается и из своего же потока (pong), и из ЧУЖОГО
+        потока (когда собеседник шлёт нам offer/answer/ice-candidate)."""
+        payload = json.dumps(message, ensure_ascii=False).encode("utf-8")
+        frame = calls.encode_frame(payload)
+        lock = getattr(self, "_ws_write_lock", None)
+        if lock is None:
+            self.wfile.write(frame)
+            return
+        with lock:
+            self.wfile.write(frame)
+
+    def close_ws(self):
+        """Будит поток этого соединения, если он сейчас заблокирован на
+        чтении сокета — используется, когда тот же user_id переподключился
+        с другой вкладки/устройства."""
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def _handle_ws_calls(self):
+        ws_key = self.headers.get("Sec-WebSocket-Key")
+        if not ws_key:
+            self.send_json(400, {"error": "Missing Sec-WebSocket-Key"})
+            return
+
+        accept = calls.compute_accept_key(ws_key)
+        self.send_response(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", accept)
+        self.end_headers()
+
+        self._ws_write_lock = threading.Lock()
+        state = {}
+
+        try:
+            while True:
+                opcode, payload = calls.decode_frame(self.rfile.read)
+                if opcode is None:
+                    break
+
+                if opcode == 0x8:  # close
+                    break
+
+                if opcode == 0x9:  # ping -> pong
+                    with self._ws_write_lock:
+                        self.wfile.write(calls.encode_frame(payload, opcode=0xA))
+                    continue
+
+                if opcode != 0x1:  # интересует только текст (JSON)
+                    continue
+
+                try:
+                    message = json.loads(payload.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    continue
+
+                if isinstance(message, dict):
+                    calls.handle_client_message(self, state, message)
+        except (ConnectionResetError, BrokenPipeError, OSError):
+            pass
+        finally:
+            user_id = state.get("user_id")
+            if user_id:
+                calls.unregister(user_id, self)
 
     def send_file(self, file_path):
         try:
@@ -92,6 +165,12 @@ class Handler(BaseHTTPRequestHandler):
     # =====================================================
 
     def do_GET(self):
+
+        # Апгрейд до WebSocket для сигналинга звонков — держим на том же
+        # порту, что и остальной API, чтобы не городить второй порт/прокси.
+        if self.path == "/ws/calls" and self.headers.get("Upgrade", "").lower() == "websocket":
+            self._handle_ws_calls()
+            return
 
         # Главная страница TGClone
         if self.path == "/" or self.path == "/index.html":
@@ -396,7 +475,7 @@ import os
 
 PORT = int(os.environ.get("PORT", 8000))
 
-server = HTTPServer(
+server = ThreadingHTTPServer(
     ("0.0.0.0", PORT),
     Handler
 )
