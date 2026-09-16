@@ -2902,7 +2902,22 @@ function useMediaStream(){
 
 // ================= Звонки (WebRTC + сигналинг по WebSocket) =================
 const CallManager = (() => {
-  const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+  // Один STUN подходит не всегда: если оба телефона за NAT, который не
+  // пропускает прямое P2P (типично для мобильного интернета и части wifi-
+  // роутеров), сигналинг (offer/answer/ICE) проходит успешно, а сам
+  // медиапоток так и не устанавливается — визуально это как раз «пишет
+  // вызов, но ничего не слышно». TURN-сервер решает это, ретранслируя
+  // медиа через себя, когда прямое соединение невозможно.
+  // Ниже — публичные тестовые TURN-креды проекта Open Relay (metered.ca),
+  // бесплатные и без регистрации, но НЕ для продакшена (нет SLA, могут
+  // резать скорость/лимиты под нагрузкой) — для реального запуска нужен
+  // свой TURN (coturn на своём сервере или платный провайдер вроде Twilio/Xirsys).
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ];
 
   const overlay        = document.getElementById('call-overlay');
   const avatarBig       = document.getElementById('call-avatar-big');
@@ -3084,9 +3099,23 @@ const CallManager = (() => {
     connection.addEventListener('track', (event) => {
       remoteVideo.srcObject = event.streams[0];
       if(mode === 'video') overlay.classList.add('video-active');
+      // srcObject выставляется тут асинхронно (уже вне клика "Принять"),
+      // так что autoplay-атрибута браузеру может быть недостаточно —
+      // звук молча не заиграет. Просим явно и подсказываем, если браузер
+      // всё равно отказал (тогда обычно нужен ещё один тап по экрану).
+      remoteVideo.play().catch(() => {
+        statusEl.textContent = 'Нажмите на экран, чтобы включить звук';
+        statusEl.hidden = false;
+        const resume = () => { remoteVideo.play().catch(()=>{}); statusEl.hidden = true; document.removeEventListener('click', resume); };
+        document.addEventListener('click', resume, { once:true });
+      });
     });
     connection.addEventListener('connectionstatechange', () => {
-      if(connection.connectionState === 'failed') endCall({ notifyPeer:true });
+      if(connection.connectionState === 'failed'){
+        statusEl.textContent = 'Не удалось установить соединение';
+        statusEl.hidden = false;
+        setTimeout(() => endCall({ notifyPeer:true }), 1200);
+      }
     });
     return connection;
   }
