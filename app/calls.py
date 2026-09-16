@@ -105,12 +105,15 @@ def decode_frame(read):
 def register(user_id, handler):
     with _clients_lock:
         _clients[user_id] = handler
+        online_now = list(_clients.keys())
+    print(f"[calls] registered {user_id}; online now: {online_now}")
 
 
 def unregister(user_id, handler):
     with _clients_lock:
         if _clients.get(user_id) is handler:
             del _clients[user_id]
+    print(f"[calls] unregistered {user_id}")
     peer_id = clear_call_pair(user_id)
     if peer_id:
         send_to(peer_id, {"type": "call-end", "from": user_id, "reason": "disconnected"})
@@ -183,22 +186,26 @@ def handle_client_message(handler, state, message):
     to_user = str(message.get("to", "")).strip()
 
     if msg_type == "call-offer":
+        print(f"[calls] call-offer: {user_id} -> {to_user}; online={is_online(to_user)}")
         if not to_user:
             return
         if not is_online(to_user):
+            print(f"[calls] {to_user} not registered as online, sending call-unavailable to {user_id}")
             handler.send_ws_json({"type": "call-unavailable", "to": to_user})
             return
         existing_peer = _active_calls.get(to_user)
         if existing_peer and existing_peer != user_id:
+            print(f"[calls] {to_user} busy with {existing_peer}, sending call-busy to {user_id}")
             handler.send_ws_json({"type": "call-busy", "to": to_user})
             return
         set_call_pair(user_id, to_user)
-        send_to(to_user, {
+        delivered = send_to(to_user, {
             "type": "call-offer",
             "from": user_id,
             "mode": message.get("mode", "audio"),
             "sdp": message.get("sdp"),
         })
+        print(f"[calls] call-offer delivered to {to_user}: {delivered}")
         return
 
     if msg_type == "call-answer":

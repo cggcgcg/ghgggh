@@ -533,12 +533,14 @@ button, input{font-family:inherit;}
 }
 
 .call-controls{display:flex;gap:16px;position:relative;z-index:1;}
+.call-controls[hidden]{display:none!important;}
 .call-btn{
   width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   font-size:22px;color:#fff;background:var(--surface-hover);
   transition:transform .15s, background .15s;
 }
+.call-btn[hidden]{display:none!important;}
 .call-btn:active{transform:scale(.92);}
 .call-btn.active{background:#fff;color:#111;}
 .call-btn.accept{background:#33c15a;}
