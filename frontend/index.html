@@ -2416,11 +2416,11 @@ async function setActiveChat(id){
     convMessages.innerHTML = `<div class="conv-stub-note">${chat.kind === 'group' ? currentUi().groupCreated : currentUi().channelCreated}</div>`;
     return;
   }
-  await refreshMessages(chat, { silent: false });
+  await refreshMessages(chat, { silent: false, force: true });
   startPolling();
 }
 
-async function refreshMessages(chat, { silent }){
+async function refreshMessages(chat, { silent, force = false }){
   const me = getCurrentUser();
   if(!me) return;
 
@@ -2429,7 +2429,13 @@ async function refreshMessages(chat, { silent }){
     if(!res.ok) throw new Error('Не удалось загрузить сообщения (код ' + res.status + ')');
 
     const messages = await res.json();
-    if(messages.length === chat.lastCount) return; // ничего нового
+    const countChanged = messages.length !== chat.lastCount;
+    // Тихий фоновый опрос уже открытого чата: если ничего не изменилось —
+    // незачем перерисовывать. НО при явном переключении/открытии чата
+    // (force=true) рендерим всегда, иначе на экране может остаться DOM
+    // предыдущего чата (т.к. lastCount у нового чата мог случайно совпасть
+    // с реальным числом сообщений — тогда рендера вообще бы не произошло).
+    if(!countChanged && !force) return;
 
     chat.messages = messages.map(m => ({
       text: m.text,
@@ -2444,7 +2450,7 @@ async function refreshMessages(chat, { silent }){
     if(chat.id === activeChatId){
       renderMessages(chat);
     }
-    renderChatList();
+    if(countChanged) renderChatList();
   }catch(err){
     if(!silent){
       convMessages.innerHTML = `<div class="conv-stub-note" style="color:var(--danger)">${escapeHtml(err.message)}</div>`;
@@ -2842,7 +2848,7 @@ messageForm.addEventListener('submit', async (e) => {
     });
     if(!res.ok) throw new Error(await messageError(res, 'Сообщение не отправилось'));
 
-    await refreshMessages(chat, { silent: false });
+    await refreshMessages(chat, { silent: false, force: true });
   }catch(err){
     messageInput.value = text; // вернуть текст, если не отправилось
     alert(err.message);
@@ -2915,6 +2921,7 @@ const CallManager = (() => {
 
   let ws = null;
   let wsReconnectTimer = null;
+  let wsHeartbeatTimer = null;
   let myId = null;
 
   let pc = null;
@@ -2947,14 +2954,36 @@ const CallManager = (() => {
       scheduleReconnect();
       return;
     }
-    ws.addEventListener('open', () => send({ type:'hello', user_id: myId }));
+    ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); });
     ws.addEventListener('message', (event) => {
       let msg;
       try{ msg = JSON.parse(event.data); }catch{ return; }
       handleSignal(msg);
     });
-    ws.addEventListener('close', scheduleReconnect);
+    ws.addEventListener('close', () => { stopHeartbeat(); scheduleReconnect(); });
     ws.addEventListener('error', () => {});
+  }
+
+  function startHeartbeat(){
+    stopHeartbeat();
+    // Многие прокси/туннели (ngrok, nginx и т.п.) тихо рвут простаивающий
+    // WebSocket через ~60с без трафика — без ошибки, без close-фрейма,
+    // просто перестают доставлять байты. Тогда сервер думает, что мы всё
+    // ещё онлайн, шлёт входящий звонок в мёртвый сокет, а мы его никогда
+    // не увидим. Периодический "hello" держит соединение живым и заодно
+    // подтверждает регистрацию на сервере.
+    wsHeartbeatTimer = setInterval(() => {
+      if(!myId) return;
+      if(ws && ws.readyState === WebSocket.OPEN){
+        send({ type:'hello', user_id: myId });
+      }else{
+        scheduleReconnect();
+      }
+    }, 20000);
+  }
+
+  function stopHeartbeat(){
+    if(wsHeartbeatTimer){ clearInterval(wsHeartbeatTimer); wsHeartbeatTimer = null; }
   }
 
   function scheduleReconnect(){
@@ -2965,6 +2994,7 @@ const CallManager = (() => {
   function disconnect(){
     const id = myId;
     myId = null;
+    stopHeartbeat();
     if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     if(id) endCall({ notifyPeer:true, silent:true });
     try{ ws?.close(); }catch{}
@@ -3236,6 +3266,12 @@ const CallManager = (() => {
   hangupBtn.addEventListener('click', () => { send({ type:'call-end', to: peerId }); endCall({ notifyPeer:false }); });
   muteBtn.addEventListener('click', toggleMute);
   cameraBtn.addEventListener('click', toggleCamera);
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && myId && (!ws || ws.readyState === WebSocket.CLOSED)){
+      connect(myId);
+    }
+  });
 
   return {
     connect,
@@ -3700,7 +3736,7 @@ async function sendRecordedMedia(blob,mode){
     if(!res.ok) throw new Error(await messageError(res,'Медиа-сообщение не отправилось'));
     pending.remove();
     chat.lastCount = -1;
-    await refreshMessages(chat,{silent:false});
+    await refreshMessages(chat,{silent:false,force:true});
   }catch(err){
     pending.remove();
     alert(err.message || 'Не удалось отправить запись');
