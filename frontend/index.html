@@ -58,6 +58,12 @@
 [data-chat-theme] .conv-messages{background-color:var(--bg);background-repeat:repeat;}
 
 *{box-sizing:border-box;}
+/* Любое правило вида .foo{display:flex} побеждает атрибут hidden (у него
+   display:none только в дефолтной таблице стилей браузера — самый низкий
+   приоритет в каскаде). Без этой строки JS-переключение el.hidden=true не
+   скрывает элементы, у которых где-то ещё задан display — из-за этого,
+   например, кнопки "исходящего" и "входящего" звонка были видны одновременно. */
+[hidden]{display:none !important;}
 html,body{height:100%;}
 body{
   margin:0;
@@ -533,14 +539,12 @@ button, input{font-family:inherit;}
 }
 
 .call-controls{display:flex;gap:16px;position:relative;z-index:1;}
-.call-controls[hidden]{display:none!important;}
 .call-btn{
   width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   font-size:22px;color:#fff;background:var(--surface-hover);
   transition:transform .15s, background .15s;
 }
-.call-btn[hidden]{display:none!important;}
 .call-btn:active{transform:scale(.92);}
 .call-btn.active{background:#fff;color:#111;}
 .call-btn.accept{background:#33c15a;}
@@ -3039,6 +3043,31 @@ const CallManager = (() => {
   // ---------- UI ----------
 
   function showOverlay(){ overlay.hidden = false; }
+  // Единая точка управления кнопками звонка. Раньше каждое место
+  // (исходящий/входящий/принятый звонок) вручную выставляло 3-4 отдельных
+  // .hidden флага — если хоть один шаг пропускался или порядок ломался,
+  // на экране оставались кнопки от предыдущего состояния одновременно с
+  // новыми (например «Отклонить/Принять» одновременно с «Микрофон/Камера/
+  // Завершить»). Теперь любой переход задаёт ВСЕ флаги разом, смешанное
+  // состояние просто невозможно.
+  function setCallControlsMode(uiMode){
+    idleControls.hidden = true;
+    activeControls.hidden = true;
+    acceptBtn.hidden = true;
+    if(uiMode === 'outgoing'){
+      idleControls.hidden = false;
+      declineBtn.title = 'Отменить';
+    }else if(uiMode === 'incoming'){
+      idleControls.hidden = false;
+      acceptBtn.hidden = false;
+      declineBtn.title = 'Отклонить';
+    }else if(uiMode === 'active'){
+      activeControls.hidden = false;
+      cameraBtn.hidden = mode !== 'video';
+    }
+    // uiMode === 'none' (сброс после звонка) — оба блока просто скрыты.
+  }
+
   function hideOverlay(){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
 
   function setPeerLabel(id, name){
@@ -3137,10 +3166,7 @@ const CallManager = (() => {
     setPeerLabel(targetId, targetName);
     statusEl.textContent = 'Вызов…';
     overlay.classList.add('ringing');
-    activeControls.hidden = true;
-    idleControls.hidden = false;
-    acceptBtn.hidden = true;
-    declineBtn.title = 'Отменить';
+    setCallControlsMode('outgoing');
     showOverlay();
 
     try{
@@ -3183,10 +3209,7 @@ const CallManager = (() => {
     setPeerLabel(msg.from, chat?.display_name);
     statusEl.textContent = mode === 'video' ? 'Входящий видеозвонок' : 'Входящий звонок';
     overlay.classList.add('ringing');
-    declineBtn.title = 'Отклонить';
-    acceptBtn.hidden = false;
-    idleControls.hidden = false;
-    activeControls.hidden = true;
+    setCallControlsMode('incoming');
     showOverlay();
     playRingtone();
   }
@@ -3194,7 +3217,7 @@ const CallManager = (() => {
   async function acceptCall(){
     stopRingtone();
     overlay.classList.remove('ringing');
-    idleControls.hidden = true;
+    setCallControlsMode('none');
     statusEl.textContent = 'Соединение…';
 
     try{
@@ -3220,8 +3243,7 @@ const CallManager = (() => {
     await pc.setLocalDescription(answer);
     send({ type:'call-answer', to: peerId, sdp: answer });
 
-    cameraBtn.hidden = mode !== 'video';
-    activeControls.hidden = false;
+    setCallControlsMode('active');
     startTimer();
   }
 
@@ -3238,9 +3260,7 @@ const CallManager = (() => {
     for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
     pendingCandidates = [];
     overlay.classList.remove('ringing');
-    idleControls.hidden = true;
-    cameraBtn.hidden = mode !== 'video';
-    activeControls.hidden = false;
+    setCallControlsMode('active');
     startTimer();
   }
 
@@ -3273,6 +3293,7 @@ const CallManager = (() => {
 
     peerId = null; role = null; pendingOffer = null;
     pendingCandidates = []; remoteDescSet = false;
+    setCallControlsMode('none');
 
     if(silent){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
     else hideOverlay();
