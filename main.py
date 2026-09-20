@@ -481,7 +481,8 @@ server = ThreadingHTTPServer(
 )
 
 print(
-    f"TGClone server started on port {PORT}"
+    f"TGClone server started on port {PORT} (replica={os.environ.get('RAILWAY_REPLICA_ID', 'local')[:8]})",
+    flush=True,
 )
 
 server.serve_forever()

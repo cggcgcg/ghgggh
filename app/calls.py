@@ -13,10 +13,17 @@ whom so a dropped connection can politely end the call on the other side.
 import base64
 import hashlib
 import json
+import os
 import struct
 import threading
 
 WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+# Если в Railway вдруг больше одной реплики — у каждой свой RAILWAY_REPLICA_ID,
+# и список подключённых юзеров (_clients ниже) у них РАЗНЫЙ, т.к. это просто
+# память процесса. Печатаем его в логи при каждом hello/register, чтобы сразу
+# было видно, если два разных пользователя оказались на разных репликах.
+_REPLICA = os.environ.get("RAILWAY_REPLICA_ID", "local")[:8]
 
 # user_id -> connection handler currently holding that user's call socket.
 _clients = {}
@@ -105,15 +112,14 @@ def decode_frame(read):
 def register(user_id, handler):
     with _clients_lock:
         _clients[user_id] = handler
-        online_now = list(_clients.keys())
-    print(f"[calls] registered {user_id}; online now: {online_now}")
+    print(f"[calls][{_REPLICA}] register user={user_id} online_now={list(_clients.keys())}", flush=True)
 
 
 def unregister(user_id, handler):
     with _clients_lock:
         if _clients.get(user_id) is handler:
             del _clients[user_id]
-    print(f"[calls] unregistered {user_id}")
+    print(f"[calls][{_REPLICA}] unregister user={user_id} online_now={list(_clients.keys())}", flush=True)
     peer_id = clear_call_pair(user_id)
     if peer_id:
         send_to(peer_id, {"type": "call-end", "from": user_id, "reason": "disconnected"})
@@ -123,11 +129,14 @@ def send_to(user_id, message):
     with _clients_lock:
         handler = _clients.get(user_id)
     if not handler:
+        print(f"[calls][{_REPLICA}] send_to user={user_id} FAILED: not registered here (online_here={list(_clients.keys())})", flush=True)
         return False
     try:
         handler.send_ws_json(message)
+        print(f"[calls][{_REPLICA}] send_to user={user_id} type={message.get('type')} OK", flush=True)
         return True
-    except Exception:
+    except Exception as exc:
+        print(f"[calls][{_REPLICA}] send_to user={user_id} EXCEPTION: {exc!r}", flush=True)
         return False
 
 
@@ -186,26 +195,23 @@ def handle_client_message(handler, state, message):
     to_user = str(message.get("to", "")).strip()
 
     if msg_type == "call-offer":
-        print(f"[calls] call-offer: {user_id} -> {to_user}; online={is_online(to_user)}")
         if not to_user:
             return
+        print(f"[calls][{_REPLICA}] call-offer from={user_id} to={to_user} online_here={list(_clients.keys())}", flush=True)
         if not is_online(to_user):
-            print(f"[calls] {to_user} not registered as online, sending call-unavailable to {user_id}")
             handler.send_ws_json({"type": "call-unavailable", "to": to_user})
             return
         existing_peer = _active_calls.get(to_user)
         if existing_peer and existing_peer != user_id:
-            print(f"[calls] {to_user} busy with {existing_peer}, sending call-busy to {user_id}")
             handler.send_ws_json({"type": "call-busy", "to": to_user})
             return
         set_call_pair(user_id, to_user)
-        delivered = send_to(to_user, {
+        send_to(to_user, {
             "type": "call-offer",
             "from": user_id,
             "mode": message.get("mode", "audio"),
             "sdp": message.get("sdp"),
         })
-        print(f"[calls] call-offer delivered to {to_user}: {delivered}")
         return
 
     if msg_type == "call-answer":
