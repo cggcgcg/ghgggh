@@ -3152,10 +3152,24 @@ const CallManager = (() => {
   }
 
   async function getMedia(wantVideo){
-    const constraints = wantVideo
+    const full = wantVideo
       ? { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video:{width:{ideal:1280},height:{ideal:720}} }
       : { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true} };
-    return navigator.mediaDevices.getUserMedia(constraints);
+    try{
+      return await navigator.mediaDevices.getUserMedia(full);
+    }catch(err){
+      // Chrome обычно валит ВЕСЬ getUserMedia, если хоть одно запрошенное
+      // устройство отсутствует (например ноутбук без микрофона) — даже
+      // если другое устройство (камера) есть и работает. Пробуем по
+      // отдельности, чтобы взять хотя бы то, что реально есть — иначе
+      // тестовое устройство без микрофона вообще не сможет зайти в звонок.
+      if(err.name !== 'NotFoundError' && err.name !== 'OverconstrainedError') throw err;
+      if(wantVideo){
+        try{ return await navigator.mediaDevices.getUserMedia({ video: full.video }); }
+        catch{ /* и камеры нет — падаем ниже на общую ошибку */ }
+      }
+      throw err;
+    }
   }
 
   async function startCall(targetId, targetName, wantVideo){
