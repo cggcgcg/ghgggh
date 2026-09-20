@@ -4,6 +4,7 @@ from urllib.parse import urlsplit, parse_qs
 import json
 import socket
 import threading
+import time
 
 from app.database import init_db
 from app.users import create_user, get_user, find_by_username, update_user
@@ -70,14 +71,21 @@ class Handler(BaseHTTPRequestHandler):
 
         self._ws_write_lock = threading.Lock()
         state = {}
+        opened_at = time.monotonic()
+        frames_seen = 0
+        close_reason = "unknown"
 
         try:
             while True:
                 opcode, payload = calls.decode_frame(self.rfile.read)
                 if opcode is None:
+                    close_reason = "read-returned-none (peer closed / socket dead)"
                     break
 
+                frames_seen += 1
+
                 if opcode == 0x8:  # close
+                    close_reason = "close-frame (clean, peer requested)"
                     break
 
                 if opcode == 0x9:  # ping -> pong
@@ -95,10 +103,19 @@ class Handler(BaseHTTPRequestHandler):
 
                 if isinstance(message, dict):
                     calls.handle_client_message(self, state, message)
-        except (ConnectionResetError, BrokenPipeError, OSError):
-            pass
+        except (ConnectionResetError, BrokenPipeError, OSError) as exc:
+            close_reason = f"{type(exc).__name__}: {exc}"
+        except Exception as exc:  # noqa: BLE001 — любая другая ошибка не должна остаться незамеченной
+            close_reason = f"UNEXPECTED {type(exc).__name__}: {exc}"
+            raise
         finally:
+            lifetime = time.monotonic() - opened_at
             user_id = state.get("user_id")
+            print(
+                f"[ws][{calls._REPLICA if hasattr(calls, '_REPLICA') else '?'}] "
+                f"closed user={user_id} lifetime={lifetime:.1f}s frames={frames_seen} reason={close_reason}",
+                flush=True,
+            )
             if user_id:
                 calls.unregister(user_id, self)
 
