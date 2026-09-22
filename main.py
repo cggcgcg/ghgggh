@@ -9,7 +9,14 @@ import time
 from app.database import init_db
 from app.users import create_user, get_user, find_by_username, update_user
 from app.messages import create_message, get_conversation, get_conversations
-from app.workspace import get_settings, update_settings, create_space, get_spaces, create_device, get_devices
+from app.workspace import (
+    get_settings, update_settings,
+    create_space, get_spaces, get_space, update_space, delete_space,
+    get_members, add_member, remove_member, set_member_role, get_member_role,
+    can_manage, is_member, join_space, join_by_invite_code,
+    create_device, get_devices,
+)
+from app.contacts import add_contact, get_contact_ids, remove_contact
 from app import calls
 
 
@@ -212,9 +219,46 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, get_settings(user_id))
             return
 
+        # /api/spaces/find/<space_id>       -> публичная карточка пространства (для "join по id")
+        # /api/spaces/<space_id>/members    -> список участников
+        # /api/spaces/<user_id>             -> список пространств, где user_id состоит участником
         if self.path.startswith("/api/spaces/"):
-            user_id = self.path.replace("/api/spaces/", "", 1)
+            remainder = self.path.replace("/api/spaces/", "", 1)
+            parts = remainder.split("/")
+
+            if parts[0] == "find" and len(parts) == 2:
+                space = get_space(parts[1])
+                if not space:
+                    self.send_json(404, {"error": "Space not found"})
+                elif space["is_private"]:
+                    self.send_json(403, {"error": "This space is private"})
+                else:
+                    self.send_json(200, space)
+                return
+
+            if len(parts) == 2 and parts[1] == "members":
+                space_id = parts[0]
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                else:
+                    self.send_json(200, get_members(space_id))
+                return
+
+            user_id = parts[0]
             self.send_json(200, get_spaces(user_id))
+            return
+
+        # Контакты пользователя (добавленные по user id) — отдаём сразу
+        # профили, а не голые id, фронту не нужно резолвить их отдельно.
+        if self.path.startswith("/api/contacts/"):
+            owner_id = self.path.replace("/api/contacts/", "", 1)
+            contact_ids = get_contact_ids(owner_id)
+            users = []
+            for contact_id in contact_ids:
+                user = get_user(contact_id)
+                if user:
+                    users.append(user)
+            self.send_json(200, users)
             return
 
         if self.path.startswith("/api/devices/"):
@@ -430,13 +474,106 @@ class Handler(BaseHTTPRequestHandler):
             owner_id = str(data.get("owner_id", "")).strip()
             name = str(data.get("name", "")).strip()
             kind = str(data.get("kind", "")).strip()
+            description = str(data.get("description", "")).strip()
+            photo = data.get("photo") or None
+            is_private = bool(data.get("is_private"))
             if not owner_id or not name or kind not in ("group", "channel"):
                 self.send_json(400, {"error": "owner_id, name and valid kind are required"})
                 return
             if not get_user(owner_id):
                 self.send_json(404, {"error": "User not found"})
                 return
-            self.send_json(201, create_space(owner_id, name, kind))
+            self.send_json(201, create_space(owner_id, name, kind, description=description, photo=photo, is_private=is_private))
+            return
+
+        # Вступить в ПУБЛИЧНОЕ пространство, зная его id (найдено как
+        # обычный собеседник, см. GET /api/spaces/find/<id>).
+        if self.path.startswith("/api/spaces/") and self.path.endswith("/join"):
+            space_id = self.path[len("/api/spaces/"):-len("/join")]
+            data = self.read_json_body() or {}
+            user_id = str(data.get("user_id", "")).strip()
+            if not user_id or not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            space, error = join_space(space_id, user_id)
+            if error:
+                self.send_json(403 if "private" in error else 404, {"error": error})
+                return
+            self.send_json(200, space)
+            return
+
+        # Вступить по коду приглашения (ссылке) — работает и для приватных,
+        # и для публичных пространств.
+        if self.path.startswith("/api/spaces/join-code/"):
+            invite_code = self.path.replace("/api/spaces/join-code/", "", 1)
+            data = self.read_json_body() or {}
+            user_id = str(data.get("user_id", "")).strip()
+            if not user_id or not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            space, error = join_by_invite_code(invite_code, user_id)
+            if error:
+                self.send_json(404, {"error": error})
+                return
+            self.send_json(200, space)
+            return
+
+        # Добавить участника вручную (владелец/админ добавляет кого-то,
+        # кто уже состоит в этом канале — по договорённости для приватных
+        # пространств это единственный способ привести нового человека,
+        # кроме ссылки-приглашения).
+        if self.path.startswith("/api/spaces/") and self.path.endswith("/members"):
+            space_id = self.path[len("/api/spaces/"):-len("/members")]
+            data = self.read_json_body() or {}
+            by = str(data.get("by", "")).strip()
+            target_id = str(data.get("user_id", "")).strip()
+            if not get_space(space_id):
+                self.send_json(404, {"error": "Space not found"})
+                return
+            if not can_manage(space_id, by):
+                self.send_json(403, {"error": "Only the owner or an admin can add members"})
+                return
+            if not target_id or not get_user(target_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            self.send_json(200, add_member(space_id, target_id))
+            return
+
+        if self.path.startswith("/api/spaces/") and self.path.endswith("/leave"):
+            space_id = self.path[len("/api/spaces/"):-len("/leave")]
+            data = self.read_json_body() or {}
+            user_id = str(data.get("user_id", "")).strip()
+            space = get_space(space_id)
+            if not space:
+                self.send_json(404, {"error": "Space not found"})
+                return
+            if space["owner_id"] == user_id:
+                self.send_json(400, {"error": "Owner cannot leave — delete the space instead"})
+                return
+            self.send_json(200, remove_member(space_id, user_id))
+            return
+
+        # Добавить контакт по user id.
+        if self.path == "/api/contacts":
+            data = self.read_json_body() or {}
+            owner_id = str(data.get("owner_id", "")).strip()
+            contact_user_id = str(data.get("contact_user_id", "")).strip()
+            if not owner_id or not contact_user_id:
+                self.send_json(400, {"error": "owner_id and contact_user_id are required"})
+                return
+            if not get_user(owner_id) or not get_user(contact_user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            add_contact(owner_id, contact_user_id)
+            self.send_json(201, get_user(contact_user_id))
+            return
+
+        if self.path == "/api/contacts/remove":
+            data = self.read_json_body() or {}
+            owner_id = str(data.get("owner_id", "")).strip()
+            contact_user_id = str(data.get("contact_user_id", "")).strip()
+            remove_contact(owner_id, contact_user_id)
+            self.send_json(200, {"ok": True})
             return
 
         if self.path == "/api/devices":
@@ -478,6 +615,90 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.send_json(200, update_settings(user_id, self.read_json_body() or {}))
             return
+
+        # /api/spaces/<id>/members/<user_id>  -> сменить роль (admin/member)
+        # /api/spaces/<id>                    -> изменить название/фото/описание/фон
+        if self.path.startswith("/api/spaces/"):
+            remainder = self.path.replace("/api/spaces/", "", 1)
+            parts = remainder.split("/")
+            data = self.read_json_body() or {}
+            by = str(data.get("by", "")).strip()
+
+            if len(parts) == 3 and parts[1] == "members":
+                space_id, _, target_id = parts
+                role = str(data.get("role", "")).strip()
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_manage(space_id, by):
+                    self.send_json(403, {"error": "Only the owner or an admin can change roles"})
+                elif role not in ("admin", "member"):
+                    self.send_json(400, {"error": "role must be 'admin' or 'member'"})
+                elif get_member_role(space_id, target_id) == "owner":
+                    self.send_json(400, {"error": "Cannot change the owner's role"})
+                else:
+                    self.send_json(200, set_member_role(space_id, target_id, role))
+                return
+
+            if len(parts) == 1:
+                space_id = parts[0]
+                space = get_space(space_id)
+                if not space:
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_manage(space_id, by):
+                    self.send_json(403, {"error": "Only the owner or an admin can edit this space"})
+                else:
+                    self.send_json(200, update_space(space_id, data))
+                return
+
+        self.send_json(404, {"error": "Not found"})
+
+    def do_DELETE(self):
+        # /api/spaces/<id>/members/<user_id>  -> убрать участника (сам вышел,
+        #                                         либо владелец/админ выгнал)
+        # /api/spaces/<id>                    -> удалить канал/группу (только владелец)
+        # /api/contacts/<owner_id>/<contact_user_id> -> убрать контакт
+        if self.path.startswith("/api/spaces/"):
+            remainder = self.path.replace("/api/spaces/", "", 1)
+            parts = remainder.split("/")
+            data = self.read_json_body() or {}
+            by = str(data.get("by", "")).strip()
+
+            if len(parts) == 3 and parts[1] == "members":
+                space_id, _, target_id = parts
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                    return
+                # Разрешено: сам участник выходит (by == target_id),
+                # либо это делает владелец/админ.
+                if by != target_id and not can_manage(space_id, by):
+                    self.send_json(403, {"error": "Not allowed"})
+                    return
+                if get_member_role(space_id, target_id) == "owner":
+                    self.send_json(400, {"error": "Owner cannot be removed — delete the space instead"})
+                    return
+                self.send_json(200, remove_member(space_id, target_id))
+                return
+
+            if len(parts) == 1:
+                space_id = parts[0]
+                space = get_space(space_id)
+                if not space:
+                    self.send_json(404, {"error": "Space not found"})
+                    return
+                if space["owner_id"] != by:
+                    self.send_json(403, {"error": "Only the owner can delete this space"})
+                    return
+                delete_space(space_id)
+                self.send_json(200, {"ok": True})
+                return
+
+        if self.path.startswith("/api/contacts/"):
+            remainder = self.path.replace("/api/contacts/", "", 1)
+            parts = remainder.split("/")
+            if len(parts) == 2:
+                owner_id, contact_user_id = parts
+                self.send_json(200, {"contacts": remove_contact(owner_id, contact_user_id)})
+                return
 
         self.send_json(404, {"error": "Not found"})
 

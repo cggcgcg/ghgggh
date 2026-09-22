@@ -487,6 +487,8 @@ button, input{font-family:inherit;}
   background:var(--bg-alt);
 }
 .conv-back{display:none;}
+.conv-header-identity{display:flex; align-items:center; gap:12px; min-width:0; flex:1; border:0; background:transparent; padding:0; margin:0; cursor:pointer; text-align:left; color:inherit; font:inherit; border-radius:10px;}
+.conv-header-identity:hover{background:var(--surface-hover);}
 .conv-header-info{display:flex; flex-direction:column; min-width:0;}
 .conv-header-name{font-size:14px; font-weight:600;}
 .conv-header-status{font-size:11px; color:var(--text-faint);}
@@ -703,10 +705,50 @@ button, input{font-family:inherit;}
 .design-btn{padding:14px;border-radius:14px;transition:border-color .15s,background .15s;}
 .design-btn strong{font-size:13px;}.design-btn small{line-height:1.4;}
 .design-btn.active{background:color-mix(in srgb,var(--accent-b) 12%,var(--surface-hi));}
+
+/* Профиль собеседника */
+.profile-window{width:min(420px,100%);}
+.profile-hero{display:flex;flex-direction:column;align-items:center;gap:6px;padding:30px 24px 18px;text-align:center;}
+.profile-hero-avatar{--size:84px;font-size:30px;}
+.profile-hero h2{margin:6px 0 0;font:700 20px var(--font-display);}
+.profile-modal-tag{color:var(--text-dim);font:12px var(--font-mono);}
+.profile-hero-actions{display:flex;gap:8px;margin-top:12px;}
+.profile-tabs{display:flex;gap:5px;padding:0 16px 10px;border-bottom:1px solid var(--border-soft);overflow-x:auto;scrollbar-width:none;}
+.profile-tab{flex:0 0 auto;border:0;border-radius:12px;padding:7px 12px;background:transparent;color:var(--text-dim);font-size:12px;cursor:pointer;}
+.profile-tab.active{background:var(--surface-hover);color:var(--text);}
+.profile-tab-content{padding:16px;min-height:120px;}
+.profile-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.profile-media-item{aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--surface-hi);border:1px solid var(--border-soft);}
+.profile-media-item video,.profile-media-item img{width:100%;height:100%;object-fit:cover;}
+.profile-voice-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;background:var(--surface-hi);border:1px solid var(--border-soft);margin-bottom:6px;font-size:12px;color:var(--text-dim);}
+.profile-empty-tab{padding:20px 6px;text-align:center;color:var(--text-faint);font-size:12px;line-height:1.5;}
+
+/* Настройки/создание канала-группы */
+.space-photo-row{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
+.space-photo-btn{--size:64px;border:1px dashed var(--border);background:var(--surface-hi);color:var(--text-dim);font-size:22px;cursor:pointer;flex:0 0 auto;background-size:cover;background-position:center;}
+.space-photo-btn.has-photo{border-style:solid;color:transparent;}
+.space-privacy-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-direction:row;}
+.space-privacy-row input{width:18px;height:18px;accent-color:var(--accent-b);}
+.space-invite-row{margin:6px 0 14px;display:flex;flex-direction:column;gap:6px;}
+.space-invite-link{display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:10px;padding:8px 10px;}
+.space-invite-link code{flex:1;font:11px var(--font-mono);color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#space-members-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
+.space-add-member-row{display:flex;gap:8px;margin:10px 0 12px;}
+.space-add-member-row input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--bg-alt);color:var(--text);font-size:12px;}
+.space-member-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-soft);}
+.space-member-row .avatar{--size:32px;font-size:12px;}
+.space-member-name{font-size:13px;font-weight:600;flex:1;min-width:0;}
+.space-member-role{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;}
+.space-member-actions{display:flex;gap:4px;}
+.space-member-actions button{border:1px solid var(--border);background:var(--surface-hi);color:var(--text-dim);border-radius:8px;padding:4px 7px;font-size:11px;cursor:pointer;}
+.space-danger-row{display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
+.space-delete-btn{background:var(--danger)!important;color:#fff;}
+
 @media (max-width:760px){
   .settings-window{width:100%;}
   .chat-theme-grid,.app-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
   .settings-window-head h2{font-size:22px;}
+  .profile-window{width:100%;}
 }
 
 /* iPhone-like glass */
@@ -1619,11 +1661,13 @@ body,[data-ui-design]{background:var(--bg);}
       <div class="conv-active" id="conv-active" hidden>
         <header class="conv-header">
           <button class="icon-btn conv-back" id="conv-back" aria-label="Назад">←</button>
-          <span class="avatar" id="conv-avatar"></span>
-          <div class="conv-header-info">
-            <span class="conv-header-name" id="conv-header-name">—</span>
-            <span class="conv-header-status" id="conv-header-status">Готов к сообщениям</span>
-          </div>
+          <button class="conv-header-identity" id="conv-header-identity" type="button">
+            <span class="avatar" id="conv-avatar"></span>
+            <div class="conv-header-info">
+              <span class="conv-header-name" id="conv-header-name">—</span>
+              <span class="conv-header-status" id="conv-header-status">Готов к сообщениям</span>
+            </div>
+          </button>
           <div class="conv-header-actions">
             <button class="icon-btn" id="call-audio-btn" type="button" title="Аудиозвонок">☎</button>
             <button class="icon-btn" id="call-video-btn" type="button" title="Видеозвонок">📹</button>
@@ -1677,6 +1721,7 @@ body,[data-ui-design]{background:var(--bg);}
     <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>Найти по username</small></button>
     <button class="create-action" data-space-kind="group" type="button"><span>👥</span><strong>Создать группу</strong><small>Для общения команды</small></button>
     <button class="create-action" data-space-kind="channel" type="button"><span>◈</span><strong>Создать канал</strong><small>Публикуйте новости и идеи</small></button>
+    <button class="create-action" id="join-space-action" type="button"><span>🔗</span><strong>Присоединиться</strong><small>По ID или ссылке-приглашению</small></button>
   </section>
 </div>
 
@@ -1701,6 +1746,82 @@ body,[data-ui-design]{background:var(--bg);}
         <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
       </div>
     </div>
+  </section>
+</div>
+
+<!-- Профиль собеседника: открывается по тапу на аватар/имя в заголовке чата -->
+<div class="modal-backdrop" id="profile-modal" hidden>
+  <section class="settings-window profile-window" aria-labelledby="profile-modal-title">
+    <button class="modal-close" data-close-modal="profile-modal" type="button" aria-label="Закрыть">×</button>
+    <div class="profile-hero">
+      <span class="avatar profile-hero-avatar" id="profile-modal-avatar"></span>
+      <h2 id="profile-modal-name">—</h2>
+      <span class="profile-modal-tag" id="profile-modal-tag">@—</span>
+      <div class="profile-hero-actions">
+        <button class="icon-btn" id="profile-call-audio" type="button" title="Аудиозвонок">☎</button>
+        <button class="icon-btn" id="profile-call-video" type="button" title="Видеозвонок">📹</button>
+        <button class="icon-btn" id="profile-add-contact" type="button" title="Добавить в контакты">＋</button>
+      </div>
+    </div>
+    <nav class="profile-tabs" id="profile-tabs">
+      <button class="profile-tab active" data-profile-tab="media" type="button">Медиа</button>
+      <button class="profile-tab" data-profile-tab="voice" type="button">Голосовые</button>
+      <button class="profile-tab" data-profile-tab="files" type="button">Файлы</button>
+      <button class="profile-tab" data-profile-tab="links" type="button">Ссылки</button>
+    </nav>
+    <div class="profile-tab-content" id="profile-tab-content"></div>
+  </section>
+</div>
+
+<!-- Создание / настройки канала и группы -->
+<div class="modal-backdrop" id="space-modal" hidden>
+  <section class="settings-window" aria-labelledby="space-modal-title">
+    <button class="modal-close" data-close-modal="space-modal" type="button" aria-label="Закрыть">×</button>
+    <header class="settings-window-head">
+      <div><span class="eyebrow" id="space-modal-eyebrow">КАНАЛ</span><h2 id="space-modal-title">Новый канал</h2></div>
+    </header>
+    <div class="settings-content">
+      <div class="space-photo-row">
+        <button class="avatar space-photo-btn" id="space-photo-preview" type="button" title="Изменить фото">+</button>
+        <input type="file" id="space-photo-input" accept="image/*" hidden>
+        <div>
+          <label class="profile-field" style="margin:0"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
+        </div>
+      </div>
+      <label class="profile-field">Описание<input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
+      <label class="profile-field space-privacy-row">
+        <span>Приватный (вступление только по ссылке)</span>
+        <input type="checkbox" id="space-private-input">
+      </label>
+      <div class="space-invite-row" id="space-invite-row" hidden>
+        <span class="section-note" style="margin:0">Ссылка-приглашение</span>
+        <div class="space-invite-link"><code id="space-invite-code">—</code><button class="icon-btn" id="space-invite-copy" type="button" title="Скопировать">⧉</button></div>
+      </div>
+      <button class="settings-save" id="space-save-btn" type="button">Создать</button>
+
+      <div id="space-members-block" hidden>
+        <h4>Участники</h4>
+        <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="User ID нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
+        <div id="space-members-list"></div>
+      </div>
+
+      <div class="space-danger-row" id="space-danger-row" hidden>
+        <button class="settings-save" id="space-leave-btn" type="button" hidden>Покинуть</button>
+        <button class="settings-save space-delete-btn" id="space-delete-btn" type="button" hidden>Удалить безвозвратно</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Присоединиться к каналу/группе по ID или по ссылке-приглашению -->
+<div class="modal-backdrop" id="join-modal" hidden>
+  <section class="create-sheet" aria-labelledby="join-title">
+    <button class="modal-close" data-close-modal="join-modal" type="button" aria-label="Закрыть">×</button>
+    <h2 id="join-title">Присоединиться</h2>
+    <p>Вставь ID канала/группы (для публичных) или код/ссылку приглашения (для приватных).</p>
+    <label class="profile-field"><span>ID или код приглашения</span><input id="join-input" type="text" placeholder="напр. Aok1Y9lF96"></label>
+    <button class="settings-save" id="join-submit-btn" type="button">Присоединиться</button>
+    <p id="join-error" class="auth-error" hidden></p>
   </section>
 </div>
 
@@ -1815,8 +1936,54 @@ navSettings.addEventListener('click', () => {
 
 document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => closeModal(document.getElementById(button.dataset.closeModal))));
 document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if(event.target === modal) closeModal(modal); }));
-document.getElementById('add-user-action').addEventListener('click', () => { closeModal(createModal); setNavActive(navChats); searchInput.focus(); });
-document.querySelectorAll('[data-space-kind]').forEach(button => button.addEventListener('click', async () => { const user = getCurrentUser(); const name = prompt(button.dataset.spaceKind === 'group' ? 'Название группы' : 'Название канала'); if(!user || !name?.trim()) return; const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:user.id,name:name.trim(),kind:button.dataset.spaceKind})}); if(res.ok){ closeModal(createModal); loadSpaces(); } }));
+document.getElementById('add-user-action').addEventListener('click', async () => {
+  const user = getCurrentUser(); if(!user) return;
+  const id = prompt('User ID контакта, которого хотите добавить:');
+  if(!id?.trim()) return;
+  const target = id.trim();
+  try{
+    const res = await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:user.id,contact_user_id:target})});
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить контакт'));
+    const contact = await res.json();
+    closeModal(createModal);
+    openChat(contact);
+    loadContacts();
+  }catch(err){ alert(err.message); }
+});
+
+document.querySelectorAll('[data-space-kind]').forEach(button => button.addEventListener('click', () => {
+  closeModal(createModal);
+  openSpaceModal('create', button.dataset.spaceKind);
+}));
+
+document.getElementById('join-space-action').addEventListener('click', () => {
+  closeModal(createModal);
+  document.getElementById('join-input').value = '';
+  document.getElementById('join-error').hidden = true;
+  openModal(document.getElementById('join-modal'));
+});
+
+document.getElementById('join-submit-btn').addEventListener('click', async () => {
+  const user = getCurrentUser(); if(!user) return;
+  const raw = document.getElementById('join-input').value.trim();
+  const errorEl = document.getElementById('join-error');
+  errorEl.hidden = true;
+  if(!raw) return;
+  try{
+    // Сперва пробуем как id публичного пространства (найдено как обычный
+    // собеседник), если не выйдет — как код приглашения (в т.ч. приватные).
+    let res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(raw)}/join`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id})});
+    if(!res.ok){
+      res = await fetch(`${API_BASE}/api/spaces/join-code/${encodeURIComponent(raw)}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id})});
+    }
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось присоединиться'));
+    closeModal(document.getElementById('join-modal'));
+    await loadSpaces();
+  }catch(err){
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+});
 
 document.querySelectorAll('[data-settings-section]').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('[data-settings-section]').forEach(item => item.classList.toggle('active', item === button));
@@ -2130,7 +2297,41 @@ function applySettings(settings){ document.body.dataset.appTheme = settings.app_
 async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!['dark','light','gamer'].includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!chatThemes.some(x=>x[0]===settings.chat_theme)){ settings.chat_theme='mist'; saveSettings({chat_theme:'mist'}); } applySettings(settings); } window.settingsReady = true; }
 document.getElementById('add-device').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/devices`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id,name:'Новое устройство'})}); loadDevices(); });
 async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
-async function loadSpaces(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(user.id)}`); if(!res.ok) return; const spaces = await res.json(); spaces.forEach(space => { if(!openChats.has(space.id)) openChats.set(space.id, {id:space.id, username:space.kind, display_name:space.name, kind:space.kind, messages:[], lastCount:0}); }); renderChatList(); }
+async function loadSpaces(){
+  const user = getCurrentUser(); if(!user) return;
+  const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(user.id)}`);
+  if(!res.ok) return;
+  const spaces = await res.json();
+  spaces.forEach(space => {
+    const existing = openChats.get(space.id);
+    const chat = existing || {messages:[], lastCount:0};
+    Object.assign(chat, {
+      id:space.id, username:space.kind, display_name:space.name, kind:space.kind,
+      owner_id:space.owner_id, description:space.description, photo:space.photo,
+      background:space.background, is_private:space.is_private, invite_code:space.invite_code,
+      my_role:space.my_role
+    });
+    openChats.set(space.id, chat);
+  });
+  renderChatList();
+  if(activeChatId && openChats.get(activeChatId)?.kind && activeChatId === spaceModalState.spaceId){
+    // если открыт modal настроек именно этого пространства — обновим его поля
+    populateSpaceModalFromChat(openChats.get(activeChatId));
+  }
+}
+
+// Контакты, добавленные по user id (см. добавление пользователя ниже) —
+// отдельный персистентный список, независимый от истории переписки.
+async function loadContacts(){
+  const user = getCurrentUser(); if(!user) return;
+  const res = await fetch(`${API_BASE}/api/contacts/${encodeURIComponent(user.id)}`);
+  if(!res.ok) return;
+  const contacts = await res.json();
+  contacts.forEach(u => {
+    if(!openChats.has(u.id)) openChats.set(u.id, {id:u.id, username:u.username, display_name:u.display_name, messages:[], lastCount:0, isContact:true});
+  });
+  renderChatList();
+}
 
 let chatFilter = 'all';
 chatTabs.addEventListener('click', event => { const button = event.target.closest('[data-filter]'); if(!button) return; chatFilter = button.dataset.filter; document.querySelectorAll('.chat-tab').forEach(item => item.classList.toggle('active', item === button)); renderChatList(); });
@@ -2226,6 +2427,7 @@ async function enterApp(){
   loadSettings();
   loadDevices();
   loadSpaces();
+  loadContacts();
   loadConversations();
   startPolling();
   CallManager.connect(user.id);
@@ -3868,6 +4070,287 @@ recordingSendBtn.addEventListener('click',()=>{ if(isRecording) finishMediaRecor
 
 
 updateMediaButton();
+
+// ==========================================================
+// Профиль собеседника (попап по тапу на аватар/имя в шапке чата)
+// ==========================================================
+const profileModal = document.getElementById('profile-modal');
+let profileModalUserId = null;
+
+function openProfileModal(chat){
+  profileModalUserId = chat.id;
+  document.getElementById('profile-modal-avatar').textContent = initials(chat.display_name);
+  document.getElementById('profile-modal-name').textContent = chat.display_name;
+  document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
+  renderProfileTab('media');
+  document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.profileTab === 'media'));
+  openModal(profileModal);
+}
+
+function renderProfileTab(tab){
+  const chat = openChats.get(profileModalUserId);
+  const container = document.getElementById('profile-tab-content');
+  if(!chat){ container.innerHTML = ''; return; }
+
+  if(tab === 'media'){
+    const items = chat.messages.filter(m => m.type === 'video' && m.audio_data);
+    if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Кружочков в этом чате пока нет</div>'; return; }
+    container.innerHTML = '<div class="profile-media-grid"></div>';
+    const grid = container.firstChild;
+    items.forEach(m => { const v = document.createElement('video'); v.src = m.audio_data; v.muted = true; v.playsInline = true; const cell = document.createElement('div'); cell.className = 'profile-media-item'; cell.appendChild(v); grid.appendChild(cell); });
+    return;
+  }
+  if(tab === 'voice'){
+    const items = chat.messages.filter(m => m.type === 'voice' && m.audio_data);
+    if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Голосовых сообщений пока нет</div>'; return; }
+    container.innerHTML = '';
+    items.forEach((m,i) => { const row = document.createElement('div'); row.className = 'profile-voice-item'; row.textContent = `🎤 Голосовое #${i+1}`; container.appendChild(row); });
+    return;
+  }
+  // Обычных файлов и ссылок как отдельного типа сообщений в TGClone пока
+  // нет (есть только текст/голосовое/видео-кружочек) — честно показываем
+  // пустое состояние вместо того, чтобы что-то придумывать.
+  container.innerHTML = `<div class="profile-empty-tab">${tab === 'files' ? 'Пересылка файлов пока не реализована' : 'Ссылки из переписки пока не собираются отдельно'}</div>`;
+}
+
+document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('#profile-tabs .profile-tab').forEach(t => t.classList.toggle('active', t === tab));
+  renderProfileTab(tab.dataset.profileTab);
+}));
+
+document.getElementById('profile-call-audio').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, chat.display_name, false); closeModal(profileModal); });
+document.getElementById('profile-call-video').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, chat.display_name, true); closeModal(profileModal); });
+document.getElementById('profile-add-contact').addEventListener('click', async () => {
+  const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
+  if(!me || !chat) return;
+  try{
+    await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
+    loadContacts();
+  }catch{}
+});
+
+document.getElementById('conv-header-identity').addEventListener('click', () => {
+  const chat = openChats.get(activeChatId);
+  if(!chat) return;
+  if(chat.kind === 'group' || chat.kind === 'channel') openSpaceModal('edit', null, chat.id);
+  else openProfileModal(chat);
+});
+
+// ==========================================================
+// Создание / настройки канала и группы
+// ==========================================================
+const spaceModal = document.getElementById('space-modal');
+const spaceModalState = { mode:'create', kind:'group', spaceId:null, photoData:null };
+const spacePhotoInput = document.getElementById('space-photo-input');
+const spacePhotoPreview = document.getElementById('space-photo-preview');
+
+function resetSpacePhotoPreview(text, photo){
+  spaceModalState.photoData = photo || null;
+  if(photo){
+    spacePhotoPreview.classList.add('has-photo');
+    spacePhotoPreview.style.backgroundImage = `url(${photo})`;
+    spacePhotoPreview.textContent = '';
+  }else{
+    spacePhotoPreview.classList.remove('has-photo');
+    spacePhotoPreview.style.backgroundImage = '';
+    spacePhotoPreview.textContent = text || '+';
+  }
+}
+
+spacePhotoPreview.addEventListener('click', () => spacePhotoInput.click());
+spacePhotoInput.addEventListener('change', async () => {
+  const file = spacePhotoInput.files?.[0];
+  if(!file) return;
+  const dataUrl = await MediaRecorderService.blobToDataURL(file);
+  resetSpacePhotoPreview(null, dataUrl);
+});
+
+function openSpaceModal(mode, kind, spaceId){
+  spaceModalState.mode = mode;
+  spaceModalState.kind = kind;
+  spaceModalState.spaceId = spaceId || null;
+
+  document.getElementById('space-add-member-input').value = '';
+  document.getElementById('space-invite-row').hidden = true;
+  document.getElementById('space-members-block').hidden = true;
+  document.getElementById('space-danger-row').hidden = true;
+  document.getElementById('space-private-input').disabled = false;
+  document.getElementById('space-name-input').disabled = false;
+  document.getElementById('space-description-input').disabled = false;
+
+  if(mode === 'create'){
+    document.getElementById('space-modal-eyebrow').textContent = kind === 'channel' ? 'КАНАЛ' : 'ГРУППА';
+    document.getElementById('space-modal-title').textContent = kind === 'channel' ? 'Новый канал' : 'Новая группа';
+    document.getElementById('space-name-input').value = '';
+    document.getElementById('space-description-input').value = '';
+    document.getElementById('space-private-input').checked = false;
+    document.getElementById('space-save-btn').textContent = 'Создать';
+    resetSpacePhotoPreview('+', null);
+  }else{
+    const chat = openChats.get(spaceId);
+    if(!chat) return;
+    document.getElementById('space-save-btn').textContent = 'Сохранить';
+    populateSpaceModalFromChat(chat);
+  }
+  openModal(spaceModal);
+}
+
+function populateSpaceModalFromChat(chat){
+  const me = getCurrentUser();
+  const manage = chat.my_role === 'owner' || chat.my_role === 'admin';
+  document.getElementById('space-modal-eyebrow').textContent = chat.kind === 'channel' ? 'КАНАЛ' : 'ГРУППА';
+  document.getElementById('space-modal-title').textContent = chat.display_name;
+  document.getElementById('space-name-input').value = chat.display_name;
+  document.getElementById('space-description-input').value = chat.description || '';
+  document.getElementById('space-private-input').checked = !!chat.is_private;
+  resetSpacePhotoPreview(initials(chat.display_name), chat.photo);
+
+  document.getElementById('space-name-input').disabled = !manage;
+  document.getElementById('space-description-input').disabled = !manage;
+  document.getElementById('space-private-input').disabled = !manage;
+  document.getElementById('space-save-btn').hidden = !manage;
+
+  const inviteRow = document.getElementById('space-invite-row');
+  inviteRow.hidden = !manage;
+  if(manage) document.getElementById('space-invite-code').textContent = chat.invite_code || '—';
+
+  document.getElementById('space-members-block').hidden = false;
+  document.getElementById('space-add-member-input').closest('.space-add-member-row').hidden = !manage;
+  loadSpaceMembers(chat.id, manage, me?.id);
+
+  const dangerRow = document.getElementById('space-danger-row');
+  dangerRow.hidden = false;
+  const leaveBtn = document.getElementById('space-leave-btn');
+  const deleteBtn = document.getElementById('space-delete-btn');
+  leaveBtn.hidden = chat.my_role === 'owner';
+  deleteBtn.hidden = chat.my_role !== 'owner';
+}
+
+async function loadSpaceMembers(spaceId, manage, myId){
+  const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members`);
+  if(!res.ok) return;
+  const members = await res.json();
+  const list = document.getElementById('space-members-list');
+  list.innerHTML = '';
+  members.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'space-member-row';
+    const roleLabel = m.role === 'owner' ? 'владелец' : m.role === 'admin' ? 'админ' : '';
+    row.innerHTML = `<span class="avatar">${escapeHtml(initials(m.display_name))}</span><span class="space-member-name">${escapeHtml(m.display_name)}</span><span class="space-member-role">${roleLabel}</span>`;
+    if(manage && m.role !== 'owner'){
+      const actions = document.createElement('div');
+      actions.className = 'space-member-actions';
+      const roleBtn = document.createElement('button');
+      roleBtn.type = 'button';
+      roleBtn.textContent = m.role === 'admin' ? 'разжаловать' : 'сделать админом';
+      roleBtn.addEventListener('click', async () => {
+        const me = getCurrentUser();
+        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,role: m.role === 'admin' ? 'member' : 'admin'})});
+        loadSpaceMembers(spaceId, manage, myId);
+      });
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', async () => {
+        const me = getCurrentUser();
+        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
+        loadSpaceMembers(spaceId, manage, myId);
+      });
+      actions.append(roleBtn, removeBtn);
+      row.appendChild(actions);
+    }
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('space-add-member-btn').addEventListener('click', async () => {
+  const me = getCurrentUser();
+  const targetId = document.getElementById('space-add-member-input').value.trim();
+  if(!me || !targetId || !spaceModalState.spaceId) return;
+  try{
+    const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,user_id:targetId})});
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить участника'));
+    document.getElementById('space-add-member-input').value = '';
+    loadSpaceMembers(spaceModalState.spaceId, true, me.id);
+  }catch(err){ alert(err.message); }
+});
+
+document.getElementById('space-invite-copy').addEventListener('click', () => {
+  const code = document.getElementById('space-invite-code').textContent;
+  if(code && code !== '—') navigator.clipboard?.writeText(code).catch(()=>{});
+});
+
+document.getElementById('space-save-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); if(!me) return;
+  const name = document.getElementById('space-name-input').value.trim();
+  const description = document.getElementById('space-description-input').value.trim();
+  const isPrivate = document.getElementById('space-private-input').checked;
+  if(!name) return;
+
+  try{
+    if(spaceModalState.mode === 'create'){
+      const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate,photo:spaceModalState.photoData})});
+      if(!res.ok) throw new Error(await messageError(res,'Не удалось создать'));
+      closeModal(spaceModal);
+      await loadSpaces();
+    }else{
+      const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,name,description,photo:spaceModalState.photoData})});
+      if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить'));
+      closeModal(spaceModal);
+      await loadSpaces();
+    }
+  }catch(err){ alert(err.message); }
+});
+
+document.getElementById('space-leave-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
+  if(!confirm('Покинуть это пространство?')) return;
+  await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/leave`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
+  openChats.delete(spaceModalState.spaceId);
+  if(activeChatId === spaceModalState.spaceId) activeChatId = null;
+  closeModal(spaceModal);
+  renderChatList();
+});
+
+document.getElementById('space-delete-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
+  if(!confirm('Удалить безвозвратно? Это действие нельзя отменить.')) return;
+  await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
+  openChats.delete(spaceModalState.spaceId);
+  if(activeChatId === spaceModalState.spaceId) activeChatId = null;
+  closeModal(spaceModal);
+  renderChatList();
+});
+
+// ==========================================================
+// Перетаскиваемое окно своей камеры в звонке (как в Telegram/Zoom)
+// ==========================================================
+(function enableDraggableLocalVideo(){
+  const el = document.getElementById('call-local-video');
+  if(!el) return;
+  let dragging = false, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+
+  el.addEventListener('pointerdown', event => {
+    dragging = true;
+    el.setPointerCapture?.(event.pointerId);
+    const rect = el.getBoundingClientRect();
+    startX = event.clientX; startY = event.clientY;
+    originLeft = rect.left; originTop = rect.top;
+    el.style.right = 'auto'; el.style.bottom = 'auto';
+    el.style.left = originLeft + 'px'; el.style.top = originTop + 'px';
+  });
+  el.addEventListener('pointermove', event => {
+    if(!dragging) return;
+    const dx = event.clientX - startX, dy = event.clientY - startY;
+    const maxLeft = window.innerWidth - el.offsetWidth - 8;
+    const maxTop = window.innerHeight - el.offsetHeight - 8;
+    el.style.left = Math.min(Math.max(8, originLeft + dx), maxLeft) + 'px';
+    el.style.top = Math.min(Math.max(8, originTop + dy), maxTop) + 'px';
+  });
+  const stop = () => { dragging = false; };
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+})();
 
 // ---------- инициализация ----------
 (function init(){
