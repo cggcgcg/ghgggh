@@ -13,7 +13,7 @@ from app.workspace import (
     get_settings, update_settings,
     create_space, get_spaces, get_space, update_space, delete_space,
     get_members, add_member, remove_member, set_member_role, get_member_role,
-    can_manage, is_member, join_space, join_by_invite_code,
+    can_manage, is_member, join_space, join_by_invite_code, search_public_spaces,
     create_device, get_devices,
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact
@@ -220,6 +220,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # /api/spaces/find/<space_id>       -> публичная карточка пространства (для "join по id")
+        # /api/spaces/search/<query>        -> поиск публичных каналов/групп по названию
         # /api/spaces/<space_id>/members    -> список участников
         # /api/spaces/<user_id>             -> список пространств, где user_id состоит участником
         if self.path.startswith("/api/spaces/"):
@@ -234,6 +235,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(403, {"error": "This space is private"})
                 else:
                     self.send_json(200, space)
+                return
+
+            if parts[0] == "search" and len(parts) == 2:
+                self.send_json(200, search_public_spaces(parts[1]))
                 return
 
             if len(parts) == 2 and parts[1] == "members":

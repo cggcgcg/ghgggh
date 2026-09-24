@@ -89,6 +89,18 @@ def find_space_by_invite_code(invite_code):
     return _row_to_space(row) if row else None
 
 
+def search_public_spaces(query):
+    # Только публичные — приватные намеренно не находятся через поиск,
+    # попасть в них можно лишь по ссылке-приглашению или если владелец/админ
+    # добавит конкретного человека вручную (см. договорённость про приватность).
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM spaces WHERE is_private = 0 AND LOWER(name) LIKE LOWER(?) ORDER BY created_at DESC LIMIT 20",
+            (f"%{query}%",),
+        ).fetchall()
+    return [_row_to_space(row) for row in rows]
+
+
 def get_spaces(user_id):
     """Пространства, где user_id состоит участником (владелец тоже
     является участником — см. create_space и бэкфилл при миграции)."""

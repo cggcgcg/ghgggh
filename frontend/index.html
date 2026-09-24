@@ -723,12 +723,15 @@ button, input{font-family:inherit;}
 .profile-voice-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;background:var(--surface-hi);border:1px solid var(--border-soft);margin-bottom:6px;font-size:12px;color:var(--text-dim);}
 .profile-empty-tab{padding:20px 6px;text-align:center;color:var(--text-faint);font-size:12px;line-height:1.5;}
 
-/* Настройки/создание канала-группы */
-.space-photo-row{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
-.space-photo-btn{--size:64px;border:1px dashed var(--border);background:var(--surface-hi);color:var(--text-dim);font-size:22px;cursor:pointer;flex:0 0 auto;background-size:cover;background-position:center;}
+/* Настройки/создание канала-группы — простая карточка, как на скетчах:
+   большой круглый аватар с карандашом сверху, поля в столбик, одна кнопка. */
+.space-sheet{text-align:left;}
+.space-avatar-row{display:flex;justify-content:center;margin-bottom:12px;}
+.space-photo-btn{--size:88px;border:1px dashed var(--border);background:var(--surface-hi);color:var(--text-dim);font-size:28px;cursor:pointer;background-size:cover;background-position:center;position:relative;}
 .space-photo-btn.has-photo{border-style:solid;color:transparent;}
+.space-photo-btn::after{content:"✎";position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent-b);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);}
 .space-privacy-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-direction:row;}
-.space-privacy-row input{width:18px;height:18px;accent-color:var(--accent-b);}
+.space-privacy-row input{width:18px;height:18px;accent-color:var(--accent-b);flex:0 0 auto;}
 .space-invite-row{margin:6px 0 14px;display:flex;flex-direction:column;gap:6px;}
 .space-invite-link{display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:10px;padding:8px 10px;}
 .space-invite-link code{flex:1;font:11px var(--font-mono);color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -743,6 +746,15 @@ button, input{font-family:inherit;}
 .space-member-actions button{border:1px solid var(--border);background:var(--surface-hi);color:var(--text-dim);border-radius:8px;padding:4px 7px;font-size:11px;cursor:pointer;}
 .space-danger-row{display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
 .space-delete-btn{background:var(--danger)!important;color:#fff;}
+
+/* Результаты поиска каналов/групп (вместе с пользователями в одном списке) */
+.sr-space-badge{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-b);border:1px solid var(--accent-b);border-radius:6px;padding:1px 5px;margin-left:6px;}
+
+/* Пока идёт запись голосового/кружочка — кнопки микрофона и переключения
+   режима прячутся совсем, чтобы не путались с панелью записи поверх них. */
+.conv-input-bar.is-recording #media-btn,
+.conv-input-bar.is-recording #media-mode-btn{display:none;}
+
 
 @media (max-width:760px){
   .settings-window{width:100%;}
@@ -1718,10 +1730,21 @@ body,[data-ui-design]{background:var(--bg);}
     <button class="modal-close" data-close-modal="create-modal" type="button" aria-label="Закрыть">×</button>
     <h2 id="create-title">Создать</h2>
     <p>Начните новый разговор или пространство.</p>
-    <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>Найти по username</small></button>
+    <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>По User ID</small></button>
     <button class="create-action" data-space-kind="group" type="button"><span>👥</span><strong>Создать группу</strong><small>Для общения команды</small></button>
     <button class="create-action" data-space-kind="channel" type="button"><span>◈</span><strong>Создать канал</strong><small>Публикуйте новости и идеи</small></button>
-    <button class="create-action" id="join-space-action" type="button"><span>🔗</span><strong>Присоединиться</strong><small>По ID или ссылке-приглашению</small></button>
+  </section>
+</div>
+
+<!-- Добавить контакт по User ID — без нативного prompt(), ошибка видна в форме -->
+<div class="modal-backdrop" id="add-contact-modal" hidden>
+  <section class="create-sheet" aria-labelledby="add-contact-title">
+    <button class="modal-close" data-close-modal="add-contact-modal" type="button" aria-label="Закрыть">×</button>
+    <h2 id="add-contact-title">Добавить пользователя</h2>
+    <p>Вставь User ID человека, чтобы добавить его в контакты.</p>
+    <label class="profile-field"><span>User ID</span><input id="add-contact-input" type="text" placeholder="напр. 78c424d9-c487-..."></label>
+    <button class="settings-save" id="add-contact-submit-btn" type="button">Добавить</button>
+    <p id="add-contact-error" class="auth-error" hidden></p>
   </section>
 </div>
 
@@ -1775,53 +1798,33 @@ body,[data-ui-design]{background:var(--bg);}
 
 <!-- Создание / настройки канала и группы -->
 <div class="modal-backdrop" id="space-modal" hidden>
-  <section class="settings-window" aria-labelledby="space-modal-title">
+  <section class="create-sheet space-sheet" aria-labelledby="space-modal-title">
     <button class="modal-close" data-close-modal="space-modal" type="button" aria-label="Закрыть">×</button>
-    <header class="settings-window-head">
-      <div><span class="eyebrow" id="space-modal-eyebrow">КАНАЛ</span><h2 id="space-modal-title">Новый канал</h2></div>
-    </header>
-    <div class="settings-content">
-      <div class="space-photo-row">
-        <button class="avatar space-photo-btn" id="space-photo-preview" type="button" title="Изменить фото">+</button>
-        <input type="file" id="space-photo-input" accept="image/*" hidden>
-        <div>
-          <label class="profile-field" style="margin:0"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
-        </div>
-      </div>
-      <label class="profile-field">Описание<input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
-      <label class="profile-field space-privacy-row">
-        <span>Приватный (вступление только по ссылке)</span>
-        <input type="checkbox" id="space-private-input">
-      </label>
-      <div class="space-invite-row" id="space-invite-row" hidden>
-        <span class="section-note" style="margin:0">Ссылка-приглашение</span>
-        <div class="space-invite-link"><code id="space-invite-code">—</code><button class="icon-btn" id="space-invite-copy" type="button" title="Скопировать">⧉</button></div>
-      </div>
-      <button class="settings-save" id="space-save-btn" type="button">Создать</button>
-
-      <div id="space-members-block" hidden>
-        <h4>Участники</h4>
-        <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="User ID нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
-        <div id="space-members-list"></div>
-      </div>
-
-      <div class="space-danger-row" id="space-danger-row" hidden>
-        <button class="settings-save" id="space-leave-btn" type="button" hidden>Покинуть</button>
-        <button class="settings-save space-delete-btn" id="space-delete-btn" type="button" hidden>Удалить безвозвратно</button>
-      </div>
+    <div class="space-avatar-row">
+      <button class="avatar space-photo-btn" id="space-photo-preview" type="button" title="Изменить фото">+</button>
+      <input type="file" id="space-photo-input" accept="image/*" hidden>
     </div>
-  </section>
-</div>
+    <h2 id="space-modal-title">Новый канал</h2>
+    <label class="profile-field"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
+    <label class="profile-field"><span>Описание</span><input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
+    <label class="profile-field space-privacy-row"><span>Приватный (вступление только по ссылке)</span><input type="checkbox" id="space-private-input"></label>
+    <div class="space-invite-row" id="space-invite-row" hidden>
+      <span class="section-note" style="margin:0">Ссылка-приглашение</span>
+      <div class="space-invite-link"><code id="space-invite-code">—</code><button class="icon-btn" id="space-invite-copy" type="button" title="Скопировать">⧉</button></div>
+    </div>
+    <button class="settings-save" id="space-save-btn" type="button">Создать</button>
+    <p id="space-error" class="auth-error" hidden></p>
 
-<!-- Присоединиться к каналу/группе по ID или по ссылке-приглашению -->
-<div class="modal-backdrop" id="join-modal" hidden>
-  <section class="create-sheet" aria-labelledby="join-title">
-    <button class="modal-close" data-close-modal="join-modal" type="button" aria-label="Закрыть">×</button>
-    <h2 id="join-title">Присоединиться</h2>
-    <p>Вставь ID канала/группы (для публичных) или код/ссылку приглашения (для приватных).</p>
-    <label class="profile-field"><span>ID или код приглашения</span><input id="join-input" type="text" placeholder="напр. Aok1Y9lF96"></label>
-    <button class="settings-save" id="join-submit-btn" type="button">Присоединиться</button>
-    <p id="join-error" class="auth-error" hidden></p>
+    <div id="space-members-block" hidden>
+      <h4>Участники</h4>
+      <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="User ID нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
+      <div id="space-members-list"></div>
+    </div>
+
+    <div class="space-danger-row" id="space-danger-row" hidden>
+      <button class="settings-save" id="space-leave-btn" type="button" hidden>Покинуть</button>
+      <button class="settings-save space-delete-btn" id="space-delete-btn" type="button" hidden>Удалить безвозвратно</button>
+    </div>
   </section>
 </div>
 
@@ -1936,54 +1939,36 @@ navSettings.addEventListener('click', () => {
 
 document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => closeModal(document.getElementById(button.dataset.closeModal))));
 document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if(event.target === modal) closeModal(modal); }));
-document.getElementById('add-user-action').addEventListener('click', async () => {
+document.getElementById('add-user-action').addEventListener('click', () => {
+  closeModal(createModal);
+  document.getElementById('add-contact-input').value = '';
+  document.getElementById('add-contact-error').hidden = true;
+  openModal(document.getElementById('add-contact-modal'));
+});
+
+document.getElementById('add-contact-submit-btn').addEventListener('click', async () => {
   const user = getCurrentUser(); if(!user) return;
-  const id = prompt('User ID контакта, которого хотите добавить:');
-  if(!id?.trim()) return;
-  const target = id.trim();
+  const target = document.getElementById('add-contact-input').value.trim();
+  const errorEl = document.getElementById('add-contact-error');
+  errorEl.hidden = true;
+  if(!target) return;
   try{
     const res = await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:user.id,contact_user_id:target})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить контакт'));
     const contact = await res.json();
-    closeModal(createModal);
+    closeModal(document.getElementById('add-contact-modal'));
     openChat(contact);
     loadContacts();
-  }catch(err){ alert(err.message); }
+  }catch(err){
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
 });
 
 document.querySelectorAll('[data-space-kind]').forEach(button => button.addEventListener('click', () => {
   closeModal(createModal);
   openSpaceModal('create', button.dataset.spaceKind);
 }));
-
-document.getElementById('join-space-action').addEventListener('click', () => {
-  closeModal(createModal);
-  document.getElementById('join-input').value = '';
-  document.getElementById('join-error').hidden = true;
-  openModal(document.getElementById('join-modal'));
-});
-
-document.getElementById('join-submit-btn').addEventListener('click', async () => {
-  const user = getCurrentUser(); if(!user) return;
-  const raw = document.getElementById('join-input').value.trim();
-  const errorEl = document.getElementById('join-error');
-  errorEl.hidden = true;
-  if(!raw) return;
-  try{
-    // Сперва пробуем как id публичного пространства (найдено как обычный
-    // собеседник), если не выйдет — как код приглашения (в т.ч. приватные).
-    let res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(raw)}/join`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id})});
-    if(!res.ok){
-      res = await fetch(`${API_BASE}/api/spaces/join-code/${encodeURIComponent(raw)}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id})});
-    }
-    if(!res.ok) throw new Error(await messageError(res,'Не удалось присоединиться'));
-    closeModal(document.getElementById('join-modal'));
-    await loadSpaces();
-  }catch(err){
-    errorEl.textContent = err.message;
-    errorEl.hidden = false;
-  }
-});
 
 document.querySelectorAll('[data-settings-section]').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('[data-settings-section]').forEach(item => item.classList.toggle('active', item === button));
@@ -2108,16 +2093,16 @@ function applyInterfaceLanguage(lang){
   document.querySelector('#auth-screen .auth-subtitle').textContent = lang === 'ru' ? 'Свой канал связи. Без посредников.' : lang === 'en' ? 'Your private channel. No middlemen.' : lang === 'uz' ? 'Shaxsiy aloqa kanalingiz.' : lang === 'de' ? 'Dein eigener Kanal. Ohne Umwege.' : lang === 'fr' ? 'Votre canal privé. Sans intermédiaire.' : lang === 'es' ? 'Tu canal privado. Sin intermediarios.' : lang === 'tr' ? 'Kendi iletişim kanalınız.' : lang === 'zh' ? '你的私人通信频道。' : lang === 'ja' ? 'あなた専用の通信チャンネル。' : '나만의 소통 채널입니다.';
   document.querySelector('#message-input').setAttribute('aria-label', t.chats);
   const extra = {
-    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'Найти по username',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · TGClone Web',addDevice:'Добавить устройство'},
-    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'Username orqali topish',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · TGClone Web',addDevice:'Qurilma qo‘shish'},
-    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'Find by username',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · TGClone Web',addDevice:'Add device'},
-    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Nach Username suchen',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · TGClone Web',addDevice:'Gerät hinzufügen'},
-    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Rechercher par username',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · TGClone Web',addDevice:'Ajouter un appareil'},
-    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Buscar por username',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · TGClone Web',addDevice:'Añadir dispositivo'},
-    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'Kullanıcı adıyla bul',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · TGClone Web',addDevice:'Cihaz ekle'},
-    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按用户名查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · TGClone Web',addDevice:'添加设备'},
-    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'ユーザー名で検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · TGClone Web',addDevice:'デバイスを追加'},
-    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'사용자 이름으로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · TGClone Web',addDevice:'기기 추가'}
+    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'По User ID',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · TGClone Web',addDevice:'Добавить устройство'},
+    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'User ID orqali',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · TGClone Web',addDevice:'Qurilma qo‘shish'},
+    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'By User ID',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · TGClone Web',addDevice:'Add device'},
+    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Per User ID',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · TGClone Web',addDevice:'Gerät hinzufügen'},
+    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Par User ID',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · TGClone Web',addDevice:'Ajouter un appareil'},
+    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Por User ID',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · TGClone Web',addDevice:'Añadir dispositivo'},
+    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'User ID ile',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · TGClone Web',addDevice:'Cihaz ekle'},
+    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按 User ID 查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · TGClone Web',addDevice:'添加设备'},
+    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'User IDで検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · TGClone Web',addDevice:'デバイスを追加'},
+    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'User ID로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · TGClone Web',addDevice:'기기 추가'}
   };
   const e = extra[lang] || extra.ru;
   document.querySelector('#auth-screen .auth-subtitle').textContent=e.authSub;
@@ -2488,32 +2473,27 @@ searchInput.addEventListener('input', () => {
 
 async function runSearch(query){
   try{
-    const res = await fetch(`${API_BASE}/api/users/search/${encodeURIComponent(query)}`);
-
-    if(res.status === 404){
-      searchResults.innerHTML = `<div class="search-empty">Никого не нашлось</div>`;
-      return;
-    }
-    if(!res.ok) throw new Error('Ошибка поиска (код ' + res.status + ')');
-
-    const data = await res.json();
-    // ответ может быть как массивом, так и одним пользователем — поддержим оба варианта
-    const users = Array.isArray(data) ? data : (data ? [data] : []);
-
-    if(users.length === 0){
-      searchResults.innerHTML = `<div class="search-empty">Никого не нашлось</div>`;
-      return;
-    }
+    const [userRes, spaceRes] = await Promise.all([
+      fetch(`${API_BASE}/api/users/search/${encodeURIComponent(query)}`),
+      fetch(`${API_BASE}/api/spaces/search/${encodeURIComponent(query)}`)
+    ]);
 
     const me = getCurrentUser();
-    searchResults.innerHTML = '';
-    users
-      .filter(u => u.username !== me?.username)
-      .forEach(u => searchResults.appendChild(renderSearchItem(u)));
-
-    if(!searchResults.children.length){
-      searchResults.innerHTML = `<div class="search-empty">Никого не нашлось</div>`;
+    let users = [];
+    if(userRes.ok){
+      const data = await userRes.json();
+      users = (Array.isArray(data) ? data : (data ? [data] : [])).filter(u => u.username !== me?.username);
     }
+    const spaces = spaceRes.ok ? await spaceRes.json() : [];
+
+    if(users.length === 0 && spaces.length === 0){
+      searchResults.innerHTML = `<div class="search-empty">Ничего не нашлось</div>`;
+      return;
+    }
+
+    searchResults.innerHTML = '';
+    users.forEach(u => searchResults.appendChild(renderSearchItem(u)));
+    spaces.forEach(s => searchResults.appendChild(renderSpaceSearchItem(s)));
   }catch(err){
     searchResults.innerHTML = `<div class="search-error">${escapeHtml(err.message)}</div>`;
   }
@@ -2534,6 +2514,36 @@ function renderSearchItem(user){
     searchInput.value = '';
     searchResults.hidden = true;
     searchResults.innerHTML = '';
+  });
+  return item;
+}
+
+// Публичные каналы/группы в том же списке поиска — тап сразу вступает и
+// открывает чат (приватные пространства сюда не попадают, см. бэкенд).
+function renderSpaceSearchItem(space){
+  const item = document.createElement('div');
+  item.className = 'search-result-item';
+  item.innerHTML = `
+    <span class="avatar">${escapeHtml(initials(space.name))}</span>
+    <div>
+      <div class="sr-name">${escapeHtml(space.name)}<span class="sr-space-badge">${space.kind === 'channel' ? 'канал' : 'группа'}</span></div>
+      <div class="sr-handle">${escapeHtml(space.description || '')}</div>
+    </div>
+  `;
+  item.addEventListener('click', async () => {
+    const me = getCurrentUser(); if(!me) return;
+    try{
+      const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(space.id)}/join`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
+      if(!res.ok) throw new Error(await messageError(res,'Не удалось вступить'));
+    }catch(err){
+      searchResults.innerHTML = `<div class="search-error">${escapeHtml(err.message)}</div>`;
+      return;
+    }
+    await loadSpaces();
+    searchInput.value = '';
+    searchResults.hidden = true;
+    searchResults.innerHTML = '';
+    setActiveChat(space.id);
   });
   return item;
 }
@@ -3786,6 +3796,7 @@ function stopRecordingTimer(){
 function stopRecordingPreview(){
   recordingPreview.hidden = true;
   recordingPreview.classList.remove('voice-mode','is-recording','is-locked','is-video','is-voice');
+  messageForm.classList.remove('is-recording');
   recordingVoiceStage.hidden = true;
   recordingVideoStage.hidden = true;
   cameraPreview.srcObject = null;
@@ -3842,6 +3853,7 @@ function animateVoiceLevel(stream){
 function updateRecordingUI(){
   recordingPreview.hidden=false;
   recordingPreview.classList.add('is-recording', recordingMode==='video'?'is-video':'is-voice');
+  messageForm.classList.add('is-recording');
   recordingVoiceStage.hidden=recordingMode!=='voice';
   recordingVideoStage.hidden=recordingMode!=='video';
   recordingHint.textContent = recordingLocked
@@ -4177,13 +4189,14 @@ function openSpaceModal(mode, kind, spaceId){
   document.getElementById('space-private-input').disabled = false;
   document.getElementById('space-name-input').disabled = false;
   document.getElementById('space-description-input').disabled = false;
+  document.getElementById('space-error').hidden = true;
 
   if(mode === 'create'){
-    document.getElementById('space-modal-eyebrow').textContent = kind === 'channel' ? 'КАНАЛ' : 'ГРУППА';
     document.getElementById('space-modal-title').textContent = kind === 'channel' ? 'Новый канал' : 'Новая группа';
     document.getElementById('space-name-input').value = '';
     document.getElementById('space-description-input').value = '';
     document.getElementById('space-private-input').checked = false;
+    document.getElementById('space-save-btn').hidden = false;
     document.getElementById('space-save-btn').textContent = 'Создать';
     resetSpacePhotoPreview('+', null);
   }else{
@@ -4198,7 +4211,6 @@ function openSpaceModal(mode, kind, spaceId){
 function populateSpaceModalFromChat(chat){
   const me = getCurrentUser();
   const manage = chat.my_role === 'owner' || chat.my_role === 'admin';
-  document.getElementById('space-modal-eyebrow').textContent = chat.kind === 'channel' ? 'КАНАЛ' : 'ГРУППА';
   document.getElementById('space-modal-title').textContent = chat.display_name;
   document.getElementById('space-name-input').value = chat.display_name;
   document.getElementById('space-description-input').value = chat.description || '';
@@ -4266,13 +4278,15 @@ async function loadSpaceMembers(spaceId, manage, myId){
 document.getElementById('space-add-member-btn').addEventListener('click', async () => {
   const me = getCurrentUser();
   const targetId = document.getElementById('space-add-member-input').value.trim();
+  const errorEl = document.getElementById('space-error');
+  errorEl.hidden = true;
   if(!me || !targetId || !spaceModalState.spaceId) return;
   try{
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,user_id:targetId})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить участника'));
     document.getElementById('space-add-member-input').value = '';
     loadSpaceMembers(spaceModalState.spaceId, true, me.id);
-  }catch(err){ alert(err.message); }
+  }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
 });
 
 document.getElementById('space-invite-copy').addEventListener('click', () => {
@@ -4285,7 +4299,9 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
   const name = document.getElementById('space-name-input').value.trim();
   const description = document.getElementById('space-description-input').value.trim();
   const isPrivate = document.getElementById('space-private-input').checked;
-  if(!name) return;
+  const errorEl = document.getElementById('space-error');
+  errorEl.hidden = true;
+  if(!name){ errorEl.textContent = 'Введите название'; errorEl.hidden = false; return; }
 
   try{
     if(spaceModalState.mode === 'create'){
@@ -4299,12 +4315,11 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
       closeModal(spaceModal);
       await loadSpaces();
     }
-  }catch(err){ alert(err.message); }
+  }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
 });
 
 document.getElementById('space-leave-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
-  if(!confirm('Покинуть это пространство?')) return;
   await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/leave`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
   openChats.delete(spaceModalState.spaceId);
   if(activeChatId === spaceModalState.spaceId) activeChatId = null;
@@ -4314,7 +4329,6 @@ document.getElementById('space-leave-btn').addEventListener('click', async () =>
 
 document.getElementById('space-delete-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
-  if(!confirm('Удалить безвозвратно? Это действие нельзя отменить.')) return;
   await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
   openChats.delete(spaceModalState.spaceId);
   if(activeChatId === spaceModalState.spaceId) activeChatId = null;

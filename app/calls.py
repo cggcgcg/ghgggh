@@ -229,4 +229,4 @@ def handle_client_message(handler, state, message):
         target = to_user or peer_id
         if target:
             send_to(target, {"type": msg_type, "from": user_id})
-        return
+        return 
