@@ -1,4 +1,3 @@
-import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -42,12 +41,6 @@ def update_settings(user_id, values):
 # Каналы / группы (spaces)
 # =====================================================
 
-def _new_invite_code():
-    # Короткий urlsafe-код — не подбирается перебором и удобно вставляется
-    # в ссылку-приглашение вида tgclone.example/join/<code>.
-    return secrets.token_urlsafe(8)[:10]
-
-
 def _row_to_space(row):
     space = dict(row)
     space["is_private"] = bool(space.get("is_private"))
@@ -57,16 +50,15 @@ def _row_to_space(row):
 def create_space(owner_id, name, kind, description="", photo=None, is_private=False):
     space_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
-    invite_code = _new_invite_code()
 
     with get_connection() as conn:
         conn.execute(
             """
             INSERT INTO spaces
             (id, owner_id, name, kind, created_at, photo, description, background, is_private, invite_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
             """,
-            (space_id, owner_id, name, kind, created_at, photo, description, 1 if is_private else 0, invite_code),
+            (space_id, owner_id, name, kind, created_at, photo, description, 1 if is_private else 0),
         )
         conn.execute(
             "INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)",
@@ -83,20 +75,15 @@ def get_space(space_id):
     return _row_to_space(row) if row else None
 
 
-def find_space_by_invite_code(invite_code):
-    with get_connection() as conn:
-        row = conn.execute("SELECT * FROM spaces WHERE invite_code = ?", (invite_code,)).fetchone()
-    return _row_to_space(row) if row else None
-
-
 def search_public_spaces(query):
-    # Только публичные — приватные намеренно не находятся через поиск,
-    # попасть в них можно лишь по ссылке-приглашению или если владелец/админ
-    # добавит конкретного человека вручную (см. договорённость про приватность).
+    # Только публичные — приватные намеренно не находятся через поиск/по id,
+    # попасть в них можно только если владелец/админ добавит конкретного
+    # человека вручную по его User ID (см. договорённость про приватность).
+    # Матчим и по точному id (как поиск контакта по User ID), и по названию.
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM spaces WHERE is_private = 0 AND LOWER(name) LIKE LOWER(?) ORDER BY created_at DESC LIMIT 20",
-            (f"%{query}%",),
+            "SELECT * FROM spaces WHERE is_private = 0 AND (id = ? OR LOWER(name) LIKE LOWER(?)) ORDER BY created_at DESC LIMIT 20",
+            (query, f"%{query}%"),
         ).fetchall()
     return [_row_to_space(row) for row in rows]
 
@@ -221,9 +208,9 @@ def get_members(space_id):
 
 
 def join_space(space_id, user_id):
-    """Вступление в ПУБЛИЧНОЕ пространство, зная его id (найдено как
-    обычный собеседник через поиск/ID) — приватные так вступить не дадут,
-    для них есть только join_by_invite_code."""
+    """Вступление в ПУБЛИЧНОЕ пространство, зная его id (найдено как обычный
+    собеседник через поиск/ID). Приватные так вступить не дадут — туда может
+    добавить только владелец/админ вручную по User ID (см. add_member)."""
     space = get_space(space_id)
     if not space:
         return None, "Space not found"
@@ -232,19 +219,10 @@ def join_space(space_id, user_id):
         return space, None
 
     if space["is_private"]:
-        return None, "This space is private — join by invite link only"
+        return None, "This space is private — ask an admin to add you"
 
     add_member(space_id, user_id, role="member")
     return get_space(space_id), None
-
-
-def join_by_invite_code(invite_code, user_id):
-    space = find_space_by_invite_code(invite_code)
-    if not space:
-        return None, "Invalid invite link"
-    if not is_member(space["id"], user_id):
-        add_member(space["id"], user_id, role="member")
-    return get_space(space["id"]), None
 
 
 def create_device(user_id, name):

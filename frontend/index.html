@@ -732,9 +732,6 @@ button, input{font-family:inherit;}
 .space-photo-btn::after{content:"✎";position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent-b);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);}
 .space-privacy-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-direction:row;}
 .space-privacy-row input{width:18px;height:18px;accent-color:var(--accent-b);flex:0 0 auto;}
-.space-invite-row{margin:6px 0 14px;display:flex;flex-direction:column;gap:6px;}
-.space-invite-link{display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:10px;padding:8px 10px;}
-.space-invite-link code{flex:1;font:11px var(--font-mono);color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 #space-members-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
 .space-add-member-row{display:flex;gap:8px;margin:10px 0 12px;}
 .space-add-member-row input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--bg-alt);color:var(--text);font-size:12px;}
@@ -1807,16 +1804,12 @@ body,[data-ui-design]{background:var(--bg);}
     <h2 id="space-modal-title">Новый канал</h2>
     <label class="profile-field"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
     <label class="profile-field"><span>Описание</span><input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
-    <label class="profile-field space-privacy-row"><span>Приватный (вступление только по ссылке)</span><input type="checkbox" id="space-private-input"></label>
-    <div class="space-invite-row" id="space-invite-row" hidden>
-      <span class="section-note" style="margin:0">Ссылка-приглашение</span>
-      <div class="space-invite-link"><code id="space-invite-code">—</code><button class="icon-btn" id="space-invite-copy" type="button" title="Скопировать">⧉</button></div>
-    </div>
+    <label class="profile-field space-privacy-row"><span>Приватный (найти по ID нельзя — добавляет только админ)</span><input type="checkbox" id="space-private-input"></label>
     <button class="settings-save" id="space-save-btn" type="button">Создать</button>
     <p id="space-error" class="auth-error" hidden></p>
 
     <div id="space-members-block" hidden>
-      <h4>Участники</h4>
+      <h4>Участники (<span id="space-members-count">0</span>)</h4>
       <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="User ID нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
       <div id="space-members-list"></div>
     </div>
@@ -2293,7 +2286,7 @@ async function loadSpaces(){
     Object.assign(chat, {
       id:space.id, username:space.kind, display_name:space.name, kind:space.kind,
       owner_id:space.owner_id, description:space.description, photo:space.photo,
-      background:space.background, is_private:space.is_private, invite_code:space.invite_code,
+      background:space.background, is_private:space.is_private,
       my_role:space.my_role
     });
     openChats.set(space.id, chat);
@@ -2621,8 +2614,11 @@ async function setActiveChat(id){
 
   convAvatar.textContent = initials(chat.display_name);
   convName.textContent = chat.display_name;
-  document.getElementById('conv-header-status').textContent = '@' + chat.username;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
+  document.getElementById('conv-header-status').textContent = isSpace
+    ? (chat.kind === 'channel' ? 'канал' : 'группа')
+    : '@' + chat.username;
+  if(isSpace) refreshSpaceMemberCount(chat.id);
   messageInput.disabled = isSpace;
   messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
   mediaBtn.disabled = isSpace;
@@ -2636,6 +2632,20 @@ async function setActiveChat(id){
   }
   await refreshMessages(chat, { silent: false, force: true });
   startPolling();
+}
+
+// Количество участников канала/группы — видно ВСЕМ прямо в шапке чата,
+// не только тем, кто открыл настройки.
+async function refreshSpaceMemberCount(spaceId){
+  const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members`);
+  if(!res.ok || activeChatId !== spaceId) return;
+  const members = await res.json();
+  const chat = openChats.get(spaceId);
+  const kindLabel = chat?.kind === 'channel' ? 'канал' : 'группа';
+  const word = members.length % 10 === 1 && members.length % 100 !== 11 ? 'участник'
+    : [2,3,4].includes(members.length % 10) && ![12,13,14].includes(members.length % 100) ? 'участника'
+    : 'участников';
+  document.getElementById('conv-header-status').textContent = `${kindLabel} · ${members.length} ${word}`;
 }
 
 async function refreshMessages(chat, { silent, force = false }){
@@ -4183,7 +4193,6 @@ function openSpaceModal(mode, kind, spaceId){
   spaceModalState.spaceId = spaceId || null;
 
   document.getElementById('space-add-member-input').value = '';
-  document.getElementById('space-invite-row').hidden = true;
   document.getElementById('space-members-block').hidden = true;
   document.getElementById('space-danger-row').hidden = true;
   document.getElementById('space-private-input').disabled = false;
@@ -4222,10 +4231,8 @@ function populateSpaceModalFromChat(chat){
   document.getElementById('space-private-input').disabled = !manage;
   document.getElementById('space-save-btn').hidden = !manage;
 
-  const inviteRow = document.getElementById('space-invite-row');
-  inviteRow.hidden = !manage;
-  if(manage) document.getElementById('space-invite-code').textContent = chat.invite_code || '—';
-
+  // Список участников и их количество видны ВСЕМ, не только владельцу/
+  // админу — добавлять новых людей (поле ниже) может только менеджер.
   document.getElementById('space-members-block').hidden = false;
   document.getElementById('space-add-member-input').closest('.space-add-member-row').hidden = !manage;
   loadSpaceMembers(chat.id, manage, me?.id);
@@ -4242,6 +4249,7 @@ async function loadSpaceMembers(spaceId, manage, myId){
   const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members`);
   if(!res.ok) return;
   const members = await res.json();
+  document.getElementById('space-members-count').textContent = members.length;
   const list = document.getElementById('space-members-list');
   list.innerHTML = '';
   members.forEach(m => {
@@ -4287,11 +4295,6 @@ document.getElementById('space-add-member-btn').addEventListener('click', async 
     document.getElementById('space-add-member-input').value = '';
     loadSpaceMembers(spaceModalState.spaceId, true, me.id);
   }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
-});
-
-document.getElementById('space-invite-copy').addEventListener('click', () => {
-  const code = document.getElementById('space-invite-code').textContent;
-  if(code && code !== '—') navigator.clipboard?.writeText(code).catch(()=>{});
 });
 
 document.getElementById('space-save-btn').addEventListener('click', async () => {

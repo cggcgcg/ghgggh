@@ -13,7 +13,7 @@ from app.workspace import (
     get_settings, update_settings,
     create_space, get_spaces, get_space, update_space, delete_space,
     get_members, add_member, remove_member, set_member_role, get_member_role,
-    can_manage, is_member, join_space, join_by_invite_code, search_public_spaces,
+    can_manage, is_member, join_space, search_public_spaces,
     create_device, get_devices,
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact
@@ -503,22 +503,6 @@ class Handler(BaseHTTPRequestHandler):
             space, error = join_space(space_id, user_id)
             if error:
                 self.send_json(403 if "private" in error else 404, {"error": error})
-                return
-            self.send_json(200, space)
-            return
-
-        # Вступить по коду приглашения (ссылке) — работает и для приватных,
-        # и для публичных пространств.
-        if self.path.startswith("/api/spaces/join-code/"):
-            invite_code = self.path.replace("/api/spaces/join-code/", "", 1)
-            data = self.read_json_body() or {}
-            user_id = str(data.get("user_id", "")).strip()
-            if not user_id or not get_user(user_id):
-                self.send_json(404, {"error": "User not found"})
-                return
-            space, error = join_by_invite_code(invite_code, user_id)
-            if error:
-                self.send_json(404, {"error": error})
                 return
             self.send_json(200, space)
             return
