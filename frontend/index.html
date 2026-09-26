@@ -361,6 +361,21 @@ button, input{font-family:inherit;}
   transition:background .15s, color .15s;
 }
 .icon-btn:hover{background:var(--surface-hover); color:var(--text);}
+.icon-btn.is-added{background:var(--accent-b); color:#fff; border-color:var(--accent-b);}
+
+.calls-status{
+  position:fixed; left:10px; bottom:10px; z-index:8;
+  display:flex; align-items:center; gap:6px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:20px; padding:5px 10px 5px 8px;
+  font-size:10px; color:var(--text-dim);
+  box-shadow:0 8px 20px -14px rgba(0,0,0,.7);
+  pointer-events:none;
+}
+.calls-status-dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:0 0 auto;}
+.calls-status.online .calls-status-dot{background:#33c15a;}
+.calls-status.offline .calls-status-dot{background:var(--danger);}
+@media (max-width:760px){ .calls-status{ bottom:82px; } }
 
 #mic-btn.recording{
   background:var(--danger);
@@ -727,11 +742,14 @@ button, input{font-family:inherit;}
    большой круглый аватар с карандашом сверху, поля в столбик, одна кнопка. */
 .space-sheet{text-align:left;}
 .space-avatar-row{display:flex;justify-content:center;margin-bottom:12px;}
-.space-photo-btn{--size:88px;border:1px dashed var(--border);background:var(--surface-hi);color:var(--text-dim);font-size:28px;cursor:pointer;background-size:cover;background-position:center;position:relative;}
-.space-photo-btn.has-photo{border-style:solid;color:transparent;}
-.space-photo-btn::after{content:"✎";position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent-b);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);}
+.space-avatar-display{--size:88px;font-size:30px;}
+#space-background-block{margin-bottom:14px;}
 .space-privacy-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-direction:row;}
 .space-privacy-row input{width:18px;height:18px;accent-color:var(--accent-b);flex:0 0 auto;}
+.copy-id-row{display:flex;align-items:center;gap:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin-top:6px;}
+.copy-id-row code{flex:1;font:11px var(--font-mono);color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.copy-id-row.copied code{color:var(--accent-b);}
+.profile-field input:disabled{opacity:.55;cursor:not-allowed;background:var(--surface-hi);}
 #space-members-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
 .space-add-member-row{display:flex;gap:8px;margin:10px 0 12px;}
 .space-add-member-row input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--bg-alt);color:var(--text);font-size:12px;}
@@ -1756,7 +1774,7 @@ body,[data-ui-design]{background:var(--bg);}
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
       </nav>
       <div class="settings-content">
-        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username<input id="profile-username" type="text"></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button></div>
+        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username<input id="profile-username" type="text"></label><label class="profile-field">Ваш User ID <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button></div>
         <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div><h4>Цвет интерфейса</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
@@ -1777,6 +1795,7 @@ body,[data-ui-design]{background:var(--bg);}
       <span class="avatar profile-hero-avatar" id="profile-modal-avatar"></span>
       <h2 id="profile-modal-name">—</h2>
       <span class="profile-modal-tag" id="profile-modal-tag">@—</span>
+      <span class="copy-id-row"><code id="profile-modal-id">—</code><button class="icon-btn" id="profile-modal-id-copy" type="button" title="Скопировать User ID">⧉</button></span>
       <div class="profile-hero-actions">
         <button class="icon-btn" id="profile-call-audio" type="button" title="Аудиозвонок">☎</button>
         <button class="icon-btn" id="profile-call-video" type="button" title="Видеозвонок">📹</button>
@@ -1798,13 +1817,16 @@ body,[data-ui-design]{background:var(--bg);}
   <section class="create-sheet space-sheet" aria-labelledby="space-modal-title">
     <button class="modal-close" data-close-modal="space-modal" type="button" aria-label="Закрыть">×</button>
     <div class="space-avatar-row">
-      <button class="avatar space-photo-btn" id="space-photo-preview" type="button" title="Изменить фото">+</button>
-      <input type="file" id="space-photo-input" accept="image/*" hidden>
+      <span class="avatar space-avatar-display" id="space-avatar-display">+</span>
     </div>
     <h2 id="space-modal-title">Новый канал</h2>
     <label class="profile-field"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
     <label class="profile-field"><span>Описание</span><input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
     <label class="profile-field space-privacy-row"><span>Приватный (найти по ID нельзя — добавляет только админ)</span><input type="checkbox" id="space-private-input"></label>
+    <div id="space-background-block" hidden>
+      <span class="field-label">Фон чата</span>
+      <div class="chat-theme-grid" id="space-theme-grid" style="margin-top:8px"></div>
+    </div>
     <button class="settings-save" id="space-save-btn" type="button">Создать</button>
     <p id="space-error" class="auth-error" hidden></p>
 
@@ -1836,9 +1858,19 @@ body,[data-ui-design]{background:var(--bg);}
   </div>
   <div class="call-controls" id="call-controls-active" hidden>
     <button class="call-btn" id="call-mute-btn" type="button" title="Микрофон">🎤</button>
+    <button class="call-btn" id="call-speaker-btn" type="button" title="Спикер">🔊</button>
     <button class="call-btn" id="call-camera-btn" type="button" title="Камера">📷</button>
+    <button class="call-btn" id="call-flip-btn" type="button" title="Переключить камеру" hidden>🔄</button>
     <button class="call-btn hangup" id="call-hangup-btn" type="button" title="Завершить">✕</button>
   </div>
+</div>
+
+<!-- Индикатор соединения звонковой сигналки (WebSocket) — чтобы было видно,
+     подключено ли устройство к серверу звонков, а не гадать, почему не
+     доходит вызов. -->
+<div class="calls-status" id="calls-status" title="Статус соединения звонков">
+  <span class="calls-status-dot" id="calls-status-dot"></span>
+  <span id="calls-status-text">звонки: подключение…</span>
 </div>
 
 <script>
@@ -2400,6 +2432,7 @@ async function enterApp(){
   meAvatar.textContent = initials(user.display_name);
   document.getElementById('profile-name').value = user.display_name;
   document.getElementById('profile-username').value = user.username;
+  document.getElementById('profile-my-id').textContent = user.id;
 
   showScreen('app');
   loadSettings();
@@ -2602,6 +2635,15 @@ function renderChatList(){
   }
 }
 
+// Кастомный фон канала/группы (задаёт админ) — те же 8 цветов, что и в
+// личных настройках, но применяются только к ЭТОМУ конкретному чату, не
+// перекрывая глобальную тему пользователя в остальных чатах.
+const SPACE_THEME_COLORS = {mist:'#0d1420',sunrise:'#1c1220',ocean:'#071a24',violet:'#150f22',forest:'#0d1912',rose:'#1c0f18',amber:'#1a1108',night:'#0a0c12'};
+function applySpaceBackground(themeName){
+  convMessages.style.setProperty('background', themeName ? SPACE_THEME_COLORS[themeName] : '', themeName ? 'important' : '');
+  if(!themeName) convMessages.style.removeProperty('background');
+}
+
 async function setActiveChat(id){
   activeChatId = id;
   const chat = openChats.get(id);
@@ -2619,6 +2661,7 @@ async function setActiveChat(id){
     ? (chat.kind === 'channel' ? 'канал' : 'группа')
     : '@' + chat.username;
   if(isSpace) refreshSpaceMemberCount(chat.id);
+  applySpaceBackground(isSpace ? chat.background : null);
   messageInput.disabled = isSpace;
   messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
   mediaBtn.disabled = isSpace;
@@ -3182,6 +3225,7 @@ const CallManager = (() => {
 
   let timerInterval = null;
   let startedAt = 0;
+  let noAnswerTimeout = null;
 
   function wsUrl(){
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -3197,14 +3241,23 @@ const CallManager = (() => {
       scheduleReconnect();
       return;
     }
-    ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); });
+    ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); setCallsStatus(true); });
     ws.addEventListener('message', (event) => {
       let msg;
       try{ msg = JSON.parse(event.data); }catch{ return; }
       handleSignal(msg);
     });
-    ws.addEventListener('close', () => { stopHeartbeat(); scheduleReconnect(); });
-    ws.addEventListener('error', () => {});
+    ws.addEventListener('close', () => { stopHeartbeat(); scheduleReconnect(); setCallsStatus(false); });
+    ws.addEventListener('error', () => { setCallsStatus(false); });
+  }
+
+  function setCallsStatus(online){
+    const el = document.getElementById('calls-status');
+    const text = document.getElementById('calls-status-text');
+    if(!el) return;
+    el.classList.toggle('online', online);
+    el.classList.toggle('offline', !online);
+    text.textContent = online ? 'звонки: подключено' : 'звонки: нет соединения…';
   }
 
   function startHeartbeat(){
@@ -3421,6 +3474,17 @@ const CallManager = (() => {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     send({ type:'call-offer', to: targetId, mode, sdp: offer });
+
+    // Без этого при обрыве сигналинга (например, второй человек не в сети,
+    // но по каким-то причинам ответ call-unavailable не дошёл) экран
+    // застревал на «Вызов…» навсегда. Через 30с без ответа — сами вешаем трубку.
+    clearTimeout(noAnswerTimeout);
+    noAnswerTimeout = setTimeout(() => {
+      if(role === 'caller' && overlay.classList.contains('ringing')){
+        statusEl.textContent = 'Нет ответа';
+        setTimeout(() => endCall({ notifyPeer:true }), 1200);
+      }
+    }, 30000);
   }
 
   async function onIncomingOffer(msg){
@@ -3491,6 +3555,7 @@ const CallManager = (() => {
 
   async function onRemoteAnswer(msg){
     if(!pc || role !== 'caller') return;
+    clearTimeout(noAnswerTimeout);
     await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
     remoteDescSet = true;
     for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
@@ -3517,6 +3582,7 @@ const CallManager = (() => {
   function endCall({ notifyPeer=true, silent=false } = {}){
     stopRingtone();
     stopTimer();
+    clearTimeout(noAnswerTimeout);
     if(notifyPeer && peerId) send({ type:'call-end', to: peerId });
 
     if(pc){ try{ pc.close(); }catch{} pc = null; }
@@ -4104,9 +4170,39 @@ function openProfileModal(chat){
   document.getElementById('profile-modal-avatar').textContent = initials(chat.display_name);
   document.getElementById('profile-modal-name').textContent = chat.display_name;
   document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
+  document.getElementById('profile-modal-id').textContent = chat.id;
+  updateAddContactBtn();
   renderProfileTab('media');
   document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.profileTab === 'media'));
   openModal(profileModal);
+}
+
+// Копирование с видимой обратной связью вместо alert()/native-тултипов —
+// подсвечиваем строку на секунду, чтобы было понятно, что сработало.
+function copyWithFeedback(rowEl, text){
+  navigator.clipboard?.writeText(text).then(() => {
+    rowEl.classList.add('copied');
+    setTimeout(() => rowEl.classList.remove('copied'), 1200);
+  }).catch(() => {});
+}
+document.getElementById('profile-my-id-copy').addEventListener('click', () => {
+  const row = document.getElementById('profile-my-id-copy').closest('.copy-id-row');
+  copyWithFeedback(row, document.getElementById('profile-my-id').textContent);
+});
+document.getElementById('profile-modal-id-copy').addEventListener('click', () => {
+  const row = document.getElementById('profile-modal-id-copy').closest('.copy-id-row');
+  copyWithFeedback(row, document.getElementById('profile-modal-id').textContent);
+});
+
+// Кнопка «+» в профиле переключается между «добавить»/«уже в контактах» —
+// видно результат сразу, без alert().
+function updateAddContactBtn(){
+  const btn = document.getElementById('profile-add-contact');
+  const chat = openChats.get(profileModalUserId);
+  const already = !!chat?.isContact;
+  btn.textContent = already ? '✓' : '＋';
+  btn.title = already ? 'Уже в контактах (нажмите, чтобы убрать)' : 'Добавить в контакты';
+  btn.classList.toggle('is-added', already);
 }
 
 function renderProfileTab(tab){
@@ -4146,8 +4242,14 @@ document.getElementById('profile-add-contact').addEventListener('click', async (
   const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
   if(!me || !chat) return;
   try{
-    await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
-    loadContacts();
+    if(chat.isContact){
+      await fetch(`${API_BASE}/api/contacts/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
+      chat.isContact = false;
+    }else{
+      await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
+      chat.isContact = true;
+    }
+    updateAddContactBtn();
   }catch{}
 });
 
@@ -4162,29 +4264,22 @@ document.getElementById('conv-header-identity').addEventListener('click', () => 
 // Создание / настройки канала и группы
 // ==========================================================
 const spaceModal = document.getElementById('space-modal');
-const spaceModalState = { mode:'create', kind:'group', spaceId:null, photoData:null };
-const spacePhotoInput = document.getElementById('space-photo-input');
-const spacePhotoPreview = document.getElementById('space-photo-preview');
+const spaceModalState = { mode:'create', kind:'group', spaceId:null, background:null };
+const spaceAvatarDisplay = document.getElementById('space-avatar-display');
 
-function resetSpacePhotoPreview(text, photo){
-  spaceModalState.photoData = photo || null;
-  if(photo){
-    spacePhotoPreview.classList.add('has-photo');
-    spacePhotoPreview.style.backgroundImage = `url(${photo})`;
-    spacePhotoPreview.textContent = '';
-  }else{
-    spacePhotoPreview.classList.remove('has-photo');
-    spacePhotoPreview.style.backgroundImage = '';
-    spacePhotoPreview.textContent = text || '+';
-  }
+function setSpaceAvatarText(text){
+  spaceAvatarDisplay.textContent = text || '+';
 }
 
-spacePhotoPreview.addEventListener('click', () => spacePhotoInput.click());
-spacePhotoInput.addEventListener('change', async () => {
-  const file = spacePhotoInput.files?.[0];
-  if(!file) return;
-  const dataUrl = await MediaRecorderService.blobToDataURL(file);
-  resetSpacePhotoPreview(null, dataUrl);
+// Фон чата для канала/группы — те же 8 пресетов, что и в личных настройках
+// (см. chatThemes выше), только теперь привязаны к конкретному пространству,
+// а не глобально ко всем чатам.
+makeSwatches(chatThemes, 'space-theme-grid', 'space-theme');
+document.getElementById('space-theme-grid').addEventListener('click', event => {
+  const button = event.target.closest('[data-space-theme]');
+  if(!button) return;
+  spaceModalState.background = button.dataset.spaceTheme;
+  document.querySelectorAll('#space-theme-grid [data-space-theme]').forEach(item => item.classList.toggle('active', item === button));
 });
 
 function openSpaceModal(mode, kind, spaceId){
@@ -4194,11 +4289,13 @@ function openSpaceModal(mode, kind, spaceId){
 
   document.getElementById('space-add-member-input').value = '';
   document.getElementById('space-members-block').hidden = true;
+  document.getElementById('space-background-block').hidden = true;
   document.getElementById('space-danger-row').hidden = true;
   document.getElementById('space-private-input').disabled = false;
   document.getElementById('space-name-input').disabled = false;
   document.getElementById('space-description-input').disabled = false;
   document.getElementById('space-error').hidden = true;
+  spaceModalState.background = null;
 
   if(mode === 'create'){
     document.getElementById('space-modal-title').textContent = kind === 'channel' ? 'Новый канал' : 'Новая группа';
@@ -4207,7 +4304,7 @@ function openSpaceModal(mode, kind, spaceId){
     document.getElementById('space-private-input').checked = false;
     document.getElementById('space-save-btn').hidden = false;
     document.getElementById('space-save-btn').textContent = 'Создать';
-    resetSpacePhotoPreview('+', null);
+    setSpaceAvatarText('+');
   }else{
     const chat = openChats.get(spaceId);
     if(!chat) return;
@@ -4224,12 +4321,18 @@ function populateSpaceModalFromChat(chat){
   document.getElementById('space-name-input').value = chat.display_name;
   document.getElementById('space-description-input').value = chat.description || '';
   document.getElementById('space-private-input').checked = !!chat.is_private;
-  resetSpacePhotoPreview(initials(chat.display_name), chat.photo);
+  setSpaceAvatarText(initials(chat.display_name));
 
   document.getElementById('space-name-input').disabled = !manage;
   document.getElementById('space-description-input').disabled = !manage;
   document.getElementById('space-private-input').disabled = !manage;
   document.getElementById('space-save-btn').hidden = !manage;
+
+  // Фон чата — виден и меняется только владельцем/админом (как «изменить
+  // фон» в настройках канала/группы).
+  spaceModalState.background = chat.background || null;
+  document.getElementById('space-background-block').hidden = !manage;
+  document.querySelectorAll('#space-theme-grid [data-space-theme]').forEach(item => item.classList.toggle('active', item.dataset.spaceTheme === chat.background));
 
   // Список участников и их количество видны ВСЕМ, не только владельцу/
   // админу — добавлять новых людей (поле ниже) может только менеджер.
@@ -4308,15 +4411,20 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
 
   try{
     if(spaceModalState.mode === 'create'){
-      const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate,photo:spaceModalState.photoData})});
+      const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate})});
       if(!res.ok) throw new Error(await messageError(res,'Не удалось создать'));
       closeModal(spaceModal);
       await loadSpaces();
     }else{
-      const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,name,description,photo:spaceModalState.photoData})});
+      const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,name,description,background:spaceModalState.background})});
       if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить'));
       closeModal(spaceModal);
       await loadSpaces();
+      if(activeChatId === spaceModalState.spaceId){
+        const updated = openChats.get(activeChatId);
+        convName.textContent = updated.display_name;
+        applySpaceBackground(updated.background);
+      }
     }
   }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
 });
