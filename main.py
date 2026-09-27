@@ -26,6 +26,14 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 class Handler(BaseHTTPRequestHandler):
 
+    # По умолчанию BaseHTTPRequestHandler отвечает как HTTP/1.0 — а апгрейд
+    # до WebSocket (RFC 6455) требует именно HTTP/1.1. Локально (браузер
+    # соединяется с сервером напрямую) это сходило с рук, но через прокси
+    # Railway такой хендшейк рвался почти сразу после открытия — сервер
+    # писал в лог "closed ... lifetime=0.2s frames=0 reason=read-returned-none"
+    # ещё до того, как долетал самый первый ws-фрейм ("hello") от клиента.
+    protocol_version = "HTTP/1.1"
+
     def send_json(self, status, data):
         response = json.dumps(
             data,
@@ -507,25 +515,25 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, space)
             return
 
-        # Добавить участника вручную (владелец/админ добавляет кого-то,
-        # кто уже состоит в этом канале — по договорённости для приватных
-        # пространств это единственный способ привести нового человека,
-        # кроме ссылки-приглашения).
+        # Добавить участника вручную по username (владелец/админ добавляет
+        # кого-то, кто уже существует в системе — для приватных пространств
+        # это единственный способ привести нового человека).
         if self.path.startswith("/api/spaces/") and self.path.endswith("/members"):
             space_id = self.path[len("/api/spaces/"):-len("/members")]
             data = self.read_json_body() or {}
             by = str(data.get("by", "")).strip()
-            target_id = str(data.get("user_id", "")).strip()
+            username = str(data.get("username", "")).strip()
             if not get_space(space_id):
                 self.send_json(404, {"error": "Space not found"})
                 return
             if not can_manage(space_id, by):
                 self.send_json(403, {"error": "Only the owner or an admin can add members"})
                 return
-            if not target_id or not get_user(target_id):
-                self.send_json(404, {"error": "User not found"})
+            target = find_by_username(username) if username else None
+            if not target:
+                self.send_json(404, {"error": "Пользователь с таким username не найден"})
                 return
-            self.send_json(200, add_member(space_id, target_id))
+            self.send_json(200, add_member(space_id, target["id"]))
             return
 
         if self.path.startswith("/api/spaces/") and self.path.endswith("/leave"):
@@ -542,19 +550,23 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, remove_member(space_id, user_id))
             return
 
-        # Добавить контакт по user id.
+        # Добавить контакт по username (тому самому @тегу, что в профиле).
         if self.path == "/api/contacts":
             data = self.read_json_body() or {}
             owner_id = str(data.get("owner_id", "")).strip()
-            contact_user_id = str(data.get("contact_user_id", "")).strip()
-            if not owner_id or not contact_user_id:
-                self.send_json(400, {"error": "owner_id and contact_user_id are required"})
+            username = str(data.get("username", "")).strip()
+            if not owner_id or not username:
+                self.send_json(400, {"error": "owner_id and username are required"})
                 return
-            if not get_user(owner_id) or not get_user(contact_user_id):
+            if not get_user(owner_id):
                 self.send_json(404, {"error": "User not found"})
                 return
-            add_contact(owner_id, contact_user_id)
-            self.send_json(201, get_user(contact_user_id))
+            target = find_by_username(username)
+            if not target:
+                self.send_json(404, {"error": "Пользователь с таким username не найден"})
+                return
+            add_contact(owner_id, target["id"])
+            self.send_json(201, target)
             return
 
         if self.path == "/api/contacts/remove":
