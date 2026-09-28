@@ -444,7 +444,7 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
-            if msg_type in ("voice", "video"):
+            if msg_type in ("voice", "video", "image", "file"):
                 if not audio_data:
                     self.send_json(400, {
                         "error": "audio_data is required for media messages"

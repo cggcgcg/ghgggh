@@ -555,7 +555,7 @@ button, input{font-family:inherit;}
   transform:scaleX(-1);
 }
 
-.call-controls{display:flex;gap:16px;position:relative;z-index:1;}
+.call-controls{display:flex;gap:16px;position:relative;z-index:1;flex-wrap:wrap;justify-content:center;}
 .call-btn{
   width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
@@ -768,7 +768,27 @@ button, input{font-family:inherit;}
 /* Пока идёт запись голосового/кружочка — кнопки микрофона и переключения
    режима прячутся совсем, чтобы не путались с панелью записи поверх них. */
 .conv-input-bar.is-recording #media-btn,
-.conv-input-bar.is-recording #media-mode-btn{display:none;}
+.conv-input-bar.is-recording #media-mode-btn,
+.conv-input-bar.is-recording #attach-btn{display:none;}
+
+/* Скрепка: меню выбора Фото / Файл всплывает над панелью ввода */
+.attach-menu{position:absolute;left:12px;bottom:calc(100% + 8px);z-index:14;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.7);}
+.attach-menu[hidden]{display:none;}
+.attach-menu button{border:0;background:transparent;color:var(--text);text-align:left;padding:9px 14px;border-radius:10px;font-size:13px;cursor:pointer;white-space:nowrap;}
+.attach-menu button:hover{background:var(--surface-hover);}
+.attach-error{position:absolute;left:12px;right:12px;bottom:calc(100% + 8px);z-index:14;margin:0;}
+
+/* Сообщения-фото и сообщения-файлы */
+.msg.image-message{padding:4px;max-width:min(300px,78%);}
+.msg.image-message img{display:block;max-width:100%;max-height:340px;border-radius:12px;cursor:pointer;}
+.msg.file-message{display:flex;align-items:center;gap:10px;min-width:200px;}
+.file-icon{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:18px;}
+.file-meta{min-width:0;display:flex;flex-direction:column;gap:2px;}
+.file-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-size{font:10px var(--font-mono);opacity:.7;}
+.msg.file-message a{color:inherit;text-decoration:none;display:flex;align-items:center;gap:10px;min-width:0;}
+.profile-file-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;background:var(--surface-hi);border:1px solid var(--border-soft);margin-bottom:6px;font-size:12px;color:var(--text);text-decoration:none;}
+.profile-file-item .file-name{flex:1;}
 
 
 @media (max-width:760px){
@@ -1731,6 +1751,14 @@ body,[data-ui-design]{background:var(--bg);}
   <div class="recording-hint" id="recording-hint">Свайп влево — отмена · вверх — зафиксировать</div>
 </div>
           <input id="message-input" type="text" placeholder="Написать сообщение…" maxlength="1000">
+          <button type="button" id="attach-btn" class="icon-btn" aria-label="Прикрепить фото или файл">📎</button>
+          <input type="file" id="attach-photo-input" accept="image/*" hidden>
+          <input type="file" id="attach-file-input" hidden>
+          <div class="attach-menu" id="attach-menu" hidden>
+            <button type="button" data-attach="photo">🖼 Фото</button>
+            <button type="button" data-attach="file">📄 Файл</button>
+          </div>
+          <p class="auth-error attach-error" id="attach-error" hidden></p>
           <button type="button" id="media-mode-btn" class="icon-btn media-mode-btn" aria-label="Переключить режим записи">◉</button>
           <button type="button" id="media-btn" class="icon-btn mic-hold" aria-label="Удерживайте для записи голосового сообщения">🎤</button>
           <button type="submit" class="send-btn" aria-label="Отправить">➤</button>
@@ -1745,19 +1773,19 @@ body,[data-ui-design]{background:var(--bg);}
     <button class="modal-close" data-close-modal="create-modal" type="button" aria-label="Закрыть">×</button>
     <h2 id="create-title">Создать</h2>
     <p>Начните новый разговор или пространство.</p>
-    <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>По User ID</small></button>
+    <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>По username</small></button>
     <button class="create-action" data-space-kind="group" type="button"><span>👥</span><strong>Создать группу</strong><small>Для общения команды</small></button>
     <button class="create-action" data-space-kind="channel" type="button"><span>◈</span><strong>Создать канал</strong><small>Публикуйте новости и идеи</small></button>
   </section>
 </div>
 
-<!-- Добавить контакт по User ID — без нативного prompt(), ошибка видна в форме -->
+<!-- Добавить контакт по username — без нативного prompt(), ошибка видна в форме -->
 <div class="modal-backdrop" id="add-contact-modal" hidden>
   <section class="create-sheet" aria-labelledby="add-contact-title">
     <button class="modal-close" data-close-modal="add-contact-modal" type="button" aria-label="Закрыть">×</button>
     <h2 id="add-contact-title">Добавить пользователя</h2>
-    <p>Вставь User ID человека, чтобы добавить его в контакты.</p>
-    <label class="profile-field"><span>User ID</span><input id="add-contact-input" type="text" placeholder="напр. 78c424d9-c487-..."></label>
+    <p>Вставь username человека (без «@»), чтобы добавить его в контакты.</p>
+    <label class="profile-field"><span>Username</span><input id="add-contact-input" type="text" placeholder="напр. naruto"></label>
     <button class="settings-save" id="add-contact-submit-btn" type="button">Добавить</button>
     <p id="add-contact-error" class="auth-error" hidden></p>
   </section>
@@ -1774,7 +1802,7 @@ body,[data-ui-design]{background:var(--bg);}
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
       </nav>
       <div class="settings-content">
-        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username<input id="profile-username" type="text"></label><label class="profile-field">Ваш User ID <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button></div>
+        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p></div>
         <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div><h4>Цвет интерфейса</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
@@ -1795,7 +1823,7 @@ body,[data-ui-design]{background:var(--bg);}
       <span class="avatar profile-hero-avatar" id="profile-modal-avatar"></span>
       <h2 id="profile-modal-name">—</h2>
       <span class="profile-modal-tag" id="profile-modal-tag">@—</span>
-      <span class="copy-id-row"><code id="profile-modal-id">—</code><button class="icon-btn" id="profile-modal-id-copy" type="button" title="Скопировать User ID">⧉</button></span>
+      <span class="copy-id-row"><code id="profile-modal-id">—</code><button class="icon-btn" id="profile-modal-id-copy" type="button" title="Скопировать username">⧉</button></span>
       <div class="profile-hero-actions">
         <button class="icon-btn" id="profile-call-audio" type="button" title="Аудиозвонок">☎</button>
         <button class="icon-btn" id="profile-call-video" type="button" title="Видеозвонок">📹</button>
@@ -1832,7 +1860,7 @@ body,[data-ui-design]{background:var(--bg);}
 
     <div id="space-members-block" hidden>
       <h4>Участники (<span id="space-members-count">0</span>)</h4>
-      <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="User ID нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
+      <div class="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="Username нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
       <div id="space-members-list"></div>
     </div>
 
@@ -1947,6 +1975,7 @@ navChats.addEventListener('click', () => {
   document.querySelector('.app-shell').classList.remove('chat-open');
   messageInput.disabled = false;
   mediaBtn.disabled = false;
+  document.getElementById('attach-btn').disabled = false;
   messageInput.placeholder = currentUi().write;
   searchInput.blur();
 });
@@ -1978,7 +2007,7 @@ document.getElementById('add-contact-submit-btn').addEventListener('click', asyn
   errorEl.hidden = true;
   if(!target) return;
   try{
-    const res = await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:user.id,contact_user_id:target})});
+    const res = await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:user.id,username:target.replace(/^@/,'')})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить контакт'));
     const contact = await res.json();
     closeModal(document.getElementById('add-contact-modal'));
@@ -2054,6 +2083,15 @@ const UI_EXTRA = {
 };
 function currentUi(){ return UI_COMMON[document.documentElement.lang] || UI_COMMON.ru; }
 
+const PHOTO_PREVIEW = {ru:'🖼 Фото',uz:'🖼 Rasm',en:'🖼 Photo',de:'🖼 Foto',fr:'🖼 Photo',es:'🖼 Foto',tr:'🖼 Fotoğraf',zh:'🖼 照片',ja:'🖼 写真',ko:'🖼 사진'};
+function previewForMessage(m){
+  if(m.type === 'voice') return currentUi().voicePreview;
+  if(m.type === 'video') return currentUi().videoPreview;
+  if(m.type === 'image') return PHOTO_PREVIEW[document.documentElement.lang] || PHOTO_PREVIEW.ru;
+  if(m.type === 'file') return '📄 ' + (m.text || 'file');
+  return m.text;
+}
+
 const RECORDER_TEXT = {
   ru:{voice:'Голосовое',video:'Кружочек',speak:'Говорите…',camera:'Камера включена…',cancel:'Отменить',cancelRecording:'Отменить запись'},
   uz:{voice:'Ovozli',video:'Video xabar',speak:'Gapiring…',camera:'Kamera yoqildi…',cancel:'Bekor qilish',cancelRecording:'Yozuvni bekor qilish'},
@@ -2118,16 +2156,16 @@ function applyInterfaceLanguage(lang){
   document.querySelector('#auth-screen .auth-subtitle').textContent = lang === 'ru' ? 'Свой канал связи. Без посредников.' : lang === 'en' ? 'Your private channel. No middlemen.' : lang === 'uz' ? 'Shaxsiy aloqa kanalingiz.' : lang === 'de' ? 'Dein eigener Kanal. Ohne Umwege.' : lang === 'fr' ? 'Votre canal privé. Sans intermédiaire.' : lang === 'es' ? 'Tu canal privado. Sin intermediarios.' : lang === 'tr' ? 'Kendi iletişim kanalınız.' : lang === 'zh' ? '你的私人通信频道。' : lang === 'ja' ? 'あなた専用の通信チャンネル。' : '나만의 소통 채널입니다.';
   document.querySelector('#message-input').setAttribute('aria-label', t.chats);
   const extra = {
-    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'По User ID',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · TGClone Web',addDevice:'Добавить устройство'},
-    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'User ID orqali',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · TGClone Web',addDevice:'Qurilma qo‘shish'},
-    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'By User ID',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · TGClone Web',addDevice:'Add device'},
-    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Per User ID',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · TGClone Web',addDevice:'Gerät hinzufügen'},
-    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Par User ID',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · TGClone Web',addDevice:'Ajouter un appareil'},
-    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Por User ID',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · TGClone Web',addDevice:'Añadir dispositivo'},
-    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'User ID ile',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · TGClone Web',addDevice:'Cihaz ekle'},
-    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按 User ID 查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · TGClone Web',addDevice:'添加设备'},
-    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'User IDで検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · TGClone Web',addDevice:'デバイスを追加'},
-    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'User ID로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · TGClone Web',addDevice:'기기 추가'}
+    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'По username',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · TGClone Web',addDevice:'Добавить устройство'},
+    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'Username orqali',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · TGClone Web',addDevice:'Qurilma qo‘shish'},
+    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'By username',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · TGClone Web',addDevice:'Add device'},
+    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Per Username',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · TGClone Web',addDevice:'Gerät hinzufügen'},
+    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Par username',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · TGClone Web',addDevice:'Ajouter un appareil'},
+    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Por username',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · TGClone Web',addDevice:'Añadir dispositivo'},
+    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'Username ile',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · TGClone Web',addDevice:'Cihaz ekle'},
+    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按用户名查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · TGClone Web',addDevice:'添加设备'},
+    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'ユーザー名で検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · TGClone Web',addDevice:'デバイスを追加'},
+    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'사용자 이름으로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · TGClone Web',addDevice:'기기 추가'}
   };
   const e = extra[lang] || extra.ru;
   document.querySelector('#auth-screen .auth-subtitle').textContent=e.authSub;
@@ -2299,7 +2337,24 @@ setFont('medium');
 
 document.getElementById('profile-name').value = getCurrentUser()?.display_name || '';
 document.getElementById('profile-username').value = getCurrentUser()?.username || '';
-document.getElementById('profile-save').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; const body = {display_name:document.getElementById('profile-name').value.trim() || user.display_name, username:document.getElementById('profile-username').value.trim() || user.username}; const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ alert('Не удалось сохранить профиль'); return; } const saved = await res.json(); setCurrentUser(saved); meName.textContent = saved.display_name; meHandle.textContent = '@' + saved.username; meAvatar.textContent = initials(saved.display_name); });
+document.getElementById('profile-save').addEventListener('click', async () => {
+  const user = getCurrentUser(); if(!user) return;
+  const errorEl = document.getElementById('profile-save-error');
+  if(errorEl) errorEl.hidden = true;
+  const body = {display_name:document.getElementById('profile-name').value.trim() || user.display_name, username:document.getElementById('profile-username').value.trim() || user.username};
+  const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){
+    const msg = await messageError(res, 'Не удалось сохранить профиль');
+    if(errorEl){ errorEl.textContent = msg; errorEl.hidden = false; }
+    return;
+  }
+  const saved = await res.json();
+  setCurrentUser(saved);
+  meName.textContent = saved.display_name;
+  meHandle.textContent = '@' + saved.username;
+  meAvatar.textContent = initials(saved.display_name);
+  document.getElementById('profile-my-id').textContent = '@' + saved.username;
+});
 
 window.settingsReady = false;
 async function saveSettings(values){ const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}); }
@@ -2432,7 +2487,7 @@ async function enterApp(){
   meAvatar.textContent = initials(user.display_name);
   document.getElementById('profile-name').value = user.display_name;
   document.getElementById('profile-username').value = user.username;
-  document.getElementById('profile-my-id').textContent = user.id;
+  document.getElementById('profile-my-id').textContent = '@' + user.username;
 
   showScreen('app');
   loadSettings();
@@ -2618,7 +2673,7 @@ function renderChatList(){
     const item = document.createElement('div');
     item.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
     const last = chat.messages[chat.messages.length - 1];
-    const lastPreview = last ? (last.type === 'voice' ? currentUi().voicePreview : last.type === 'video' ? currentUi().videoPreview : last.text) : '@' + chat.username;
+    const lastPreview = last ? previewForMessage(last) : (chat.kind ? (chat.kind === 'channel' ? 'канал' : 'группа') : '@' + chat.username);
     item.innerHTML = `
       <span class="avatar">${escapeHtml(initials(chat.display_name))}</span>
       <div class="chat-item-body">
@@ -2665,6 +2720,8 @@ async function setActiveChat(id){
   messageInput.disabled = isSpace;
   messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
   mediaBtn.disabled = isSpace;
+  document.getElementById('attach-btn').disabled = isSpace;
+  document.getElementById('attach-menu').hidden = true;
   document.getElementById('call-audio-btn').hidden = isSpace;
   document.getElementById('call-video-btn').hidden = isSpace;
 
@@ -3051,6 +3108,61 @@ function VideoMessage(message){
   return bubble;
 }
 
+function formatFileSize(bytes){
+  if(!Number.isFinite(bytes) || bytes <= 0) return '';
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+
+// Примерный размер файла по длине base64 в data:-ссылке (без лишнего запроса).
+function dataUrlByteSize(dataUrl){
+  const comma = (dataUrl || '').indexOf(',');
+  if(comma < 0) return 0;
+  const b64 = dataUrl.slice(comma + 1);
+  const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor(b64.length * 3 / 4) - padding);
+}
+
+function ImageMessage(m){
+  const bubble = document.createElement('div');
+  bubble.className = 'msg ' + (m.out ? 'out' : 'in') + ' image-message';
+  const img = document.createElement('img');
+  img.src = m.audio_data;
+  img.alt = m.text || 'photo';
+  img.loading = 'lazy';
+  // Тап по фото — открыть в полном размере в новой вкладке.
+  img.addEventListener('click', () => {
+    const w = window.open();
+    if(w){ w.document.write(`<title>photo</title><body style="margin:0;background:#000;display:grid;place-items:center;min-height:100vh"><img src="${m.audio_data}" style="max-width:100%;max-height:100vh"></body>`); w.document.close(); }
+  });
+  bubble.appendChild(img);
+  return bubble;
+}
+
+function FileMessage(m){
+  const bubble = document.createElement('div');
+  bubble.className = 'msg ' + (m.out ? 'out' : 'in') + ' file-message';
+  const link = document.createElement('a');
+  link.href = m.audio_data;
+  link.download = m.text || 'file';
+  const icon = document.createElement('span');
+  icon.className = 'file-icon';
+  icon.textContent = '📄';
+  const meta = document.createElement('span');
+  meta.className = 'file-meta';
+  const name = document.createElement('span');
+  name.className = 'file-name';
+  name.textContent = m.text || 'file';
+  const size = document.createElement('span');
+  size.className = 'file-size';
+  size.textContent = formatFileSize(dataUrlByteSize(m.audio_data));
+  meta.append(name, size);
+  link.append(icon, meta);
+  bubble.appendChild(link);
+  return bubble;
+}
+
 function renderMessages(chat){
   convMessages.innerHTML = '';
 
@@ -3065,6 +3177,10 @@ function renderMessages(chat){
       bubble = VoiceMessage(m);
     }else if(m.type === 'video' && m.audio_data){
       bubble = VideoMessage(m);
+    }else if(m.type === 'image' && m.audio_data){
+      bubble = ImageMessage(m);
+    }else if(m.type === 'file' && m.audio_data){
+      bubble = FileMessage(m);
     }else{
       bubble = document.createElement('div');
       bubble.className = 'msg ' + (m.out ? 'out' : 'in');
@@ -3097,6 +3213,7 @@ convBack.addEventListener('click', () => {
   document.querySelector('.app-shell').classList.remove('chat-open');
   messageInput.disabled = false;
   mediaBtn.disabled = false;
+  document.getElementById('attach-btn').disabled = false;
   messageInput.placeholder = currentUi().write;
 });
 
@@ -3201,6 +3318,9 @@ const CallManager = (() => {
   const declineBtn      = document.getElementById('call-decline-btn');
   const muteBtn         = document.getElementById('call-mute-btn');
   const cameraBtn       = document.getElementById('call-camera-btn');
+  const speakerBtn      = document.getElementById('call-speaker-btn');
+  const flipBtn         = document.getElementById('call-flip-btn');
+  let callFacing = 'user'; // какая камера сейчас в видеозвонке: 'user' (фронтальная) или 'environment' (основная)
   const hangupBtn       = document.getElementById('call-hangup-btn');
   const remoteVideo     = document.getElementById('call-remote-video');
   const localVideo      = document.getElementById('call-local-video');
@@ -3339,6 +3459,8 @@ const CallManager = (() => {
     }else if(uiMode === 'active'){
       activeControls.hidden = false;
       cameraBtn.hidden = mode !== 'video';
+      flipBtn.hidden = mode !== 'video';
+      refreshSpeakerButton();
     }
     // uiMode === 'none' (сброс после звонка) — оба блока просто скрыты.
   }
@@ -3592,6 +3714,9 @@ const CallManager = (() => {
     localVideo.hidden = true;
     muteBtn.classList.remove('active');
     cameraBtn.classList.remove('active');
+    speakerBtn.classList.remove('active');
+    callFacing = 'user';
+    localVideo.style.transform = '';
 
     peerId = null; role = null; pendingOffer = null;
     pendingCandidates = []; remoteDescSet = false;
@@ -3615,8 +3740,65 @@ const CallManager = (() => {
     cameraBtn.classList.toggle('active', !track.enabled);
   }
 
+  // Динамик: браузер позволяет переключать вывод звука только если есть
+  // setSinkId и больше одного устройства вывода. Иначе кнопку прячем —
+  // не притворяемся, что она что-то делает.
+  async function refreshSpeakerButton(){
+    let usable = false;
+    try{
+      if(typeof remoteVideo.setSinkId === 'function' && navigator.mediaDevices?.enumerateDevices){
+        const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+        usable = outputs.length > 1;
+      }
+    }catch{}
+    speakerBtn.hidden = !usable;
+  }
+
+  async function toggleSpeaker(){
+    try{
+      const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+      if(outputs.length < 2) return;
+      const currentIndex = Math.max(0, outputs.findIndex(d => d.deviceId === (remoteVideo.sinkId || 'default')));
+      const nextIndex = (currentIndex + 1) % outputs.length;
+      await remoteVideo.setSinkId(outputs[nextIndex].deviceId);
+      speakerBtn.classList.toggle('active', nextIndex !== 0);
+    }catch{}
+  }
+
+  // Переворот камеры прямо во время звонка: берём новую дорожку с другой
+  // камеры и подменяем её у отправителя — собеседник видит смену без
+  // переподключения.
+  async function flipCamera(){
+    if(!pc || !localStream || mode !== 'video') return;
+    flipBtn.disabled = true;
+    try{
+      const nextFacing = callFacing === 'user' ? 'environment' : 'user';
+      const fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: nextFacing }, width:{ideal:1280}, height:{ideal:720} } });
+      const newTrack = fresh.getVideoTracks()[0];
+      if(!newTrack) return;
+      const oldTrack = localStream.getVideoTracks()[0];
+      newTrack.enabled = oldTrack ? oldTrack.enabled : true; // если камера была выключена — остаётся выключенной
+      const sender = pc.getSenders().find(item => item.track && item.track.kind === 'video');
+      if(sender) await sender.replaceTrack(newTrack);
+      if(oldTrack){ localStream.removeTrack(oldTrack); oldTrack.stop(); }
+      localStream.addTrack(newTrack);
+      localVideo.srcObject = null;
+      localVideo.srcObject = localStream;
+      try{ Promise.resolve(localVideo.play?.()).catch(() => {}); }catch{}
+      callFacing = nextFacing;
+      // Фронтальную показываем зеркально (как в зеркале), основную — как есть.
+      localVideo.style.transform = nextFacing === 'user' ? '' : 'none';
+    }catch{
+      // Нет второй камеры или доступ запрещён — звонок продолжается как был.
+    }finally{
+      flipBtn.disabled = false;
+    }
+  }
+
   acceptBtn.addEventListener('click', acceptCall);
   declineBtn.addEventListener('click', declineCall);
+  speakerBtn.addEventListener('click', toggleSpeaker);
+  flipBtn.addEventListener('click', flipCamera);
   hangupBtn.addEventListener('click', () => { send({ type:'call-end', to: peerId }); endCall({ notifyPeer:false }); });
   muteBtn.addEventListener('click', toggleMute);
   cameraBtn.addEventListener('click', toggleCamera);
@@ -4160,6 +4342,124 @@ recordingSendBtn.addEventListener('click',()=>{ if(isRecording) finishMediaRecor
 updateMediaButton();
 
 // ==========================================================
+// Скрепка: отправка фото и файлов (хранятся в базе как base64,
+// по тому же принципу, что голосовые и кружочки)
+// ==========================================================
+const attachBtn = document.getElementById('attach-btn');
+const attachMenu = document.getElementById('attach-menu');
+const attachPhotoInput = document.getElementById('attach-photo-input');
+const attachFileInput = document.getElementById('attach-file-input');
+const attachError = document.getElementById('attach-error');
+const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+const FILE_MAX_BYTES = 8 * 1024 * 1024;
+let attachErrorTimer = null;
+
+function showAttachError(text){
+  attachError.textContent = text;
+  attachError.hidden = false;
+  clearTimeout(attachErrorTimer);
+  attachErrorTimer = setTimeout(() => { attachError.hidden = true; }, 5000);
+}
+function hideAttachError(){
+  clearTimeout(attachErrorTimer);
+  attachError.hidden = true;
+}
+
+// Большие фото с камеры телефона ужимаем (до 1600px, JPEG) — иначе они
+// раздувают базу и медленно грузятся. Небольшие, GIF и SVG не трогаем.
+async function prepareImage(file){
+  if(file.type === 'image/gif' || file.type === 'image/svg+xml' || file.size <= 1.5 * 1024 * 1024) return file;
+  try{
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    return blob && blob.size < file.size ? blob : file;
+  }catch{
+    return file;
+  }
+}
+
+async function sendAttachment(kind, file){
+  const me = getCurrentUser();
+  const chat = openChats.get(activeChatId);
+  if(!me || !chat || chat.kind === 'group' || chat.kind === 'channel' || !file) return;
+  hideAttachError();
+
+  if(file.size === 0){ showAttachError('Файл пустой'); return; }
+
+  let blob = file;
+  if(kind === 'photo'){
+    if(!String(file.type).startsWith('image/')){ showAttachError('Выберите изображение'); return; }
+    blob = await prepareImage(file);
+    if(blob.size > PHOTO_MAX_BYTES){ showAttachError('Фото слишком большое (максимум 6 МБ)'); return; }
+  }else if(blob.size > FILE_MAX_BYTES){
+    showAttachError('Файл слишком большой (максимум 8 МБ)');
+    return;
+  }
+
+  const pending = document.createElement('div');
+  pending.className = 'msg out image-message';
+  pending.innerHTML = '<div class="media-pending" style="width:120px;height:120px;border-radius:14px"><span class="media-pending-spinner"></span></div>';
+  convMessages.appendChild(pending);
+  convMessages.scrollTop = convMessages.scrollHeight;
+
+  try{
+    const dataUrl = await MediaRecorderService.blobToDataURL(blob);
+    const body = {
+      from_user: me.id,
+      to_user: chat.id,
+      type: kind === 'photo' ? 'image' : 'file',
+      text: kind === 'file' ? (file.name || 'file') : '',
+      audio_data: dataUrl
+    };
+    let res;
+    try{
+      res = await fetch(`${API_BASE}/api/messages`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    }catch{
+      throw new Error('Нет связи с сервером. Проверьте подключение.');
+    }
+    if(!res.ok) throw new Error(await messageError(res, 'Не удалось отправить'));
+    pending.remove();
+    chat.lastCount = -1;
+    await refreshMessages(chat, { silent: false, force: true });
+  }catch(err){
+    pending.remove();
+    showAttachError(err.message || 'Не удалось отправить');
+  }
+}
+
+attachBtn.addEventListener('click', event => {
+  event.stopPropagation();
+  if(attachBtn.disabled) return;
+  attachMenu.hidden = !attachMenu.hidden;
+});
+attachMenu.querySelectorAll('[data-attach]').forEach(option => option.addEventListener('click', () => {
+  attachMenu.hidden = true;
+  (option.dataset.attach === 'photo' ? attachPhotoInput : attachFileInput).click();
+}));
+document.addEventListener('click', event => {
+  if(!attachMenu.hidden && !event.target.closest('#attach-menu')) attachMenu.hidden = true;
+});
+attachPhotoInput.addEventListener('change', () => {
+  const file = attachPhotoInput.files?.[0];
+  attachPhotoInput.value = '';
+  if(file) sendAttachment('photo', file);
+});
+attachFileInput.addEventListener('change', () => {
+  const file = attachFileInput.files?.[0];
+  attachFileInput.value = '';
+  if(file) sendAttachment('file', file);
+});
+
+// ==========================================================
 // Профиль собеседника (попап по тапу на аватар/имя в шапке чата)
 // ==========================================================
 const profileModal = document.getElementById('profile-modal');
@@ -4170,7 +4470,7 @@ function openProfileModal(chat){
   document.getElementById('profile-modal-avatar').textContent = initials(chat.display_name);
   document.getElementById('profile-modal-name').textContent = chat.display_name;
   document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
-  document.getElementById('profile-modal-id').textContent = chat.id;
+  document.getElementById('profile-modal-id').textContent = '@' + chat.username;
   updateAddContactBtn();
   renderProfileTab('media');
   document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.profileTab === 'media'));
@@ -4211,11 +4511,27 @@ function renderProfileTab(tab){
   if(!chat){ container.innerHTML = ''; return; }
 
   if(tab === 'media'){
-    const items = chat.messages.filter(m => m.type === 'video' && m.audio_data);
-    if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Кружочков в этом чате пока нет</div>'; return; }
+    // Фото и видео-кружочки из переписки.
+    const items = chat.messages.filter(m => (m.type === 'video' || m.type === 'image') && m.audio_data);
+    if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Фото и кружочков в этом чате пока нет</div>'; return; }
     container.innerHTML = '<div class="profile-media-grid"></div>';
     const grid = container.firstChild;
-    items.forEach(m => { const v = document.createElement('video'); v.src = m.audio_data; v.muted = true; v.playsInline = true; const cell = document.createElement('div'); cell.className = 'profile-media-item'; cell.appendChild(v); grid.appendChild(cell); });
+    items.forEach(m => {
+      const cell = document.createElement('div');
+      cell.className = 'profile-media-item';
+      if(m.type === 'image'){
+        const img = document.createElement('img');
+        img.src = m.audio_data;
+        img.alt = 'photo';
+        img.loading = 'lazy';
+        cell.appendChild(img);
+      }else{
+        const v = document.createElement('video');
+        v.src = m.audio_data; v.muted = true; v.playsInline = true;
+        cell.appendChild(v);
+      }
+      grid.appendChild(cell);
+    });
     return;
   }
   if(tab === 'voice'){
@@ -4225,10 +4541,42 @@ function renderProfileTab(tab){
     items.forEach((m,i) => { const row = document.createElement('div'); row.className = 'profile-voice-item'; row.textContent = `🎤 Голосовое #${i+1}`; container.appendChild(row); });
     return;
   }
-  // Обычных файлов и ссылок как отдельного типа сообщений в TGClone пока
-  // нет (есть только текст/голосовое/видео-кружочек) — честно показываем
-  // пустое состояние вместо того, чтобы что-то придумывать.
-  container.innerHTML = `<div class="profile-empty-tab">${tab === 'files' ? 'Пересылка файлов пока не реализована' : 'Ссылки из переписки пока не собираются отдельно'}</div>`;
+  if(tab === 'files'){
+    const items = chat.messages.filter(m => m.type === 'file' && m.audio_data);
+    if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Файлов в этом чате пока нет</div>'; return; }
+    container.innerHTML = '';
+    items.forEach(m => {
+      const link = document.createElement('a');
+      link.className = 'profile-file-item';
+      link.href = m.audio_data;
+      link.download = m.text || 'file';
+      const icon = document.createElement('span'); icon.textContent = '📄';
+      const name = document.createElement('span'); name.className = 'file-name'; name.textContent = m.text || 'file';
+      const size = document.createElement('span'); size.className = 'file-size'; size.textContent = formatFileSize(dataUrlByteSize(m.audio_data));
+      link.append(icon, name, size);
+      container.appendChild(link);
+    });
+    return;
+  }
+  // Ссылки: собираем http(s)-адреса из текстовых сообщений переписки.
+  const urls = [];
+  chat.messages.forEach(m => {
+    if(m.type && m.type !== 'text') return;
+    (String(m.text || '').match(/https?:\/\/[^\s<>"']+/gi) || []).forEach(u => { if(!urls.includes(u)) urls.push(u); });
+  });
+  if(!urls.length){ container.innerHTML = '<div class="profile-empty-tab">Ссылок в этом чате пока нет</div>'; return; }
+  container.innerHTML = '';
+  urls.forEach(u => {
+    const link = document.createElement('a');
+    link.className = 'profile-file-item';
+    link.href = u;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    const icon = document.createElement('span'); icon.textContent = '🔗';
+    const name = document.createElement('span'); name.className = 'file-name'; name.textContent = u;
+    link.append(icon, name);
+    container.appendChild(link);
+  });
 }
 
 document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.addEventListener('click', () => {
@@ -4246,7 +4594,7 @@ document.getElementById('profile-add-contact').addEventListener('click', async (
       await fetch(`${API_BASE}/api/contacts/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
       chat.isContact = false;
     }else{
-      await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
+      await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,username:chat.username})});
       chat.isContact = true;
     }
     updateAddContactBtn();
@@ -4388,12 +4736,12 @@ async function loadSpaceMembers(spaceId, manage, myId){
 
 document.getElementById('space-add-member-btn').addEventListener('click', async () => {
   const me = getCurrentUser();
-  const targetId = document.getElementById('space-add-member-input').value.trim();
+  const targetUsername = document.getElementById('space-add-member-input').value.trim().replace(/^@/,'');
   const errorEl = document.getElementById('space-error');
   errorEl.hidden = true;
-  if(!me || !targetId || !spaceModalState.spaceId) return;
+  if(!me || !targetUsername || !spaceModalState.spaceId) return;
   try{
-    const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,user_id:targetId})});
+    const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,username:targetUsername})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить участника'));
     document.getElementById('space-add-member-input').value = '';
     loadSpaceMembers(spaceModalState.spaceId, true, me.id);
