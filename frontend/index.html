@@ -3771,25 +3771,44 @@ const CallManager = (() => {
   async function flipCamera(){
     if(!pc || !localStream || mode !== 'video') return;
     flipBtn.disabled = true;
+    const prevFacing = callFacing;
+    const nextFacing = callFacing === 'user' ? 'environment' : 'user';
+    const oldTrack = localStream.getVideoTracks()[0];
+    const wasEnabled = oldTrack ? oldTrack.enabled : true;
+    // КРИТИЧНО: сначала отпускаем текущую камеру, и только потом просим
+    // новую. На телефоне обычно активна только ОДНА камера одновременно —
+    // если запросить вторую, пока первая ещё не остановлена, браузер
+    // нередко отдаёт поток, который никогда не выдаёт кадров (чёрный
+    // экран), хотя getUserMedia формально резолвится без ошибки.
+    if(oldTrack){ localStream.removeTrack(oldTrack); oldTrack.stop(); }
     try{
-      const nextFacing = callFacing === 'user' ? 'environment' : 'user';
-      const fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: nextFacing }, width:{ideal:1280}, height:{ideal:720} } });
+      let fresh, actualFacing = nextFacing;
+      try{
+        fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: nextFacing }, width:{ideal:1280}, height:{ideal:720} } });
+      }catch(err){
+        // Не вышло — пробуем вернуть прежнюю камеру, чтобы не остаться в
+        // звонке совсем без изображения.
+        fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: prevFacing }, width:{ideal:1280}, height:{ideal:720} } });
+        actualFacing = prevFacing;
+      }
       const newTrack = fresh.getVideoTracks()[0];
-      if(!newTrack) return;
-      const oldTrack = localStream.getVideoTracks()[0];
-      newTrack.enabled = oldTrack ? oldTrack.enabled : true; // если камера была выключена — остаётся выключенной
+      if(!newTrack) throw new Error('no video track');
+      newTrack.enabled = wasEnabled; // если камера была выключена — остаётся выключенной
       const sender = pc.getSenders().find(item => item.track && item.track.kind === 'video');
       if(sender) await sender.replaceTrack(newTrack);
-      if(oldTrack){ localStream.removeTrack(oldTrack); oldTrack.stop(); }
       localStream.addTrack(newTrack);
+      // Переприсвоить тот же объект-поток без .load() — в части браузеров
+      // это no-op, и превью продолжает показывать старую камеру.
       localVideo.srcObject = null;
+      localVideo.load?.();
       localVideo.srcObject = localStream;
-      try{ Promise.resolve(localVideo.play?.()).catch(() => {}); }catch{}
-      callFacing = nextFacing;
+      await Promise.resolve(localVideo.play?.()).catch(() => {});
+      callFacing = actualFacing;
       // Фронтальную показываем зеркально (как в зеркале), основную — как есть.
-      localVideo.style.transform = nextFacing === 'user' ? '' : 'none';
+      localVideo.style.transform = actualFacing === 'user' ? '' : 'none';
     }catch{
-      // Нет второй камеры или доступ запрещён — звонок продолжается как был.
+      // Ни новая, ни прежняя камера не взялись — звонок продолжает идти
+      // хотя бы по звуку, картинку просто не трогаем дальше.
     }finally{
       flipBtn.disabled = false;
     }
@@ -3974,14 +3993,35 @@ function useVideoRecorder(){
     },
     async switchCamera(){
       if(!cameraStream) return null;
-      facingMode=facingMode==='user'?'environment':'user';
-      const next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facingMode},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
-      const nextVideo=next.getVideoTracks()[0];
+      const prevFacing=facingMode;
+      const nextFacing=facingMode==='user'?'environment':'user';
       const oldVideo=cameraStream.getVideoTracks()[0];
+      // КРИТИЧНО: сначала отпускаем текущую камеру и только потом просим
+      // новую. На большинстве телефонов аппаратно активна только ОДНА
+      // камера одновременно — если запросить вторую, пока первая ещё не
+      // остановлена, браузер иногда отдаёт поток, который никогда не
+      // выдаёт кадров (визуально — чёрный экран), хотя getUserMedia
+      // формально резолвится без ошибки.
+      if(oldVideo){ cameraStream.removeTrack(oldVideo); oldVideo.stop(); }
+      let next;
+      try{
+        next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:nextFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
+        facingMode=nextFacing;
+      }catch(err){
+        // Новую камеру взять не удалось (например, второй камеры физически
+        // нет) — пробуем вернуть прежнюю, чтобы хотя бы не остаться совсем
+        // без изображения.
+        try{
+          next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:prevFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
+          facingMode=prevFacing;
+        }catch{
+          throw err;
+        }
+      }
+      const nextVideo=next.getVideoTracks()[0];
       // Swap the track on the SAME stream object the recorder is already
       // capturing from, so recording continues across the flip with no
       // gap and no re-encoding pipeline (that's what used to break playback).
-      if(oldVideo){ cameraStream.removeTrack(oldVideo); oldVideo.stop(); }
       cameraStream.addTrack(nextVideo);
       // The hidden <video> feeding the canvas has the same srcObject-is-a-
       // no-op quirk as the visible preview, so force a rebind here too —

@@ -78,8 +78,8 @@ def get_space(space_id):
 def search_public_spaces(query):
     # Только публичные — приватные намеренно не находятся через поиск/по id,
     # попасть в них можно только если владелец/админ добавит конкретного
-    # человека вручную по его User ID (см. договорённость про приватность).
-    # Матчим и по точному id (как поиск контакта по User ID), и по названию.
+    # человека вручную по его username (см. договорённость про приватность).
+    # Матчим и по точному id, и по названию — username пространств пока нет.
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM spaces WHERE is_private = 0 AND (id = ? OR LOWER(name) LIKE LOWER(?)) ORDER BY created_at DESC LIMIT 20",
@@ -210,7 +210,7 @@ def get_members(space_id):
 def join_space(space_id, user_id):
     """Вступление в ПУБЛИЧНОЕ пространство, зная его id (найдено как обычный
     собеседник через поиск/ID). Приватные так вступить не дадут — туда может
-    добавить только владелец/админ вручную по User ID (см. add_member)."""
+    добавить только владелец/админ вручную по username (см. add_member)."""
     space = get_space(space_id)
     if not space:
         return None, "Space not found"
