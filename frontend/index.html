@@ -611,6 +611,9 @@ button, input{font-family:inherit;}
   border-bottom-left-radius:4px;
 }
 .msg audio{display:none;}
+.space-msg-wrap{display:flex;flex-direction:column;align-self:flex-start;max-width:60%;gap:2px;}
+.space-msg-wrap .msg{max-width:none;align-self:flex-start;}
+.space-msg-sender{font-size:11px;font-weight:600;color:var(--accent-b);padding-left:4px;}
 .voice-row{display:flex;align-items:center;gap:8px;min-width:210px;}.voice-play{width:30px;height:30px;border:0;border-radius:50%;background:rgba(255,255,255,.18);color:inherit;cursor:pointer;flex:0 0 auto;}.sent-waveform{height:30px;display:flex;align-items:center;gap:2px;flex:1;}.sent-waveform i{width:2px;height:8px;border-radius:2px;background:currentColor;opacity:.72;}.voice-seek{width:100%;}.voice-progress-track{width:100%;height:3px;accent-color:currentColor;cursor:pointer;}.voice-time{font:10px var(--font-mono);opacity:.75;min-width:34px;text-align:right;}
 .msg.voice-message{background:color-mix(in srgb,var(--accent-b) 18%,var(--surface));border-color:color-mix(in srgb,var(--accent-b) 36%,var(--border));color:var(--text);}.msg.voice-message.voice-played{background:color-mix(in srgb,var(--accent-a) 35%,var(--surface));border-color:color-mix(in srgb,var(--accent-a) 55%,var(--border));}
 
@@ -728,6 +731,8 @@ button, input{font-family:inherit;}
 .profile-hero h2{margin:6px 0 0;font:700 20px var(--font-display);}
 .profile-modal-tag{color:var(--text-dim);font:12px var(--font-mono);}
 .profile-hero-actions{display:flex;gap:8px;margin-top:12px;}
+.profile-more-wrap{position:relative;}
+.profile-more-menu{left:auto;right:0;bottom:auto;top:calc(100% + 6px);}
 .profile-tabs{display:flex;gap:5px;padding:0 16px 10px;border-bottom:1px solid var(--border-soft);overflow-x:auto;scrollbar-width:none;}
 .profile-tab{flex:0 0 auto;border:0;border-radius:12px;padding:7px 12px;background:transparent;color:var(--text-dim);font-size:12px;cursor:pointer;}
 .profile-tab.active{background:var(--surface-hover);color:var(--text);}
@@ -753,6 +758,14 @@ button, input{font-family:inherit;}
 #space-members-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);}
 .space-add-member-row{display:flex;gap:8px;margin:10px 0 12px;}
 .space-add-member-row input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--bg-alt);color:var(--text);font-size:12px;}
+.space-initial-members-list{max-height:200px;overflow-y:auto;margin-top:8px;border:1px solid var(--border-soft);border-radius:12px;}
+.space-initial-member-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border-soft);cursor:pointer;}
+.space-initial-member-row:last-child{border-bottom:0;}
+.space-initial-member-row:hover{background:var(--surface-hover);}
+.space-initial-member-row .avatar{--size:30px;font-size:12px;}
+.space-initial-member-row span.sim-name{flex:1;font-size:13px;}
+.space-initial-member-row input{width:17px;height:17px;accent-color:var(--accent-b);}
+.space-initial-members-empty{padding:14px;text-align:center;color:var(--text-faint);font-size:12px;}
 .space-member-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-soft);}
 .space-member-row .avatar{--size:32px;font-size:12px;}
 .space-member-name{font-size:13px;font-weight:600;flex:1;min-width:0;}
@@ -1828,7 +1841,14 @@ body,[data-ui-design]{background:var(--bg);}
         <button class="icon-btn" id="profile-call-audio" type="button" title="Аудиозвонок">☎</button>
         <button class="icon-btn" id="profile-call-video" type="button" title="Видеозвонок">📹</button>
         <button class="icon-btn" id="profile-add-contact" type="button" title="Добавить в контакты">＋</button>
+        <span class="profile-more-wrap">
+          <button class="icon-btn" id="profile-more-btn" type="button" title="Ещё">⋮</button>
+          <div class="attach-menu profile-more-menu" id="profile-more-menu" hidden>
+            <button type="button" id="profile-block-btn">Заблокировать</button>
+          </div>
+        </span>
       </div>
+      <p id="profile-blocked-note" class="section-note" hidden style="color:var(--danger);margin:8px 0 0">Вы заблокировали этого пользователя</p>
     </div>
     <nav class="profile-tabs" id="profile-tabs">
       <button class="profile-tab active" data-profile-tab="media" type="button">Медиа</button>
@@ -1851,6 +1871,10 @@ body,[data-ui-design]{background:var(--bg);}
     <label class="profile-field"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
     <label class="profile-field"><span>Описание</span><input id="space-description-input" type="text" maxlength="200" placeholder="необязательно"></label>
     <label class="profile-field space-privacy-row"><span>Приватный (найти по ID нельзя — добавляет только админ)</span><input type="checkbox" id="space-private-input"></label>
+    <div id="space-initial-members-block" hidden>
+      <span class="field-label">Добавить участников из контактов</span>
+      <div id="space-initial-members-list" class="space-initial-members-list"></div>
+    </div>
     <div id="space-background-block" hidden>
       <span class="field-label">Фон чата</span>
       <div class="chat-theme-grid" id="space-theme-grid" style="margin-top:8px"></div>
@@ -1961,6 +1985,16 @@ const recordingLock = document.getElementById('recording-lock');
 // открытые (клиентские, не сохраняемые) чаты: id -> {username, display_name}
 const openChats = new Map();
 let activeChatId = null;
+const blockedIds = new Set(); // кого текущий юзер заблокировал
+
+async function loadBlocked(){
+  const me = getCurrentUser(); if(!me) return;
+  const res = await fetch(`${API_BASE}/api/blocks/${encodeURIComponent(me.id)}`);
+  if(!res.ok) return;
+  const users = await res.json();
+  blockedIds.clear();
+  users.forEach(u => blockedIds.add(u.id));
+}
 
 function setNavActive(button){
   [navChats, navNewChat, navSettings].forEach(item => item.classList.toggle('active', item === button));
@@ -2494,6 +2528,7 @@ async function enterApp(){
   loadDevices();
   loadSpaces();
   loadContacts();
+  loadBlocked();
   loadConversations();
   startPolling();
   CallManager.connect(user.id);
@@ -2712,24 +2747,22 @@ async function setActiveChat(id){
   convAvatar.textContent = initials(chat.display_name);
   convName.textContent = chat.display_name;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
+  // В группе писать может любой участник; в канале — только владелец/админ.
+  const canPost = !isSpace || chat.kind === 'group' || chat.my_role === 'owner' || chat.my_role === 'admin';
   document.getElementById('conv-header-status').textContent = isSpace
     ? (chat.kind === 'channel' ? 'канал' : 'группа')
     : '@' + chat.username;
   if(isSpace) refreshSpaceMemberCount(chat.id);
   applySpaceBackground(isSpace ? chat.background : null);
-  messageInput.disabled = isSpace;
-  messageInput.placeholder = isSpace ? currentUi().spacePlaceholder : currentUi().write;
-  mediaBtn.disabled = isSpace;
-  document.getElementById('attach-btn').disabled = isSpace;
+  messageInput.disabled = !canPost;
+  messageInput.placeholder = !canPost ? 'Публиковать могут только владелец и админы' : currentUi().write;
+  mediaBtn.disabled = !canPost;
+  document.getElementById('attach-btn').disabled = !canPost;
   document.getElementById('attach-menu').hidden = true;
   document.getElementById('call-audio-btn').hidden = isSpace;
   document.getElementById('call-video-btn').hidden = isSpace;
 
   renderChatList();
-  if(isSpace){
-    convMessages.innerHTML = `<div class="conv-stub-note">${chat.kind === 'group' ? currentUi().groupCreated : currentUi().channelCreated}</div>`;
-    return;
-  }
   await refreshMessages(chat, { silent: false, force: true });
   startPolling();
 }
@@ -2751,9 +2784,13 @@ async function refreshSpaceMemberCount(spaceId){
 async function refreshMessages(chat, { silent, force = false }){
   const me = getCurrentUser();
   if(!me) return;
+  const isSpace = chat.kind === 'group' || chat.kind === 'channel';
 
   try{
-    const res = await fetch(`${API_BASE}/api/messages?user_a=${encodeURIComponent(me.id)}&user_b=${encodeURIComponent(chat.id)}`);
+    const url = isSpace
+      ? `${API_BASE}/api/space-messages/${encodeURIComponent(chat.id)}`
+      : `${API_BASE}/api/messages?user_a=${encodeURIComponent(me.id)}&user_b=${encodeURIComponent(chat.id)}`;
+    const res = await fetch(url);
     if(!res.ok) throw new Error('Не удалось загрузить сообщения (код ' + res.status + ')');
 
     const messages = await res.json();
@@ -2771,7 +2808,9 @@ async function refreshMessages(chat, { silent, force = false }){
       created_at: m.created_at,
       type: m.type || 'text',
       audio_data: m.audio_data || null,
-      waveform: typeof m.waveform === 'string' ? (() => { try{return JSON.parse(m.waveform);}catch{return null;} })() : (m.waveform || null)
+      waveform: typeof m.waveform === 'string' ? (() => { try{return JSON.parse(m.waveform);}catch{return null;} })() : (m.waveform || null),
+      senderName: isSpace ? m.sender_name : undefined,
+      senderId: isSpace ? m.from_user : undefined
     }));
     chat.lastCount = messages.length;
 
@@ -3165,6 +3204,7 @@ function FileMessage(m){
 
 function renderMessages(chat){
   convMessages.innerHTML = '';
+  const isSpace = chat.kind === 'group' || chat.kind === 'channel';
 
   if(chat.messages.length === 0){
     convMessages.innerHTML = `<div class="conv-stub-note">${currentUi().empty}</div>`;
@@ -3185,6 +3225,18 @@ function renderMessages(chat){
       bubble = document.createElement('div');
       bubble.className = 'msg ' + (m.out ? 'out' : 'in');
       bubble.textContent = m.text || '';
+    }
+    // В группе/канале у входящих сообщений нескольких людей — подписываем,
+    // кто именно написал (в 1:1-чате это и так понятно по стороне бабла).
+    if(isSpace && !m.out && m.senderName){
+      const wrap = document.createElement('div');
+      wrap.className = 'space-msg-wrap';
+      const label = document.createElement('div');
+      label.className = 'space-msg-sender';
+      label.textContent = m.senderName;
+      wrap.append(label, bubble);
+      convMessages.appendChild(wrap);
+      continue;
     }
     convMessages.appendChild(bubble);
   }
@@ -3224,22 +3276,33 @@ messageForm.addEventListener('submit', async (e) => {
   if(!text || !activeChatId || !me) return;
 
   const chat = openChats.get(activeChatId);
+  const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   messageInput.value = '';
+  hideAttachError();
 
   try{
-    const recipient = await fetch(`${API_BASE}/api/users/${encodeURIComponent(chat.id)}`, {cache:'no-store'});
-    if(!recipient.ok) throw new Error(await messageError(recipient, 'Получатель не найден на этом сервере'));
-    const res = await fetch(`${API_BASE}/api/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_user: me.id, to_user: chat.id, text })
-    });
+    let res;
+    if(isSpace){
+      res = await fetch(`${API_BASE}/api/space-messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ space_id: chat.id, from_user: me.id, text })
+      });
+    }else{
+      const recipient = await fetch(`${API_BASE}/api/users/${encodeURIComponent(chat.id)}`, {cache:'no-store'});
+      if(!recipient.ok) throw new Error(await messageError(recipient, 'Получатель не найден на этом сервере'));
+      res = await fetch(`${API_BASE}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_user: me.id, to_user: chat.id, text })
+      });
+    }
     if(!res.ok) throw new Error(await messageError(res, 'Сообщение не отправилось'));
 
     await refreshMessages(chat, { silent: false, force: true });
   }catch(err){
     messageInput.value = text; // вернуть текст, если не отправилось
-    alert(err.message);
+    showAttachError(err.message);
   }
 });
 
@@ -4194,7 +4257,7 @@ async function startMediaRecording(){
     recordTimer=setInterval(updateRecordingTimer,250);
   }catch(err){
     mediaStreamService.stop();
-    alert((recordingMode==='voice'
+    showAttachError((recordingMode==='voice'
       ? 'Не удалось получить доступ к микрофону: '
       : 'Не удалось получить доступ к камере: ') + err.message);
     isRecording=false; stopRecordingPreview();
@@ -4220,7 +4283,7 @@ async function finishMediaRecording(){
       await sendRecordedMedia(blob,mode);
     }
   }catch(err){
-    alert('Не удалось обработать запись: '+err.message);
+    showAttachError('Не удалось обработать запись: '+err.message);
   }finally{
     recordingCanceled=false;
     recordingLocked=false;
@@ -4263,8 +4326,10 @@ function lockMediaRecording(){
 async function sendRecordedMedia(blob,mode){
   const me=getCurrentUser();
   const chat=openChats.get(activeChatId);
-  if(!me || !chat){ alert('Не удалось определить чат'); return; }
-  if(chat.kind==='group' || chat.kind==='channel'){ alert('Медиа пока можно отправлять только в личный чат'); return; }
+  if(!me || !chat){ showAttachError('Не удалось определить чат'); return; }
+  const isSpace = chat.kind==='group' || chat.kind==='channel';
+  const canPost = !isSpace || chat.kind==='group' || chat.my_role==='owner' || chat.my_role==='admin';
+  if(!canPost){ showAttachError('Публиковать могут только владелец и админы'); return; }
 
   const pending = document.createElement('div');
   pending.className = 'msg out ' + (mode==='video' ? 'video-message' : 'voice-message');
@@ -4283,13 +4348,9 @@ async function sendRecordedMedia(blob,mode){
     if(mode==='video' && blob.size > 10*1024*1024) throw new Error('Видео слишком большое. Запишите короткий кружочек и попробуйте снова.');
     if(mode==='voice' && blob.size > 6*1024*1024) throw new Error('Голосовое слишком большое. Запишите более короткое сообщение.');
     const data=await MediaRecorderService.blobToDataURL(blob);
-    const body={
-      from_user:me.id,
-      to_user:chat.id,
-      type:mode,
-      text:'',
-      audio_data:data
-    };
+    const body = isSpace
+      ? { space_id:chat.id, from_user:me.id, type:mode, text:'', audio_data:data }
+      : { from_user:me.id, to_user:chat.id, type:mode, text:'', audio_data:data };
 
     if(mode==='voice'){
       body.waveform=JSON.stringify([...voiceWaveform.children].map(bar=>{
@@ -4300,7 +4361,7 @@ async function sendRecordedMedia(blob,mode){
 
     let res;
     try{
-      res=await fetch(`${API_BASE}/api/messages`,{
+      res=await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(body)
@@ -4317,7 +4378,7 @@ async function sendRecordedMedia(blob,mode){
     await refreshMessages(chat,{silent:false,force:true});
   }catch(err){
     pending.remove();
-    alert(err.message || 'Не удалось отправить запись');
+    showAttachError(err.message || 'Не удалось отправить запись');
   }
 }
 
@@ -4330,7 +4391,7 @@ function cycleMediaMode(){
 mediaModeBtn.addEventListener('click',cycleMediaMode);
 
 mediaBtn.addEventListener('pointerdown',event=>{
-  if(!activeChatId){ alert('Сначала выберите чат'); return; }
+  if(!activeChatId){ showAttachError('Сначала выберите чат'); return; }
   event.preventDefault();
   holdStartX=event.clientX;
   holdStartY=event.clientY;
@@ -4371,7 +4432,7 @@ recordingFlipBtn.addEventListener('click',async()=>{
       cameraPreview.classList.toggle('front-camera', !rear);
     }
   }catch(err){
-    alert('Не удалось переключить камеру: ' + err.message);
+    showAttachError('Не удалось переключить камеру: ' + err.message);
   }
 });
 
@@ -4430,7 +4491,8 @@ async function prepareImage(file){
 async function sendAttachment(kind, file){
   const me = getCurrentUser();
   const chat = openChats.get(activeChatId);
-  if(!me || !chat || chat.kind === 'group' || chat.kind === 'channel' || !file) return;
+  if(!me || !chat || !file) return;
+  const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   hideAttachError();
 
   if(file.size === 0){ showAttachError('Файл пустой'); return; }
@@ -4453,16 +4515,12 @@ async function sendAttachment(kind, file){
 
   try{
     const dataUrl = await MediaRecorderService.blobToDataURL(blob);
-    const body = {
-      from_user: me.id,
-      to_user: chat.id,
-      type: kind === 'photo' ? 'image' : 'file',
-      text: kind === 'file' ? (file.name || 'file') : '',
-      audio_data: dataUrl
-    };
+    const body = isSpace
+      ? { space_id: chat.id, from_user: me.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl }
+      : { from_user: me.id, to_user: chat.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl };
     let res;
     try{
-      res = await fetch(`${API_BASE}/api/messages`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      res = await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     }catch{
       throw new Error('Нет связи с сервером. Проверьте подключение.');
     }
@@ -4512,9 +4570,17 @@ function openProfileModal(chat){
   document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
   document.getElementById('profile-modal-id').textContent = '@' + chat.username;
   updateAddContactBtn();
+  updateBlockUi();
+  document.getElementById('profile-more-menu').hidden = true;
   renderProfileTab('media');
   document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.profileTab === 'media'));
   openModal(profileModal);
+}
+
+function updateBlockUi(){
+  const blocked = blockedIds.has(profileModalUserId);
+  document.getElementById('profile-block-btn').textContent = blocked ? 'Разблокировать' : 'Заблокировать';
+  document.getElementById('profile-blocked-note').hidden = !blocked;
 }
 
 // Копирование с видимой обратной связью вместо alert()/native-тултипов —
@@ -4641,6 +4707,30 @@ document.getElementById('profile-add-contact').addEventListener('click', async (
   }catch{}
 });
 
+document.getElementById('profile-more-btn').addEventListener('click', event => {
+  event.stopPropagation();
+  document.getElementById('profile-more-menu').hidden = !document.getElementById('profile-more-menu').hidden;
+});
+document.addEventListener('click', event => {
+  const menu = document.getElementById('profile-more-menu');
+  if(!menu.hidden && !event.target.closest('.profile-more-wrap')) menu.hidden = true;
+});
+document.getElementById('profile-block-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
+  if(!me || !chat) return;
+  document.getElementById('profile-more-menu').hidden = true;
+  try{
+    if(blockedIds.has(chat.id)){
+      await fetch(`${API_BASE}/api/blocks/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,blocked_id:chat.id})});
+      blockedIds.delete(chat.id);
+    }else{
+      await fetch(`${API_BASE}/api/blocks`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,username:chat.username})});
+      blockedIds.add(chat.id);
+    }
+    updateBlockUi();
+  }catch{}
+});
+
 document.getElementById('conv-header-identity').addEventListener('click', () => {
   const chat = openChats.get(activeChatId);
   if(!chat) return;
@@ -4677,6 +4767,7 @@ function openSpaceModal(mode, kind, spaceId){
 
   document.getElementById('space-add-member-input').value = '';
   document.getElementById('space-members-block').hidden = true;
+  document.getElementById('space-initial-members-block').hidden = true;
   document.getElementById('space-background-block').hidden = true;
   document.getElementById('space-danger-row').hidden = true;
   document.getElementById('space-private-input').disabled = false;
@@ -4684,6 +4775,7 @@ function openSpaceModal(mode, kind, spaceId){
   document.getElementById('space-description-input').disabled = false;
   document.getElementById('space-error').hidden = true;
   spaceModalState.background = null;
+  spaceModalState.selectedMembers = new Set();
 
   if(mode === 'create'){
     document.getElementById('space-modal-title').textContent = kind === 'channel' ? 'Новый канал' : 'Новая группа';
@@ -4693,6 +4785,7 @@ function openSpaceModal(mode, kind, spaceId){
     document.getElementById('space-save-btn').hidden = false;
     document.getElementById('space-save-btn').textContent = 'Создать';
     setSpaceAvatarText('+');
+    renderInitialMembersPicker();
   }else{
     const chat = openChats.get(spaceId);
     if(!chat) return;
@@ -4700,6 +4793,29 @@ function openSpaceModal(mode, kind, spaceId){
     populateSpaceModalFromChat(chat);
   }
   openModal(spaceModal);
+}
+
+function renderInitialMembersPicker(){
+  const block = document.getElementById('space-initial-members-block');
+  const list = document.getElementById('space-initial-members-list');
+  const contacts = [...openChats.values()].filter(c => c.isContact && !c.kind);
+  block.hidden = false;
+  if(!contacts.length){
+    list.innerHTML = '<div class="space-initial-members-empty">Пока нет контактов — можно добавить участников позже, в настройках</div>';
+    return;
+  }
+  list.innerHTML = '';
+  contacts.forEach(c => {
+    const row = document.createElement('label');
+    row.className = 'space-initial-member-row';
+    row.innerHTML = `<span class="avatar">${escapeHtml(initials(c.display_name))}</span><span class="sim-name">${escapeHtml(c.display_name)}</span><input type="checkbox">`;
+    const checkbox = row.querySelector('input');
+    checkbox.addEventListener('change', () => {
+      if(checkbox.checked) spaceModalState.selectedMembers.add(c.username);
+      else spaceModalState.selectedMembers.delete(c.username);
+    });
+    list.appendChild(row);
+  });
 }
 
 function populateSpaceModalFromChat(chat){
@@ -4801,6 +4917,14 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
     if(spaceModalState.mode === 'create'){
       const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate})});
       if(!res.ok) throw new Error(await messageError(res,'Не удалось создать'));
+      const created = await res.json();
+      // Участников, отмеченных галочкой, добавляем сразу же после
+      // создания — по одному через тот же эндпоинт, что и в настройках.
+      for(const username of spaceModalState.selectedMembers){
+        try{
+          await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(created.id)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,username})});
+        }catch{}
+      }
       closeModal(spaceModal);
       await loadSpaces();
     }else{

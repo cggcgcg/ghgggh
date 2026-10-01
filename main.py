@@ -17,6 +17,8 @@ from app.workspace import (
     create_device, get_devices,
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact
+from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
+from app.space_messages import create_space_message, get_space_messages
 from app import calls
 
 
@@ -297,6 +299,27 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, messages)
             return
 
+        # История сообщений внутри канала/группы
+        if self.path.startswith("/api/space-messages/"):
+            space_id = self.path.replace("/api/space-messages/", "", 1)
+            if not get_space(space_id):
+                self.send_json(404, {"error": "Space not found"})
+                return
+            self.send_json(200, get_space_messages(space_id))
+            return
+
+        # Список пользователей, которых заблокировал user_id
+        if self.path.startswith("/api/blocks/"):
+            user_id = self.path.replace("/api/blocks/", "", 1)
+            blocked_ids = get_blocked_ids(user_id)
+            users = []
+            for blocked_id in blocked_ids:
+                user = get_user(blocked_id)
+                if user:
+                    users.append(user)
+            self.send_json(200, users)
+            return
+
         # Список всех собеседников пользователя (входящие и исходящие)
         if self.path.startswith("/api/conversations/"):
             user_id = self.path.replace(
@@ -463,6 +486,12 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            if is_blocked(to_user, from_user):
+                self.send_json(403, {
+                    "error": "You are blocked by this user"
+                })
+                return
+
             try:
                 message = create_message(
                     from_user,
@@ -575,6 +604,73 @@ class Handler(BaseHTTPRequestHandler):
             contact_user_id = str(data.get("contact_user_id", "")).strip()
             remove_contact(owner_id, contact_user_id)
             self.send_json(200, {"ok": True})
+            return
+
+        # Заблокировать пользователя (по username — как и всё остальное).
+        # Заблокированный больше не может писать/звонить тому, кто его
+        # заблокировал; в обратную сторону ограничений нет.
+        if self.path == "/api/blocks":
+            data = self.read_json_body() or {}
+            blocker_id = str(data.get("blocker_id", "")).strip()
+            blocked_username = str(data.get("username", "")).strip().lstrip("@")
+            if not blocker_id or not blocked_username:
+                self.send_json(400, {"error": "blocker_id and username are required"})
+                return
+            target = find_by_username(blocked_username)
+            if not target:
+                self.send_json(404, {"error": "User not found"})
+                return
+            block_user(blocker_id, target["id"])
+            self.send_json(200, {"ok": True})
+            return
+
+        if self.path == "/api/blocks/remove":
+            data = self.read_json_body() or {}
+            blocker_id = str(data.get("blocker_id", "")).strip()
+            blocked_id = str(data.get("blocked_id", "")).strip()
+            unblock_user(blocker_id, blocked_id)
+            self.send_json(200, {"ok": True})
+            return
+
+        # Отправка сообщения внутри канала/группы. В группе может писать
+        # любой участник; в канале — только владелец/админ.
+        if self.path == "/api/space-messages":
+            data = self.read_json_body() or {}
+            space_id = str(data.get("space_id", "")).strip()
+            from_user = str(data.get("from_user", "")).strip()
+            text = str(data.get("text", "")).strip()
+            msg_type = str(data.get("type", "text")).strip() or "text"
+            audio_data = data.get("audio_data")
+            waveform = data.get("waveform")
+
+            space = get_space(space_id)
+            if not space:
+                self.send_json(404, {"error": "Space not found"})
+                return
+            if not get_user(from_user):
+                self.send_json(404, {"error": "User not found"})
+                return
+            if not is_member(space_id, from_user):
+                self.send_json(403, {"error": "Not a member of this space"})
+                return
+            if space["kind"] == "channel" and not can_manage(space_id, from_user):
+                self.send_json(403, {"error": "Only the owner or an admin can post in this channel"})
+                return
+
+            if msg_type in ("voice", "video", "image", "file"):
+                if not audio_data:
+                    self.send_json(400, {"error": "audio_data is required for media messages"})
+                    return
+            elif not text:
+                self.send_json(400, {"error": "text is required"})
+                return
+
+            try:
+                message = create_space_message(space_id, from_user, text=text, msg_type=msg_type, audio_data=audio_data, waveform=waveform)
+                self.send_json(201, message)
+            except Exception as error:
+                print("CREATE SPACE MESSAGE ERROR:", error)
+                self.send_json(500, {"error": "Failed to send message"})
             return
 
         if self.path == "/api/devices":

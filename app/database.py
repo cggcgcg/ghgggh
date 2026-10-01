@@ -60,6 +60,24 @@ CREATE TABLE IF NOT EXISTS space_members (
     joined_at TEXT NOT NULL,
     PRIMARY KEY (space_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS blocks (
+    blocker_id TEXT NOT NULL,
+    blocked_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+);
+
+CREATE TABLE IF NOT EXISTS space_messages (
+    id TEXT PRIMARY KEY,
+    space_id TEXT NOT NULL,
+    from_user TEXT NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'text',
+    audio_data TEXT,
+    waveform TEXT
+);
 """
 
 
