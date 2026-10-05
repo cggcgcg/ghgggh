@@ -11,7 +11,7 @@ from app.users import create_user, get_user, find_by_username, update_user
 from app.messages import create_message, get_conversation, get_conversations
 from app.workspace import (
     get_settings, update_settings,
-    create_space, get_spaces, get_space, update_space, delete_space,
+    create_space, get_spaces, get_space, update_space, set_privacy, delete_space,
     get_members, add_member, remove_member, set_member_role, get_member_role,
     can_manage, is_member, join_space, search_public_spaces,
     create_device, get_devices,
@@ -744,7 +744,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif not can_manage(space_id, by):
                     self.send_json(403, {"error": "Only the owner or an admin can edit this space"})
                 else:
-                    self.send_json(200, update_space(space_id, data))
+                    updated = update_space(space_id, data)
+                    if "is_private" in data:
+                        updated = set_privacy(space_id, bool(data.get("is_private")))
+                    self.send_json(200, updated)
                 return
 
         self.send_json(404, {"error": "Not found"})
