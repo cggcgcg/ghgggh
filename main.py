@@ -16,7 +16,7 @@ from app.workspace import (
     can_manage, is_member, join_space, search_public_spaces,
     create_device, get_devices,
 )
-from app.contacts import add_contact, get_contact_ids, remove_contact
+from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
 from app.space_messages import create_space_message, get_space_messages
 from app import calls
@@ -265,13 +265,17 @@ class Handler(BaseHTTPRequestHandler):
 
         # Контакты пользователя (добавленные по user id) — отдаём сразу
         # профили, а не голые id, фронту не нужно резолвить их отдельно.
+        # Плюс личный никнейм (alias), если задан — виден только owner_id.
         if self.path.startswith("/api/contacts/"):
             owner_id = self.path.replace("/api/contacts/", "", 1)
             contact_ids = get_contact_ids(owner_id)
+            aliases = get_contact_aliases(owner_id)
             users = []
             for contact_id in contact_ids:
                 user = get_user(contact_id)
                 if user:
+                    user = dict(user)
+                    user["alias"] = aliases.get(contact_id)
                     users.append(user)
             self.send_json(200, users)
             return
@@ -604,6 +608,20 @@ class Handler(BaseHTTPRequestHandler):
             contact_user_id = str(data.get("contact_user_id", "")).strip()
             remove_contact(owner_id, contact_user_id)
             self.send_json(200, {"ok": True})
+            return
+
+        # Личный никнейм контакта — задаёт/меняет только владелец списка,
+        # собеседник об этом не узнаёт и его настоящее имя не меняется.
+        if self.path == "/api/contacts/alias":
+            data = self.read_json_body() or {}
+            owner_id = str(data.get("owner_id", "")).strip()
+            contact_user_id = str(data.get("contact_user_id", "")).strip()
+            alias = str(data.get("alias", "")).strip()
+            if not owner_id or not contact_user_id:
+                self.send_json(400, {"error": "owner_id and contact_user_id are required"})
+                return
+            set_contact_alias(owner_id, contact_user_id, alias)
+            self.send_json(200, {"ok": True, "alias": alias or None})
             return
 
         # Заблокировать пользователя (по username — как и всё остальное).

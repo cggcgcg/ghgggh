@@ -337,6 +337,7 @@ button, input{font-family:inherit;}
 .create-sheet,.settings-window{position:relative;width:min(560px,100%);max-height:min(760px,calc(100vh - 48px));overflow:auto;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--border);border-radius:26px;box-shadow:0 30px 80px -28px #000;animation:cardIn .22s ease-out;}
 .create-sheet{padding:28px;}.create-sheet h2,.settings-window h2{margin:0;font:700 24px var(--font-display);}.create-sheet p,.section-note{color:var(--text-dim);font-size:13px;margin:7px 0 22px;}
 .modal-close{position:absolute;right:16px;top:14px;border:0;background:var(--surface-hover);color:var(--text-dim);width:30px;height:30px;border-radius:50%;font-size:21px;cursor:pointer;line-height:1;}
+.profile-modal-close-left{right:auto;left:16px;}
 .create-action{width:100%;display:grid;grid-template-columns:42px 1fr;grid-template-rows:1fr 1fr;column-gap:12px;text-align:left;padding:13px;margin-top:9px;border:1px solid var(--border);border-radius:17px;background:var(--surface-hi);color:var(--text);cursor:pointer;}.create-action:hover{border-color:var(--accent-b);background:var(--surface-hover);}.create-action span{grid-row:1/3;display:grid;place-items:center;font-size:22px;color:var(--accent-b);}.create-action strong{font-size:14px;align-self:end;}.create-action small{font-size:11px;color:var(--text-dim);align-self:start;margin-top:3px;}
 .settings-window-head{padding:26px 28px 20px;border-bottom:1px solid var(--border-soft);}.eyebrow{font:600 10px var(--font-mono);letter-spacing:.14em;color:var(--accent-b);}.settings-layout{display:grid;grid-template-columns:155px 1fr;min-height:470px;}.settings-menu{padding:16px 10px;border-right:1px solid var(--border-soft);}.settings-menu-btn{width:100%;border:0;background:transparent;color:var(--text-dim);text-align:left;padding:11px 10px;border-radius:11px;cursor:pointer;font-size:12px;margin-bottom:3px;}.settings-menu-btn.active,.settings-menu-btn:hover{background:var(--surface-hover);color:var(--text);}.settings-content{padding:24px 28px;}.settings-section{display:none;}.settings-section.active{display:block;animation:dropIn .16s ease-out;}.settings-section h3{font:700 18px var(--font-display);margin:0 0 5px;}.settings-section h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);margin:24px 0 10px;}.profile-field{display:block;color:var(--text-dim);font-size:12px;margin:12px 0;}.profile-field input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-alt);color:var(--text);outline:none;}.settings-save{border:0;border-radius:11px;padding:10px 13px;background:var(--accent-b);color:#fff;font-weight:600;cursor:pointer;margin-top:10px;}.font-scale-row{display:flex;gap:4px;align-items:end;padding:10px 0 5px;border-bottom:1px solid var(--border);touch-action:none;cursor:ew-resize;}.font-scale-row button{flex:1;border:0;border-radius:10px;background:var(--surface-hi);color:var(--text-dim);height:34px;cursor:pointer;}.font-scale-row button:nth-child(1){font-size:11px}.font-scale-row button:nth-child(2){font-size:13px}.font-scale-row button:nth-child(3){font-size:15px}.font-scale-row button:nth-child(4){font-size:18px}.font-scale-row button:nth-child(5){font-size:21px}.font-scale-row button.active{background:var(--accent-b);color:#fff;}.font-scale-labels{display:flex;justify-content:space-between;color:var(--text-faint);font-size:10px;margin-top:6px;}.chat-theme-grid,.app-theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}.theme-swatch{height:64px;border:1px solid var(--border);border-radius:13px;padding:7px;color:#fff;text-align:left;cursor:pointer;font-size:11px;display:flex;align-items:end;}.theme-swatch.active{outline:2px solid var(--accent-b);outline-offset:2px;}.design-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.design-btn{background:var(--surface-hi);border:1px solid var(--border);border-radius:12px;color:var(--text);padding:11px;text-align:left;cursor:pointer}.design-btn.active{border-color:var(--accent-b)}.design-btn strong,.design-btn small{display:block}.design-btn small{font-size:10px;color:var(--text-dim);margin-top:4px}.language-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.language-grid button{border:1px solid var(--border);background:var(--surface-hi);color:var(--text);padding:11px;border-radius:11px;text-align:left;cursor:pointer}.language-grid button.active{border-color:var(--accent-b);color:var(--accent-b)}.device-placeholder{display:grid;grid-template-columns:35px 1fr;margin:22px 0;padding:15px;border:1px solid var(--border);border-radius:14px;background:var(--surface-hi)}.device-placeholder span{grid-row:1/3;font-size:22px;color:var(--accent-b)}.device-placeholder small{color:var(--text-dim);font-size:11px;margin-top:4px}
 .sidebar-top{
@@ -546,14 +547,19 @@ button, input{font-family:inherit;}
 .call-overlay.video-active .call-name,
 .call-overlay.video-active .call-status,
 .call-overlay.video-active .call-timer{text-shadow:0 2px 10px rgba(0,0,0,.6);}
-#call-remote-video{width:100%;height:100%;object-fit:cover;}
-#call-local-video{
+/* Большое/маленькое видео — это РОЛИ, не конкретные элементы. Тап по
+   маленькому превью меняет их местами (см. enableCallVideoSwap). */
+.call-video-big{width:100%;height:100%;object-fit:cover;}
+.call-video-small{
   position:absolute;right:16px;bottom:150px;
   width:104px;height:150px;object-fit:cover;
   border-radius:14px;border:1px solid rgba(255,255,255,.25);
   background:#000;box-shadow:0 12px 30px rgba(0,0,0,.45);
-  transform:scaleX(-1);
+  z-index:2;cursor:pointer;touch-action:none;
 }
+/* Своя камера зеркалится (как в зеркале) независимо от того, большая она
+   сейчас или маленькая — это свойство ЭТОГО видео, а не роли. */
+#call-local-video{transform:scaleX(-1);}
 
 .call-controls{display:flex;gap:16px;position:relative;z-index:1;flex-wrap:wrap;justify-content:center;}
 .call-btn{
@@ -741,6 +747,9 @@ button, input{font-family:inherit;}
 .profile-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .profile-media-item{aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--surface-hi);border:1px solid var(--border-soft);}
 .profile-media-item video,.profile-media-item img{width:100%;height:100%;object-fit:cover;}
+.profile-media-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-decoration:none;color:var(--text);}
+.profile-media-file-icon{font-size:26px;}
+.profile-media-file-name{font-size:10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
 .profile-voice-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;background:var(--surface-hi);border:1px solid var(--border-soft);margin-bottom:6px;font-size:12px;color:var(--text-dim);}
 .profile-empty-tab{padding:20px 6px;text-align:center;color:var(--text-faint);font-size:12px;line-height:1.5;}
 
@@ -1844,20 +1853,22 @@ body,[data-ui-design]{background:var(--bg);}
 
 <!-- Профиль собеседника: открывается по тапу на аватар/имя в заголовке чата -->
 <div class="modal-backdrop" id="profile-modal" hidden>
-  <section class="settings-window profile-window" aria-labelledby="profile-modal-title">
-    <button class="modal-close" data-close-modal="profile-modal" type="button" aria-label="Закрыть">×</button>
+  <section class="settings-window profile-window" id="profile-window-section" aria-labelledby="profile-modal-title">
+    <button class="modal-close profile-modal-close-left" data-close-modal="profile-modal" type="button" aria-label="Закрыть">×</button>
     <div class="profile-hero">
       <span class="avatar profile-hero-avatar" id="profile-modal-avatar"></span>
       <h2 id="profile-modal-name">—</h2>
       <span class="profile-modal-tag" id="profile-modal-tag">@—</span>
       <span class="copy-id-row"><code id="profile-modal-id">—</code><button class="icon-btn" id="profile-modal-id-copy" type="button" title="Скопировать username">⧉</button></span>
       <div class="profile-hero-actions">
-        <button class="icon-btn" id="profile-call-audio" type="button" title="Аудиозвонок">☎</button>
+        <button class="icon-btn" id="profile-open-chat" type="button" title="Написать">💬</button>
+        <button class="icon-btn" id="profile-call-audio" type="button" title="Звонок">☎</button>
         <button class="icon-btn" id="profile-call-video" type="button" title="Видеозвонок">📹</button>
-        <button class="icon-btn" id="profile-add-contact" type="button" title="Добавить в контакты">＋</button>
         <span class="profile-more-wrap">
           <button class="icon-btn" id="profile-more-btn" type="button" title="Ещё">⋮</button>
           <div class="attach-menu profile-more-menu" id="profile-more-menu" hidden>
+            <button type="button" id="profile-alias-btn">Изменить никнейм</button>
+            <button type="button" id="profile-add-contact-btn">Добавить в контакты</button>
             <button type="button" id="profile-block-btn">Заблокировать</button>
           </div>
         </span>
@@ -1871,6 +1882,16 @@ body,[data-ui-design]{background:var(--bg);}
       <button class="profile-tab" data-profile-tab="links" type="button">Ссылки</button>
     </nav>
     <div class="profile-tab-content" id="profile-tab-content"></div>
+  </section>
+
+  <!-- Отдельный экран: изменить личный никнейм контакта (виден только мне) -->
+  <section class="create-sheet profile-alias-sheet" id="profile-alias-view" aria-labelledby="profile-alias-title" hidden>
+    <button class="modal-close" id="profile-alias-close" type="button" aria-label="Закрыть">×</button>
+    <h2 id="profile-alias-title">Никнейм для себя</h2>
+    <p>Виден только вам, настоящее имя собеседника не меняется.</p>
+    <label class="profile-field"><input id="profile-alias-input" type="text" maxlength="60"></label>
+    <button class="settings-save" id="profile-alias-save-btn" type="button">Сохранить</button>
+    <p id="profile-alias-error" class="auth-error" hidden></p>
   </section>
 </div>
 
@@ -1954,8 +1975,8 @@ body,[data-ui-design]{background:var(--bg);}
 
 <div class="call-overlay" id="call-overlay" hidden>
   <div class="call-videos">
-    <video id="call-remote-video" autoplay playsinline></video>
-    <video id="call-local-video" autoplay playsinline muted hidden></video>
+    <video id="call-remote-video" class="call-video-big" autoplay playsinline></video>
+    <video id="call-local-video" class="call-video-small" autoplay playsinline muted hidden></video>
   </div>
   <div class="call-avatar-big" id="call-avatar-big">?</div>
   <div class="call-name" id="call-peer-name">—</div>
@@ -2488,9 +2509,22 @@ async function loadContacts(){
   if(!res.ok) return;
   const contacts = await res.json();
   contacts.forEach(u => {
-    if(!openChats.has(u.id)) openChats.set(u.id, {id:u.id, username:u.username, display_name:u.display_name, messages:[], lastCount:0, isContact:true});
+    const existing = openChats.get(u.id);
+    if(existing){
+      existing.isContact = true;
+      existing.alias = u.alias || null;
+    }else{
+      openChats.set(u.id, {id:u.id, username:u.username, display_name:u.display_name, alias:u.alias || null, messages:[], lastCount:0, isContact:true});
+    }
   });
   renderChatList();
+}
+
+// Личный никнейм контакта (виден только тебе) — если задан, показываем
+// его везде вместо настоящего имени человека; сам display_name при этом
+// не трогаем, он остаётся настоящим именем на сервере.
+function displayNameFor(chat){
+  return (chat && chat.alias) ? chat.alias : chat?.display_name || '';
 }
 
 let chatFilter = 'all';
@@ -2770,10 +2804,11 @@ function renderChatList(){
     item.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
     const last = chat.messages[chat.messages.length - 1];
     const lastPreview = last ? previewForMessage(last) : (chat.kind ? (chat.kind === 'channel' ? 'канал' : 'группа') : '@' + chat.username);
+    const shownName = chat.kind ? chat.display_name : displayNameFor(chat);
     item.innerHTML = `
-      <span class="avatar">${escapeHtml(initials(chat.display_name))}</span>
+      <span class="avatar">${escapeHtml(initials(shownName))}</span>
       <div class="chat-item-body">
-        <div class="chat-item-name">${escapeHtml(chat.display_name)}</div>
+        <div class="chat-item-name">${escapeHtml(shownName)}</div>
         <div class="chat-item-preview">${escapeHtml(lastPreview)}</div>
       </div>
     `;
@@ -2805,8 +2840,9 @@ async function setActiveChat(id){
   conversation.classList.add('open'); // для мобильной раскладки
   document.querySelector('.app-shell').classList.add('chat-open');
 
-  convAvatar.textContent = initials(chat.display_name);
-  convName.textContent = chat.display_name;
+  const headerName = chat.kind ? chat.display_name : displayNameFor(chat);
+  convAvatar.textContent = initials(headerName);
+  convName.textContent = headerName;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   // В группе писать может любой участник; в канале — только владелец/админ.
   const canPost = !isSpace || chat.kind === 'group' || chat.my_role === 'owner' || chat.my_role === 'admin';
@@ -3841,6 +3877,7 @@ const CallManager = (() => {
     speakerBtn.classList.remove('active');
     callFacing = 'user';
     localVideo.style.transform = '';
+    resetCallVideoRoles();
 
     peerId = null; role = null; pendingOffer = null;
     pendingCandidates = []; remoteDescSet = false;
@@ -4613,11 +4650,14 @@ let profileModalUserId = null;
 
 function openProfileModal(chat){
   profileModalUserId = chat.id;
-  document.getElementById('profile-modal-avatar').textContent = initials(chat.display_name);
-  document.getElementById('profile-modal-name').textContent = chat.display_name;
+  document.getElementById('profile-alias-view').hidden = true;
+  document.getElementById('profile-window-section').hidden = false;
+  const shownName = displayNameFor(chat);
+  document.getElementById('profile-modal-avatar').textContent = initials(shownName);
+  document.getElementById('profile-modal-name').textContent = shownName;
   document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
   document.getElementById('profile-modal-id').textContent = '@' + chat.username;
-  updateAddContactBtn();
+  updateContactMenuItems();
   updateBlockUi();
   document.getElementById('profile-more-menu').hidden = true;
   renderProfileTab('media');
@@ -4650,13 +4690,14 @@ document.getElementById('profile-modal-id-copy').addEventListener('click', () =>
 
 // Кнопка «+» в профиле переключается между «добавить»/«уже в контактах» —
 // видно результат сразу, без alert().
-function updateAddContactBtn(){
-  const btn = document.getElementById('profile-add-contact');
+// Пока человек не в контактах — в меню "⋮" только "Добавить в контакты".
+// Как только добавлен — вместо этого пункта появляется "Изменить никнейм"
+// (своя личная подпись для него, см. profile-alias-view).
+function updateContactMenuItems(){
   const chat = openChats.get(profileModalUserId);
   const already = !!chat?.isContact;
-  btn.textContent = already ? '✓' : '＋';
-  btn.title = already ? 'Уже в контактах (нажмите, чтобы убрать)' : 'Добавить в контакты';
-  btn.classList.toggle('is-added', already);
+  document.getElementById('profile-alias-btn').hidden = !already;
+  document.getElementById('profile-add-contact-btn').hidden = already;
 }
 
 function renderProfileTab(tab){
@@ -4696,19 +4737,20 @@ function renderProfileTab(tab){
     return;
   }
   if(tab === 'files'){
+    // Стопкой (сеткой), как и медиа — а не списком строк.
     const items = chat.messages.filter(m => m.type === 'file' && m.audio_data);
     if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Файлов в этом чате пока нет</div>'; return; }
-    container.innerHTML = '';
+    container.innerHTML = '<div class="profile-media-grid"></div>';
+    const grid = container.firstChild;
     items.forEach(m => {
       const link = document.createElement('a');
-      link.className = 'profile-file-item';
+      link.className = 'profile-media-item profile-media-file';
       link.href = m.audio_data;
       link.download = m.text || 'file';
-      const icon = document.createElement('span'); icon.textContent = '📄';
-      const name = document.createElement('span'); name.className = 'file-name'; name.textContent = m.text || 'file';
-      const size = document.createElement('span'); size.className = 'file-size'; size.textContent = formatFileSize(dataUrlByteSize(m.audio_data));
-      link.append(icon, name, size);
-      container.appendChild(link);
+      const icon = document.createElement('span'); icon.className = 'profile-media-file-icon'; icon.textContent = '📄';
+      const name = document.createElement('span'); name.className = 'profile-media-file-name'; name.textContent = m.text || 'file';
+      link.append(icon, name);
+      grid.appendChild(link);
     });
     return;
   }
@@ -4738,20 +4780,24 @@ document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.addEv
   renderProfileTab(tab.dataset.profileTab);
 }));
 
-document.getElementById('profile-call-audio').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, chat.display_name, false); closeModal(profileModal); });
-document.getElementById('profile-call-video').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, chat.display_name, true); closeModal(profileModal); });
-document.getElementById('profile-add-contact').addEventListener('click', async () => {
+document.getElementById('profile-call-audio').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, displayNameFor(chat), false); closeModal(profileModal); });
+document.getElementById('profile-call-video').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, displayNameFor(chat), true); closeModal(profileModal); });
+document.getElementById('profile-open-chat').addEventListener('click', () => {
+  const chat = openChats.get(profileModalUserId);
+  if(!chat) return;
+  closeModal(profileModal);
+  setActiveChat(chat.id);
+});
+
+document.getElementById('profile-add-contact-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
   if(!me || !chat) return;
+  document.getElementById('profile-more-menu').hidden = true;
   try{
-    if(chat.isContact){
-      await fetch(`${API_BASE}/api/contacts/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id})});
-      chat.isContact = false;
-    }else{
-      await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,username:chat.username})});
-      chat.isContact = true;
-    }
-    updateAddContactBtn();
+    await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,username:chat.username})});
+    chat.isContact = true;
+    updateContactMenuItems();
+    loadContacts();
   }catch{}
 });
 
@@ -4777,6 +4823,40 @@ document.getElementById('profile-block-btn').addEventListener('click', async () 
     }
     updateBlockUi();
   }catch{}
+});
+
+// Личный никнейм для контакта — отдельный экран внутри того же попапа.
+document.getElementById('profile-alias-btn').addEventListener('click', () => {
+  const chat = openChats.get(profileModalUserId);
+  if(!chat) return;
+  document.getElementById('profile-more-menu').hidden = true;
+  document.getElementById('profile-alias-input').value = chat.alias || '';
+  document.getElementById('profile-alias-error').hidden = true;
+  document.getElementById('profile-window-section').hidden = true;
+  document.getElementById('profile-alias-view').hidden = false;
+});
+document.getElementById('profile-alias-close').addEventListener('click', () => {
+  document.getElementById('profile-alias-view').hidden = true;
+  document.getElementById('profile-window-section').hidden = false;
+});
+document.getElementById('profile-alias-save-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
+  const errEl = document.getElementById('profile-alias-error');
+  if(!me || !chat) return;
+  const alias = document.getElementById('profile-alias-input').value.trim();
+  errEl.hidden = true;
+  try{
+    const res = await fetch(`${API_BASE}/api/contacts/alias`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id,alias})});
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить'));
+    chat.alias = alias || null;
+    const shownName = displayNameFor(chat);
+    document.getElementById('profile-modal-avatar').textContent = initials(shownName);
+    document.getElementById('profile-modal-name').textContent = shownName;
+    if(activeChatId === chat.id){ convName.textContent = shownName; convAvatar.textContent = initials(shownName); }
+    renderChatList();
+    document.getElementById('profile-alias-view').hidden = true;
+    document.getElementById('profile-window-section').hidden = false;
+  }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
 });
 
 document.getElementById('conv-header-identity').addEventListener('click', () => {
@@ -5078,31 +5158,71 @@ document.getElementById('space-delete-btn').addEventListener('click', async () =
 // ==========================================================
 // Перетаскиваемое окно своей камеры в звонке (как в Telegram/Zoom)
 // ==========================================================
-(function enableDraggableLocalVideo(){
-  const el = document.getElementById('call-local-video');
-  if(!el) return;
-  let dragging = false, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+// Своя камера и камера собеседника — это ДВЕ роли (большая на весь экран /
+// маленькая в углу), а не два навсегда закреплённых элемента. Маленькую
+// можно таскать пальцем по экрану (как раньше), а обычный тап без
+// перетаскивания — меняет большую и маленькую местами: что было маленьким,
+// становится большим, и наоборот (как в Zoom/Telegram).
+function resetCallVideoRoles(){
+  const remote = document.getElementById('call-remote-video');
+  const local = document.getElementById('call-local-video');
+  [remote, local].forEach(el => { el.style.left=''; el.style.top=''; el.style.right=''; el.style.bottom=''; });
+  remote.classList.add('call-video-big'); remote.classList.remove('call-video-small');
+  local.classList.add('call-video-small'); local.classList.remove('call-video-big');
+}
 
-  el.addEventListener('pointerdown', event => {
-    dragging = true;
+(function enableCallVideoSwap(){
+  const remote = document.getElementById('call-remote-video');
+  const local = document.getElementById('call-local-video');
+  resetCallVideoRoles();
+
+  let dragging = false, moved = false, activeEl = null;
+  let startX = 0, startY = 0, originLeft = 0, originTop = 0;
+
+  function onPointerDown(event){
+    const el = event.currentTarget;
+    if(!el.classList.contains('call-video-small')) return; // маленькую можно трогать, большую — нет
+    dragging = true; moved = false; activeEl = el;
     el.setPointerCapture?.(event.pointerId);
     const rect = el.getBoundingClientRect();
     startX = event.clientX; startY = event.clientY;
     originLeft = rect.left; originTop = rect.top;
-    el.style.right = 'auto'; el.style.bottom = 'auto';
-    el.style.left = originLeft + 'px'; el.style.top = originTop + 'px';
-  });
-  el.addEventListener('pointermove', event => {
-    if(!dragging) return;
+  }
+  function onPointerMove(event){
+    if(!dragging || event.currentTarget !== activeEl) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
+    if(Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+    if(!moved) return; // пока сдвиг минимальный — считаем, что это ещё тап, не драг
+    const el = activeEl;
+    el.style.right = 'auto'; el.style.bottom = 'auto';
     const maxLeft = window.innerWidth - el.offsetWidth - 8;
     const maxTop = window.innerHeight - el.offsetHeight - 8;
     el.style.left = Math.min(Math.max(8, originLeft + dx), maxLeft) + 'px';
     el.style.top = Math.min(Math.max(8, originTop + dy), maxTop) + 'px';
+  }
+  function onPointerUp(event){
+    if(!dragging || event.currentTarget !== activeEl) return;
+    dragging = false;
+    if(!moved){
+      // Это был тап, а не перетаскивание — меняем большую/маленькую местами.
+      // Маленькая всегда возвращается в стандартный угол, а не остаётся
+      // там, где её когда-то утащили, — иначе после свапа легко потерять
+      // её с экрана.
+      [remote, local].forEach(el => { el.style.left=''; el.style.top=''; el.style.right=''; el.style.bottom=''; });
+      remote.classList.toggle('call-video-big');
+      remote.classList.toggle('call-video-small');
+      local.classList.toggle('call-video-big');
+      local.classList.toggle('call-video-small');
+    }
+    activeEl = null;
+  }
+
+  [remote, local].forEach(el => {
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerup', onPointerUp);
+    el.addEventListener('pointercancel', () => { dragging = false; activeEl = null; });
   });
-  const stop = () => { dragging = false; };
-  el.addEventListener('pointerup', stop);
-  el.addEventListener('pointercancel', stop);
 })();
 
 // ---------- инициализация ----------
