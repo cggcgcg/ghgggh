@@ -8,7 +8,10 @@ import time
 
 from app.database import init_db
 from app.users import create_user, get_user, find_by_username, update_user
-from app.messages import create_message, get_conversation, get_conversations
+from app.messages import (
+    create_message, get_conversation, get_conversations,
+    mark_read, mark_played, set_pinned, delete_message,
+)
 from app.workspace import (
     get_settings, update_settings,
     create_space, get_spaces, get_space, update_space, set_privacy, delete_space,
@@ -18,7 +21,10 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-from app.space_messages import create_space_message, get_space_messages
+from app.space_messages import (
+    create_space_message, get_space_messages,
+    set_space_pinned, delete_space_message, get_space_message,
+)
 from app import calls
 
 
@@ -299,17 +305,20 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
-            messages = get_conversation(user_a, user_b)
+            viewer = params.get("viewer", [None])[0]
+            messages = get_conversation(user_a, user_b, viewer=viewer)
             self.send_json(200, messages)
             return
 
         # История сообщений внутри канала/группы
         if self.path.startswith("/api/space-messages/"):
-            space_id = self.path.replace("/api/space-messages/", "", 1)
+            parsed = urlsplit(self.path)
+            space_id = parsed.path.replace("/api/space-messages/", "", 1)
+            viewer = parse_qs(parsed.query).get("viewer", [None])[0]
             if not get_space(space_id):
                 self.send_json(404, {"error": "Space not found"})
                 return
-            self.send_json(200, get_space_messages(space_id))
+            self.send_json(200, get_space_messages(space_id, viewer=viewer))
             return
 
         # Список пользователей, которых заблокировал user_id
@@ -464,6 +473,8 @@ class Handler(BaseHTTPRequestHandler):
             msg_type = str(data.get("type", "text")).strip() or "text"
             audio_data = data.get("audio_data")
             waveform = data.get("waveform")
+            reply_to = data.get("reply_to") or None
+            forwarded_from = data.get("forwarded_from") or None
 
             if not from_user or not to_user:
                 self.send_json(400, {
@@ -504,6 +515,8 @@ class Handler(BaseHTTPRequestHandler):
                     msg_type=msg_type,
                     audio_data=audio_data,
                     waveform=waveform,
+                    reply_to=reply_to,
+                    forwarded_from=forwarded_from,
                 )
                 self.send_json(201, message)
 
@@ -513,6 +526,69 @@ class Handler(BaseHTTPRequestHandler):
                     "error": "Failed to send message"
                 })
 
+            return
+
+        # ---- статусы / закрепление / удаление личных сообщений ----
+        if self.path == "/api/messages/read":
+            data = self.read_json_body() or {}
+            reader_id = str(data.get("reader_id", "")).strip()
+            other_id = str(data.get("other_id", "")).strip()
+            if not reader_id or not other_id:
+                self.send_json(400, {"error": "reader_id and other_id are required"})
+                return
+            self.send_json(200, {"updated": mark_read(reader_id, other_id)})
+            return
+
+        if self.path == "/api/messages/played":
+            data = self.read_json_body() or {}
+            message_id = str(data.get("message_id", "")).strip()
+            user_id = str(data.get("user_id", "")).strip()
+            self.send_json(200, {"ok": mark_played(message_id, user_id)})
+            return
+
+        if self.path == "/api/messages/pin":
+            data = self.read_json_body() or {}
+            message_id = str(data.get("message_id", "")).strip()
+            user_id = str(data.get("user_id", "")).strip()
+            msg = set_pinned(message_id, user_id, bool(data.get("pinned", True)))
+            if not msg:
+                self.send_json(404, {"error": "Message not found"})
+                return
+            self.send_json(200, msg)
+            return
+
+        if self.path == "/api/messages/delete":
+            data = self.read_json_body() or {}
+            message_id = str(data.get("message_id", "")).strip()
+            user_id = str(data.get("user_id", "")).strip()
+            ok, error = delete_message(message_id, user_id, bool(data.get("for_everyone")))
+            if not ok:
+                self.send_json(403 if error and "только у себя" in error else 404, {"error": error})
+                return
+            self.send_json(200, {"ok": True})
+            return
+
+        # ---- закрепление / удаление сообщений в группах и каналах ----
+        if self.path in ("/api/space-messages/pin", "/api/space-messages/delete"):
+            data = self.read_json_body() or {}
+            message_id = str(data.get("message_id", "")).strip()
+            user_id = str(data.get("user_id", "")).strip()
+            msg = get_space_message(message_id)
+            if not msg or not is_member(msg["space_id"], user_id):
+                self.send_json(404, {"error": "Message not found"})
+                return
+            manager = can_manage(msg["space_id"], user_id)
+            if self.path.endswith("/pin"):
+                if not manager:
+                    self.send_json(403, {"error": "Only the owner or an admin can pin"})
+                    return
+                self.send_json(200, set_space_pinned(message_id, bool(data.get("pinned", True))))
+                return
+            ok, error = delete_space_message(message_id, user_id, bool(data.get("for_everyone")), manager)
+            if not ok:
+                self.send_json(403, {"error": error})
+                return
+            self.send_json(200, {"ok": True})
             return
 
         if self.path == "/api/spaces":
@@ -660,6 +736,8 @@ class Handler(BaseHTTPRequestHandler):
             msg_type = str(data.get("type", "text")).strip() or "text"
             audio_data = data.get("audio_data")
             waveform = data.get("waveform")
+            reply_to = data.get("reply_to") or None
+            forwarded_from = data.get("forwarded_from") or None
 
             space = get_space(space_id)
             if not space:
@@ -684,7 +762,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             try:
-                message = create_space_message(space_id, from_user, text=text, msg_type=msg_type, audio_data=audio_data, waveform=waveform)
+                message = create_space_message(space_id, from_user, text=text, msg_type=msg_type, audio_data=audio_data, waveform=waveform, reply_to=reply_to, forwarded_from=forwarded_from)
                 self.send_json(201, message)
             except Exception as error:
                 print("CREATE SPACE MESSAGE ERROR:", error)

@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS space_messages (
     audio_data TEXT,
     waveform TEXT
 );
+
+CREATE TABLE IF NOT EXISTS message_hidden (
+    message_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+);
 """
 
 
@@ -117,6 +123,25 @@ def init_db():
             conn.execute(
                 "ALTER TABLE messages ADD COLUMN waveform TEXT"
             )
+
+        # Миграция: статусы доставки (✓ / ✓✓), ответы, пересылка, закрепление.
+        #   read_at   — собеседник открыл чат и увидел сообщение
+        #   played_at — собеседник прослушал голосовое / посмотрел кружочек
+        for table in ("messages", "space_messages"):
+            for column, ddl in (
+                ("reply_to", "TEXT"),
+                ("forwarded_from", "TEXT"),
+                ("pinned", "INTEGER NOT NULL DEFAULT 0"),
+            ):
+                if not _column_exists(conn, table, column):
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+        if not _column_exists(conn, "contacts", "alias"):
+            conn.execute("ALTER TABLE contacts ADD COLUMN alias TEXT")
+
+        for column in ("read_at", "played_at"):
+            if not _column_exists(conn, "messages", column):
+                conn.execute(f"ALTER TABLE messages ADD COLUMN {column} TEXT")
 
         # Миграция: расширяем spaces (группы/каналы) — фото, описание, фон,
         # приватность и код-приглашение. Старые записи получают безопасные

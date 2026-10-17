@@ -16,6 +16,7 @@ import json
 import os
 import struct
 import threading
+import time
 
 WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -32,6 +33,60 @@ _clients_lock = threading.Lock()
 # user_id -> peer_id, for the two people in a ringing/active call.
 _active_calls = {}
 _calls_lock = threading.Lock()
+
+# caller_id -> {"callee", "mode", "offered_at", "answered_at"} — нужен, чтобы
+# после звонка оставить в чате запись «Исходящий/Входящий/Пропущенный · 1:23».
+_call_log = {}
+
+
+def _log_call_start(caller, callee, mode):
+    with _calls_lock:
+        _call_log[caller] = {
+            "callee": callee, "mode": mode if mode == "video" else "audio",
+            "offered_at": time.time(), "answered_at": None,
+        }
+
+
+def _log_call_answered(callee, caller):
+    with _calls_lock:
+        entry = _call_log.get(caller)
+        if entry and entry["callee"] == callee and entry["answered_at"] is None:
+            entry["answered_at"] = time.time()
+
+
+def _finalize_call_log(ended_by, peer_id, reason):
+    """Закрывает запись о звонке и кладёт её сообщением в переписку.
+    reason: 'end' (повесили трубку), 'reject' (отклонил получатель)."""
+    with _calls_lock:
+        entry = None
+        caller = None
+        for candidate in (ended_by, peer_id):
+            if candidate and candidate in _call_log:
+                caller = candidate
+                entry = _call_log.pop(candidate)
+                break
+    if not entry:
+        return
+
+    if entry["answered_at"]:
+        status = "ended"
+        duration = int(time.time() - entry["answered_at"])
+    elif reason == "reject":
+        status = "declined"
+        duration = 0
+    else:
+        status = "missed"
+        duration = 0
+
+    try:
+        from app.messages import create_message  # локальный импорт: без циклов
+        create_message(
+            caller, entry["callee"],
+            text=json.dumps({"mode": entry["mode"], "status": status, "duration": duration}),
+            msg_type="call",
+        )
+    except Exception as exc:  # noqa: BLE001 — лог звонка не должен ронять сигналинг
+        print(f"[calls][{_REPLICA}] call log failed: {exc!r}", flush=True)
 
 
 def compute_accept_key(key):
@@ -122,6 +177,7 @@ def unregister(user_id, handler):
     print(f"[calls][{_REPLICA}] unregister user={user_id} online_now={list(_clients.keys())}", flush=True)
     peer_id = clear_call_pair(user_id)
     if peer_id:
+        _finalize_call_log(user_id, peer_id, "end")
         send_to(peer_id, {"type": "call-end", "from": user_id, "reason": "disconnected"})
 
 
@@ -206,6 +262,7 @@ def handle_client_message(handler, state, message):
             handler.send_ws_json({"type": "call-busy", "to": to_user})
             return
         set_call_pair(user_id, to_user)
+        _log_call_start(user_id, to_user, message.get("mode", "audio"))
         send_to(to_user, {
             "type": "call-offer",
             "from": user_id,
@@ -216,6 +273,7 @@ def handle_client_message(handler, state, message):
 
     if msg_type == "call-answer":
         if to_user:
+            _log_call_answered(user_id, to_user)
             send_to(to_user, {"type": "call-answer", "from": user_id, "sdp": message.get("sdp")})
         return
 
@@ -226,6 +284,8 @@ def handle_client_message(handler, state, message):
 
     if msg_type in ("call-reject", "call-end", "call-busy"):
         peer_id = clear_call_pair(user_id)
+        if peer_id and msg_type != "call-busy":
+            _finalize_call_log(user_id, peer_id, "reject" if msg_type == "call-reject" else "end")
         target = to_user or peer_id
         if target:
             send_to(target, {"type": msg_type, "from": user_id})

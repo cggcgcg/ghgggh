@@ -745,7 +745,9 @@ button, input{font-family:inherit;}
 .profile-modal-tag{color:var(--text-dim);font:12px var(--font-mono);}
 .profile-hero-actions{display:flex;gap:8px;margin-top:12px;}
 .profile-more-wrap{position:relative;}
-.profile-more-menu{left:auto;right:0;bottom:auto;top:calc(100% + 6px);}
+.attach-menu.profile-more-menu{position:fixed;left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);z-index:60;min-width:230px;max-width:calc(100vw - 48px);padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 0 0 100vmax rgba(5,7,14,.55),0 24px 60px -18px rgba(0,0,0,.8);}
+.attach-menu.profile-more-menu button{padding:13px 16px;font-size:15px;}
+.attach-menu.profile-more-menu #profile-block-btn{color:var(--danger);}
 .profile-blocked-banner{margin:10px 0 0;padding:8px 14px;border-radius:12px;background:color-mix(in srgb,var(--danger) 16%,transparent);border:1px solid color-mix(in srgb,var(--danger) 40%,transparent);color:var(--danger);font-size:13px;font-weight:600;}
 .profile-tabs{display:flex;gap:5px;padding:0 16px 10px;border-bottom:1px solid var(--border-soft);overflow-x:auto;scrollbar-width:none;}
 .profile-tab{flex:0 0 auto;border:0;border-radius:12px;padding:7px 12px;background:transparent;color:var(--text-dim);font-size:12px;cursor:pointer;}
@@ -1916,7 +1918,7 @@ body,[data-ui-design]{background:var(--bg);}
          у УЖЕ существующих, см. ниже). -->
     <div id="space-create-view">
       <div class="space-avatar-row">
-        <span class="avatar space-avatar-display" id="space-avatar-display">+</span>
+        <span class="avatar space-avatar-display" id="space-avatar-display">👥</span>
       </div>
       <h2 id="space-modal-title">Новый канал</h2>
       <label class="profile-field"><span>Название</span><input id="space-name-input" type="text" maxlength="60"></label>
@@ -1933,7 +1935,7 @@ body,[data-ui-design]{background:var(--bg);}
          тап по каждому открывает отдельный экран именно для него
          (как в Telegram), а не одна большая форма сразу. -->
     <div id="space-menu-view" hidden>
-      <div class="space-avatar-row"><span class="avatar space-avatar-display" id="space-menu-avatar">+</span></div>
+      <div class="space-avatar-row"><span class="avatar space-avatar-display" id="space-menu-avatar">👥</span></div>
       <h2 id="space-menu-title" style="text-align:center">Название</h2>
       <p class="section-note" id="space-menu-description" style="text-align:center;margin:2px 0 16px"></p>
       <div class="space-menu-list" id="space-menu-list"></div>
@@ -2013,6 +2015,453 @@ body,[data-ui-design]{background:var(--bg);}
   <span class="calls-status-dot" id="calls-status-dot"></span>
   <span id="calls-status-text">звонки: подключение…</span>
 </div>
+
+<style id="v7-msg-css">
+/* ===== галочки, время, ответы, пересылка, закреп, меню, диалоги, звонки ===== */
+.conv-messages .msg{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+.msg-meta{display:flex;justify-content:flex-end;align-items:center;gap:5px;margin-top:3px;font-size:10px;line-height:1;opacity:.9;pointer-events:none;}
+.msg-meta .ticks{display:inline-flex;font-size:11px;font-weight:700;letter-spacing:-2px;padding:2px 6px 2px 4px;border-radius:9px;background:rgba(0,0,0,.28);color:#c4c9d4;}
+.msg-meta .ticks[data-state="seen"]{color:#4db8ff;}
+.msg-meta .ticks[data-state="delivered"]{color:#c4c9d4;}
+.msg-meta .ticks[data-state="sent"]{color:#c4c9d4;letter-spacing:0;}
+.msg.image-message,.msg.video-message{position:relative;}
+.msg.image-message .msg-meta,.msg.video-message .msg-meta{position:absolute;right:10px;bottom:9px;margin:0;padding:2px 6px;border-radius:10px;background:rgba(0,0,0,.45);color:#fff;}
+.msg.image-message .msg-meta .ticks,.msg.video-message .msg-meta .ticks{background:transparent;padding:0 0 0 2px;}
+.msg.msg-selected{outline:2px solid color-mix(in srgb,var(--accent-b) 80%,white);outline-offset:2px;}
+.msg.msg-flash{animation:msgFlash 1.2s ease-out;}
+@keyframes msgFlash{0%,60%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-b) 70%,transparent);}100%{box-shadow:0 0 0 0 transparent;}}
+.msg-forwarded{font-size:11px;font-weight:700;opacity:.85;margin-bottom:3px;}
+.msg-quote{display:flex;flex-direction:column;gap:1px;margin:0 0 5px;padding:3px 8px;border-left:3px solid color-mix(in srgb,var(--accent-b) 85%,white);background:rgba(0,0,0,.18);border-radius:6px;cursor:pointer;font-size:12px;max-width:100%;}
+.msg-quote b{font-size:12px;color:color-mix(in srgb,var(--accent-b) 70%,white);}
+.msg-quote span{opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msg.out .msg-quote b{color:#fff;}
+
+/* меню по долгому нажатию */
+.msg-menu-backdrop{position:fixed;inset:0;z-index:80;background:rgba(5,7,14,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);}
+.msg-menu{position:fixed;min-width:220px;padding:6px;border-radius:18px;background:var(--surface);border:1px solid var(--border);box-shadow:0 20px 50px -14px rgba(0,0,0,.75);animation:msgIn .14s ease-out;}
+.msg-menu button{display:flex;align-items:center;gap:16px;width:100%;border:0;background:transparent;color:var(--text);text-align:left;padding:12px 16px;border-radius:12px;font-size:15px;cursor:pointer;}
+.msg-menu button:hover,.msg-menu button:active{background:var(--surface-hover);}
+.msg-menu button i{font-style:normal;width:22px;text-align:center;font-size:17px;}
+.msg-menu button.danger{color:var(--danger);}
+
+/* диалоги: удаление / пересылка */
+.msg-dialog-backdrop{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:24px;background:rgba(5,7,14,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.msg-dialog{width:min(360px,100%);max-height:80vh;display:flex;flex-direction:column;padding:20px;border-radius:22px;background:var(--surface);border:1px solid var(--border);box-shadow:0 24px 60px -18px rgba(0,0,0,.8);color:var(--text);}
+.msg-dialog h3{margin:0 0 6px;font:700 17px var(--font-display);}
+.msg-dialog p{margin:0 0 14px;font-size:13px;color:var(--text-dim);}
+.msg-dialog label.check{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:14px;border-radius:12px;background:var(--surface-hover);font-size:14px;cursor:pointer;}
+.msg-dialog label.check input{width:20px;height:20px;accent-color:var(--accent-b);flex:0 0 auto;}
+.msg-dialog-actions{display:flex;justify-content:flex-end;gap:8px;}
+.msg-dialog-actions button{border:0;border-radius:12px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;background:var(--surface-hover);color:var(--text);}
+.msg-dialog-actions button.danger{background:var(--danger);color:#fff;}
+.fwd-list{overflow-y:auto;margin:0 -8px 12px;padding:0 8px;display:flex;flex-direction:column;gap:2px;}
+.fwd-item{display:flex;align-items:center;gap:12px;border:0;background:transparent;color:var(--text);padding:9px 8px;border-radius:12px;font-size:14px;text-align:left;cursor:pointer;}
+.fwd-item:hover{background:var(--surface-hover);}
+
+/* панель «ответ» над полем ввода и закреплённое сообщение */
+.reply-bar,.pin-banner{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--surface);border-top:1px solid var(--border-soft);font-size:13px;}
+.pin-banner{border-top:0;border-bottom:1px solid var(--border-soft);cursor:pointer;}
+.reply-bar[hidden],.pin-banner[hidden]{display:none;}
+.reply-bar .rb-body,.pin-banner .rb-body{flex:1;min-width:0;border-left:3px solid var(--accent-b);padding-left:8px;display:flex;flex-direction:column;}
+.reply-bar b,.pin-banner b{font-size:12px;color:var(--accent-b);}
+.reply-bar span,.pin-banner span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-dim);}
+.reply-bar button,.pin-banner button{border:0;background:transparent;color:var(--text-dim);font-size:20px;cursor:pointer;padding:2px 6px;}
+
+/* карточка звонка в переписке */
+.msg.call-card{display:flex;align-items:center;gap:12px;min-width:210px;cursor:pointer;}
+.msg.call-card .call-ico{flex:0 0 38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:18px;background:rgba(255,255,255,.18);}
+.msg.in.call-card .call-ico{background:color-mix(in srgb,var(--accent-b) 22%,transparent);}
+.msg.call-card.missed .call-ico{background:color-mix(in srgb,var(--danger) 25%,transparent);}
+.msg.call-card.missed .call-title{color:var(--danger);}
+.call-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.call-title{font-weight:600;font-size:14px;}
+.call-sub{font-size:12px;opacity:.8;}
+
+.msg-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:100;padding:10px 18px;border-radius:20px;background:rgba(20,22,32,.95);color:#fff;font-size:13px;box-shadow:0 10px 30px -8px #000;}
+</style>
+
+<script id="v7-msg-ui">
+// ==========================================================
+// MsgUI — галочки ✓/✓✓, меню по долгому нажатию (ответить, копировать,
+// переслать, закрепить, удалить), диалог удаления, карточки звонков.
+// Вызывается из renderMessages / refreshMessages (см. основной скрипт).
+// ==========================================================
+const MsgUI = (() => {
+  const isSpaceChat = chat => chat.kind === 'group' || chat.kind === 'channel';
+  const post = (path, body) => fetch(`${API_BASE}${path}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const fmtTime = iso => { try{ return new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }catch{ return ''; } };
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if(cls) n.className = cls; if(text != null) n.textContent = text; return n; };
+  const isTextMsg = m => !m.type || m.type === 'text';
+
+  function toast(text){
+    const t = el('div', 'msg-toast', text);
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+  }
+
+  // ---------- галочки ----------
+  // ✓ серая — отправлено; ✓✓ синие — увидел. Голосовое/кружок: ✓✓ серые —
+  // увидел сообщение, ✓✓ синие — прослушал/посмотрел.
+  function tickState(m){
+    const media = m.type === 'voice' || m.type === 'video';
+    if(!m.read_at) return {text:'✓', state:'sent'};
+    if(media) return {text:'✓✓', state: m.played_at ? 'seen' : 'delivered'};
+    return {text:'✓✓', state:'seen'};
+  }
+  function applyTicks(node, m){
+    const t = tickState(m);
+    node.textContent = t.text;
+    node.dataset.state = t.state;
+  }
+  function updateTicks(chat){
+    if(isSpaceChat(chat)) return;
+    for(const m of chat.messages){
+      if(!m.out || !m.id) continue;
+      const node = convMessages.querySelector(`[data-mid="${CSS.escape(m.id)}"] .ticks`);
+      if(node) applyTicks(node, m);
+    }
+  }
+
+  function markRead(chat){
+    if(isSpaceChat(chat) || chat.id !== activeChatId || document.visibilityState !== 'visible') return;
+    const me = getCurrentUser();
+    if(!me || !chat.messages.some(m => !m.out && !m.read_at)) return;
+    const now = new Date().toISOString();
+    chat.messages.forEach(m => { if(!m.out && !m.read_at) m.read_at = now; });
+    post('/api/messages/read', {reader_id: me.id, other_id: chat.id}).catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => {
+    const chat = activeChatId && openChats.get(activeChatId);
+    if(chat) markRead(chat);
+  });
+
+  // ---------- имена и превью ----------
+  function senderNameOf(m, chat){
+    if(m.out) return getCurrentUser()?.display_name || 'Вы';
+    return isSpaceChat(chat) ? (m.senderName || 'Участник') : displayNameFor(chat);
+  }
+
+  function callInfo(m){ try{ return JSON.parse(m.text) || {}; }catch{ return {}; } }
+  function callPreview(m){
+    const i = callInfo(m);
+    const kind = i.mode === 'video' ? 'видеозвонок' : 'звонок';
+    if(i.status === 'missed') return m.out ? '📞 Нет ответа' : '📞 Пропущенный ' + kind;
+    if(i.status === 'declined') return '📞 Звонок отклонён';
+    return (m.out ? '📞 Исходящий ' : '📞 Входящий ') + kind;
+  }
+  function fmtDuration(sec){
+    sec = Math.max(0, Math.round(sec || 0));
+    const h = Math.floor(sec / 3600), mi = Math.floor(sec % 3600 / 60), s = sec % 60;
+    const parts = [];
+    if(h) parts.push(h + ' ч');
+    if(mi) parts.push(mi + ' мин');
+    if(s || !parts.length) parts.push(s + ' с');
+    return parts.join(' ');
+  }
+
+  // ---------- карточка звонка ----------
+  function callCard(m, chat){
+    const i = callInfo(m);
+    const video = i.mode === 'video';
+    const kind = video ? 'видеозвонок' : 'звонок';
+    const bubble = el('div', 'msg call-card ' + (m.out ? 'out' : 'in'));
+    let title, sub;
+    if(i.status === 'missed'){
+      title = m.out ? 'Нет ответа' : 'Пропущенный ' + kind;
+      sub = fmtTime(m.created_at);
+      if(!m.out) bubble.classList.add('missed');
+    }else if(i.status === 'declined'){
+      title = m.out ? 'Звонок отклонён' : 'Вы отклонили звонок';
+      sub = fmtTime(m.created_at);
+    }else{
+      title = (m.out ? 'Исходящий ' : 'Входящий ') + kind;
+      sub = fmtDuration(i.duration) + ' · ' + fmtTime(m.created_at);
+    }
+    const ico = el('span', 'call-ico', video ? '📹' : (m.out ? '📞' : '📞'));
+    const text = el('div', 'call-text');
+    text.append(el('span', 'call-title', title), el('span', 'call-sub', sub));
+    bubble.append(ico, text);
+    bubble.addEventListener('click', () => {
+      if(!isSpaceChat(chat)) CallManager.call(chat.id, displayNameFor(chat), video);
+    });
+    return bubble;
+  }
+
+  // ---------- долгое нажатие ----------
+  function bindLongPress(node, handler){
+    let timer = null, sx = 0, sy = 0, fired = false;
+    const cancel = () => { clearTimeout(timer); };
+    node.addEventListener('pointerdown', e => {
+      if(e.button > 0) return;
+      fired = false; sx = e.clientX; sy = e.clientY;
+      timer = setTimeout(() => { fired = true; navigator.vibrate?.(15); handler(); }, 420);
+    });
+    node.addEventListener('pointermove', e => { if(Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
+    node.addEventListener('pointerup', () => { cancel(); setTimeout(() => { fired = false; }, 350); });
+    node.addEventListener('pointercancel', cancel);
+    node.addEventListener('contextmenu', e => { e.preventDefault(); if(!fired){ fired = true; handler(); setTimeout(() => { fired = false; }, 350); } });
+    // после долгого нажатия «проглатываем» следующий клик (иначе откроется фото/кружок/звонок)
+    node.addEventListener('click', e => { if(fired){ e.stopPropagation(); e.preventDefault(); } }, true);
+  }
+
+  // ---------- оформление одного сообщения ----------
+  function decorate(bubble, m, chat){
+    if(!m.id) return;
+    const space = isSpaceChat(chat);
+    bubble.dataset.mid = m.id;
+
+    if(m.type !== 'call'){
+      if(m.type !== 'video'){
+        if(m.reply_to){
+          const target = chat.messages.find(x => x.id === m.reply_to);
+          const q = el('div', 'msg-quote');
+          q.append(el('b', '', target ? senderNameOf(target, chat) : 'Ответ'), el('span', '', target ? previewForMessage(target) : 'Сообщение удалено'));
+          q.addEventListener('click', e => { e.stopPropagation(); if(target) scrollTo(target.id); });
+          bubble.prepend(q);
+        }
+        if(m.forwarded_from){
+          bubble.prepend(el('div', 'msg-forwarded', '↪ Переслано от ' + m.forwarded_from));
+        }
+      }
+      const meta = el('div', 'msg-meta');
+      if(m.pinned) meta.append(el('span', '', '📌'));
+      meta.append(el('span', '', fmtTime(m.created_at)));
+      if(m.out && !space){
+        const ticks = el('span', 'ticks');
+        applyTicks(ticks, m);
+        meta.append(ticks);
+      }
+      bubble.append(meta);
+
+      // получатель включил голосовое / кружок -> ✓✓ становятся синими
+      if(!m.out && !space && (m.type === 'voice' || m.type === 'video') && !m.played_at){
+        const media = bubble.querySelector('audio, video');
+        media?.addEventListener('play', () => {
+          if(media.paused || m.played_at) return; // кружок сам ставит на паузу «чужой» автоплей
+          m.played_at = new Date().toISOString();
+          const me = getCurrentUser();
+          if(me) post('/api/messages/played', {message_id: m.id, user_id: me.id}).catch(() => {});
+        });
+      }
+    }
+    bindLongPress(bubble, () => openMenu(m, chat, bubble));
+  }
+
+  function scrollTo(id){
+    const node = convMessages.querySelector(`[data-mid="${CSS.escape(id)}"]`);
+    if(!node) return;
+    node.scrollIntoView({block:'center', behavior:'smooth'});
+    node.classList.remove('msg-flash'); void node.offsetWidth; node.classList.add('msg-flash');
+  }
+
+  // ---------- меню ----------
+  let menuNode = null;
+  function closeMenu(){
+    if(menuNode){ menuNode.remove(); menuNode = null; }
+    convMessages.querySelectorAll('.msg-selected').forEach(n => n.classList.remove('msg-selected'));
+  }
+  function canPin(chat){
+    return !isSpaceChat(chat) || chat.my_role === 'owner' || chat.my_role === 'admin';
+  }
+
+  function openMenu(m, chat, bubble){
+    closeMenu();
+    const items = [];
+    if(m.type !== 'call'){
+      items.push({icon:'↩', label:'Ответить', run: () => startReply(m, chat)});
+      if(isTextMsg(m)) items.push({icon:'⧉', label:'Копировать', run: () => copyText(m.text)});
+      items.push({icon:'➦', label:'Переслать', run: () => openForward(m, chat)});
+      if(canPin(chat)) items.push({icon:'📌', label: m.pinned ? 'Открепить' : 'Закрепить', run: () => pin(m, chat)});
+    }
+    items.push({icon:'🗑', label:'Удалить', danger:true, run: () => openDelete(m, chat)});
+
+    const backdrop = el('div', 'msg-menu-backdrop');
+    const menu = el('div', 'msg-menu');
+    items.forEach(it => {
+      const b = el('button', it.danger ? 'danger' : '');
+      b.type = 'button';
+      const i = el('i', '', it.icon);
+      b.append(i, document.createTextNode(it.label));
+      b.addEventListener('click', e => { e.stopPropagation(); closeMenu(); it.run(); });
+      menu.appendChild(b);
+    });
+    backdrop.appendChild(menu);
+    backdrop.addEventListener('click', closeMenu);
+    backdrop.addEventListener('contextmenu', e => { e.preventDefault(); closeMenu(); });
+    document.body.appendChild(backdrop);
+    menuNode = backdrop;
+    bubble.classList.add('msg-selected');
+
+    // позиция: под сообщением (или над ним, если снизу нет места), прижата к его стороне
+    const r = bubble.getBoundingClientRect();
+    const mw = menu.offsetWidth, mh = menu.offsetHeight, pad = 12;
+    let top = r.bottom + 8;
+    if(top + mh > innerHeight - pad) top = Math.max(pad, r.top - mh - 8);
+    if(top + mh > innerHeight - pad) top = Math.max(pad, innerHeight - mh - pad);
+    let left = m.out ? r.right - mw : r.left;
+    left = Math.max(pad, Math.min(innerWidth - mw - pad, left));
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+  }
+
+  async function copyText(text){
+    try{ await navigator.clipboard.writeText(text || ''); }
+    catch{
+      const ta = document.createElement('textarea'); ta.value = text || ''; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch{} ta.remove();
+    }
+    toast('Скопировано');
+  }
+
+  // ---------- закрепить ----------
+  async function pin(m, chat){
+    const me = getCurrentUser(); if(!me) return;
+    const path = isSpaceChat(chat) ? '/api/space-messages/pin' : '/api/messages/pin';
+    try{
+      const res = await post(path, {message_id: m.id, user_id: me.id, pinned: !m.pinned});
+      if(!res.ok) throw new Error(await messageError(res, 'Не удалось закрепить'));
+      await refreshMessages(chat, {silent:false, force:true});
+    }catch(err){ toast(err.message); }
+  }
+
+  let banner = null;
+  function renderPinBanner(chat){
+    if(!banner){
+      banner = el('div', 'pin-banner');
+      banner.hidden = true;
+      convMessages.parentNode.insertBefore(banner, convMessages);
+    }
+    const pinned = [...chat.messages].reverse().find(m => m.pinned);
+    if(!pinned){ banner.hidden = true; return; }
+    banner.hidden = false;
+    banner.innerHTML = '';
+    const body = el('div', 'rb-body');
+    body.append(el('b', '', '📌 Закреплённое сообщение'), el('span', '', pinned.type === 'call' ? callPreview(pinned) : previewForMessage(pinned)));
+    banner.append(body);
+    if(canPin(chat)){
+      const x = el('button', '', '×'); x.type = 'button'; x.title = 'Открепить';
+      x.addEventListener('click', e => { e.stopPropagation(); pin(pinned, chat); });
+      banner.append(x);
+    }
+    banner.onclick = () => scrollTo(pinned.id);
+  }
+
+  // ---------- ответить ----------
+  let reply = null, replyBar = null;
+  function startReply(m, chat){
+    reply = {id: m.id, chatId: chat.id};
+    if(!replyBar){
+      replyBar = el('div', 'reply-bar');
+      messageForm.parentNode.insertBefore(replyBar, messageForm);
+    }
+    replyBar.hidden = false;
+    replyBar.innerHTML = '';
+    const body = el('div', 'rb-body');
+    body.append(el('b', '', 'Ответ ' + senderNameOf(m, chat)), el('span', '', previewForMessage(m)));
+    const x = el('button', '', '×'); x.type = 'button'; x.title = 'Отменить ответ';
+    x.addEventListener('click', clearReply);
+    replyBar.append(body, x);
+    messageInput.focus();
+  }
+  function clearReply(){
+    reply = null;
+    if(replyBar) replyBar.hidden = true;
+  }
+  // id сообщения, на которое отвечаем (и сразу сбрасываем панель)
+  function takeReplyId(chatId){
+    const id = reply && reply.chatId === chatId ? reply.id : null;
+    clearReply();
+    return id;
+  }
+
+  // ---------- переслать ----------
+  function openForward(m, fromChat){
+    const me = getCurrentUser(); if(!me) return;
+    const backdrop = el('div', 'msg-dialog-backdrop');
+    const dlg = el('div', 'msg-dialog');
+    dlg.append(el('h3', '', 'Переслать'), el('p', '', 'Выберите чат'));
+    const list = el('div', 'fwd-list');
+    for(const target of openChats.values()){
+      if(target.kind === 'channel' && target.my_role !== 'owner' && target.my_role !== 'admin') continue;
+      const name = target.kind ? target.display_name : displayNameFor(target);
+      const b = el('button', 'fwd-item'); b.type = 'button';
+      b.append(el('span', 'avatar', initials(name)), document.createTextNode(name));
+      b.addEventListener('click', () => { backdrop.remove(); forwardTo(m, fromChat, target); });
+      list.appendChild(b);
+    }
+    if(!list.children.length) list.append(el('p', '', 'Нет доступных чатов'));
+    const actions = el('div', 'msg-dialog-actions');
+    const cancel = el('button', '', 'Отмена'); cancel.type = 'button';
+    cancel.addEventListener('click', () => backdrop.remove());
+    actions.append(cancel);
+    dlg.append(list, actions);
+    backdrop.append(dlg);
+    backdrop.addEventListener('click', e => { if(e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+  }
+
+  async function forwardTo(m, fromChat, target){
+    const me = getCurrentUser(); if(!me) return;
+    const toSpace = isSpaceChat(target);
+    const body = toSpace ? {space_id: target.id, from_user: me.id} : {from_user: me.id, to_user: target.id};
+    body.type = m.type || 'text';
+    body.text = m.text || '';
+    if(m.audio_data) body.audio_data = m.audio_data;
+    if(m.waveform) body.waveform = JSON.stringify(m.waveform);
+    body.forwarded_from = m.forwarded_from || senderNameOf(m, fromChat);
+    try{
+      const res = await post(toSpace ? '/api/space-messages' : '/api/messages', body);
+      if(!res.ok) throw new Error(await messageError(res, 'Не удалось переслать'));
+      toast('Переслано');
+      target.lastCount = -1;
+      await setActiveChat(target.id);
+    }catch(err){ toast(err.message); }
+  }
+
+  // ---------- удалить ----------
+  function openDelete(m, chat){
+    const me = getCurrentUser(); if(!me) return;
+    const space = isSpaceChat(chat);
+    const own = m.out || (space && m.senderId === me.id);
+    const manager = space && (chat.my_role === 'owner' || chat.my_role === 'admin');
+    const everyoneAllowed = own || manager;
+
+    const backdrop = el('div', 'msg-dialog-backdrop');
+    const dlg = el('div', 'msg-dialog');
+    dlg.append(el('h3', '', 'Удалить сообщение?'));
+    let box = null;
+    if(everyoneAllowed){
+      const label = el('label', 'check');
+      box = document.createElement('input'); box.type = 'checkbox';
+      label.append(box, document.createTextNode(space ? 'Удалить у всех' : 'Удалить у обоих'));
+      dlg.append(el('p', '', 'Если не отметить — сообщение исчезнет только у вас.'), label);
+    }else{
+      dlg.append(el('p', '', 'Сообщение удалится только у вас — у собеседника останется.'));
+    }
+    const actions = el('div', 'msg-dialog-actions');
+    const cancel = el('button', '', 'Отмена'); cancel.type = 'button';
+    const ok = el('button', 'danger', 'Удалить'); ok.type = 'button';
+    cancel.addEventListener('click', () => backdrop.remove());
+    ok.addEventListener('click', async () => {
+      const forEveryone = !!box?.checked;
+      backdrop.remove();
+      try{
+        const res = await post(space ? '/api/space-messages/delete' : '/api/messages/delete', {message_id: m.id, user_id: me.id, for_everyone: forEveryone});
+        if(!res.ok) throw new Error(await messageError(res, 'Не удалось удалить'));
+        chat.lastCount = -1;
+        await refreshMessages(chat, {silent:false, force:true});
+      }catch(err){ toast(err.message); }
+    });
+    actions.append(cancel, ok);
+    dlg.append(actions);
+    backdrop.append(dlg);
+    backdrop.addEventListener('click', e => { if(e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+  }
+
+  return {decorate, callCard, callPreview, updateTicks, markRead, renderPinBanner, takeReplyId, clearReply, closeMenu};
+})();
+</script>
 
 <script>
 // ==========================================================
@@ -2208,6 +2657,7 @@ function currentUi(){ return UI_COMMON[document.documentElement.lang] || UI_COMM
 
 const PHOTO_PREVIEW = {ru:'🖼 Фото',uz:'🖼 Rasm',en:'🖼 Photo',de:'🖼 Foto',fr:'🖼 Photo',es:'🖼 Foto',tr:'🖼 Fotoğraf',zh:'🖼 照片',ja:'🖼 写真',ko:'🖼 사진'};
 function previewForMessage(m){
+  if(m.type === 'call') return MsgUI.callPreview(m);
   if(m.type === 'voice') return currentUi().voicePreview;
   if(m.type === 'video') return currentUi().videoPreview;
   if(m.type === 'image') return PHOTO_PREVIEW[document.documentElement.lang] || PHOTO_PREVIEW.ru;
@@ -2842,6 +3292,7 @@ function applySpaceBackground(themeName){
 }
 
 async function setActiveChat(id){
+  if(activeChatId !== id){ MsgUI.clearReply(); MsgUI.closeMenu(); }
   activeChatId = id;
   const chat = openChats.get(id);
   if(!chat) return;
@@ -2896,21 +3347,29 @@ async function refreshMessages(chat, { silent, force = false }){
 
   try{
     const url = isSpace
-      ? `${API_BASE}/api/space-messages/${encodeURIComponent(chat.id)}`
-      : `${API_BASE}/api/messages?user_a=${encodeURIComponent(me.id)}&user_b=${encodeURIComponent(chat.id)}`;
+      ? `${API_BASE}/api/space-messages/${encodeURIComponent(chat.id)}?viewer=${encodeURIComponent(me.id)}`
+      : `${API_BASE}/api/messages?user_a=${encodeURIComponent(me.id)}&user_b=${encodeURIComponent(chat.id)}&viewer=${encodeURIComponent(me.id)}`;
     const res = await fetch(url);
     if(!res.ok) throw new Error('Не удалось загрузить сообщения (код ' + res.status + ')');
 
     const messages = await res.json();
     const countChanged = messages.length !== chat.lastCount;
+    // Структура (какие сообщения есть / какое закреплено) — перерисовываем.
+    // Статусы ✓/✓✓ меняются «на месте», чтобы не обрывать воспроизведение.
+    const structSig = messages.map(m => m.id + (m.pinned ? '*' : '')).join('|');
+    const structChanged = structSig !== chat.structSig;
     // Тихий фоновый опрос уже открытого чата: если ничего не изменилось —
     // незачем перерисовывать. НО при явном переключении/открытии чата
     // (force=true) рендерим всегда, иначе на экране может остаться DOM
     // предыдущего чата (т.к. lastCount у нового чата мог случайно совпасть
     // с реальным числом сообщений — тогда рендера вообще бы не произошло).
-    if(!countChanged && !force) return;
-
-    chat.messages = messages.map(m => ({
+    const mapped = messages.map(m => ({
+      id: m.id,
+      read_at: m.read_at || null,
+      played_at: m.played_at || null,
+      pinned: !!m.pinned,
+      reply_to: m.reply_to || null,
+      forwarded_from: m.forwarded_from || null,
       text: m.text,
       out: m.from_user === me.id,
       created_at: m.created_at,
@@ -2920,6 +3379,16 @@ async function refreshMessages(chat, { silent, force = false }){
       senderName: isSpace ? m.sender_name : undefined,
       senderId: isSpace ? m.from_user : undefined
     }));
+
+    if(!countChanged && !structChanged && !force){
+      // изменились только статусы — обновляем галочки без перерисовки
+      chat.messages.forEach((old, i) => { if(mapped[i]){ old.read_at = mapped[i].read_at; old.played_at = mapped[i].played_at; } });
+      if(chat.id === activeChatId){ MsgUI.updateTicks(chat); MsgUI.markRead(chat); }
+      return;
+    }
+
+    chat.messages = mapped;
+    chat.structSig = structSig;
     chat.lastCount = messages.length;
 
     if(chat.id === activeChatId){
@@ -3316,12 +3785,15 @@ function renderMessages(chat){
 
   if(chat.messages.length === 0){
     convMessages.innerHTML = `<div class="conv-stub-note">${currentUi().empty}</div>`;
+    MsgUI.renderPinBanner(chat);
     return;
   }
 
   for(const m of chat.messages){
     let bubble;
-    if(m.type === 'voice' && m.audio_data){
+    if(m.type === 'call'){
+      bubble = MsgUI.callCard(m, chat);
+    }else if(m.type === 'voice' && m.audio_data){
       bubble = VoiceMessage(m);
     }else if(m.type === 'video' && m.audio_data){
       bubble = VideoMessage(m);
@@ -3334,6 +3806,7 @@ function renderMessages(chat){
       bubble.className = 'msg ' + (m.out ? 'out' : 'in');
       bubble.textContent = m.text || '';
     }
+    MsgUI.decorate(bubble, m, chat);
     // В группе/канале у входящих сообщений нескольких людей — подписываем,
     // кто именно написал (в 1:1-чате это и так понятно по стороне бабла).
     if(isSpace && !m.out && m.senderName){
@@ -3349,6 +3822,8 @@ function renderMessages(chat){
     convMessages.appendChild(bubble);
   }
   convMessages.scrollTop = convMessages.scrollHeight;
+  MsgUI.renderPinBanner(chat);
+  MsgUI.markRead(chat);
 }
 
 function startPolling(){
@@ -3396,7 +3871,7 @@ messageForm.addEventListener('submit', async (e) => {
       res = await fetch(`${API_BASE}/api/space-messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ space_id: chat.id, from_user: me.id, text })
+        body: JSON.stringify({ space_id: chat.id, from_user: me.id, text, reply_to: MsgUI.takeReplyId(chat.id) })
       });
     }else{
       const recipient = await fetch(`${API_BASE}/api/users/${encodeURIComponent(chat.id)}`, {cache:'no-store'});
@@ -3404,7 +3879,7 @@ messageForm.addEventListener('submit', async (e) => {
       res = await fetch(`${API_BASE}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from_user: me.id, to_user: chat.id, text })
+        body: JSON.stringify({ from_user: me.id, to_user: chat.id, text, reply_to: MsgUI.takeReplyId(chat.id) })
       });
     }
     if(!res.ok) throw new Error(await messageError(res, 'Сообщение не отправилось'));
@@ -4445,8 +4920,8 @@ async function sendRecordedMedia(blob,mode){
     if(mode==='voice' && blob.size > 6*1024*1024) throw new Error('Голосовое слишком большое. Запишите более короткое сообщение.');
     const data=await MediaRecorderService.blobToDataURL(blob);
     const body = isSpace
-      ? { space_id:chat.id, from_user:me.id, type:mode, text:'', audio_data:data }
-      : { from_user:me.id, to_user:chat.id, type:mode, text:'', audio_data:data };
+      ? { space_id:chat.id, from_user:me.id, type:mode, text:'', audio_data:data, reply_to:MsgUI.takeReplyId(chat.id) }
+      : { from_user:me.id, to_user:chat.id, type:mode, text:'', audio_data:data, reply_to:MsgUI.takeReplyId(chat.id) };
 
     if(mode==='voice'){
       body.waveform=JSON.stringify([...voiceWaveform.children].map(bar=>{
@@ -4629,8 +5104,8 @@ async function sendAttachment(kind, file){
   try{
     const dataUrl = await MediaRecorderService.blobToDataURL(blob);
     const body = isSpace
-      ? { space_id: chat.id, from_user: me.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl }
-      : { from_user: me.id, to_user: chat.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl };
+      ? { space_id: chat.id, from_user: me.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl, reply_to: MsgUI.takeReplyId(chat.id) }
+      : { from_user: me.id, to_user: chat.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl, reply_to: MsgUI.takeReplyId(chat.id) };
     let res;
     try{
       res = await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -4912,7 +5387,7 @@ const spaceModalState = { mode:'create', kind:'group', spaceId:null, background:
 const spaceAvatarDisplay = document.getElementById('space-avatar-display');
 
 function setSpaceAvatarText(elId, text){
-  document.getElementById(elId).textContent = text || '+';
+  document.getElementById(elId).textContent = (text && text !== '+') ? text : (spaceModalState.kind === 'channel' ? '📢' : '👥');
 }
 
 // Фон чата для канала/группы — те же 8 пресетов, что и в личных настройках
