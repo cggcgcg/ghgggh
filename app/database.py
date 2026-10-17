@@ -161,6 +161,9 @@ def init_db():
         if not _column_exists(conn, "spaces", "invite_code"):
             conn.execute("ALTER TABLE spaces ADD COLUMN invite_code TEXT")
 
+        # Каналы убраны из продукта: уже созданные становятся обычными группами.
+        conn.execute("UPDATE spaces SET kind = 'group' WHERE kind = 'channel'")
+
         conn.commit()
 
         # Бэкфилл: у каналов/групп, созданных до миграции, владелец мог не

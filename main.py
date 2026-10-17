@@ -227,6 +227,12 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        # Идёт ли сейчас групповой звонок в этой группе (для кнопки «Присоединиться»)
+        if self.path.startswith("/api/group-call/"):
+            space_id = self.path.replace("/api/group-call/", "", 1).split("?")[0]
+            self.send_json(200, calls.group_room_status(space_id))
+            return
+
         if self.path.startswith("/api/settings/"):
             user_id = self.path.replace("/api/settings/", "", 1)
             if not get_user(user_id):
@@ -599,7 +605,7 @@ class Handler(BaseHTTPRequestHandler):
             description = str(data.get("description", "")).strip()
             photo = data.get("photo") or None
             is_private = bool(data.get("is_private"))
-            if not owner_id or not name or kind not in ("group", "channel"):
+            if not owner_id or not name or kind != "group":  # каналы убраны — остались только группы
                 self.send_json(400, {"error": "owner_id, name and valid kind are required"})
                 return
             if not get_user(owner_id):

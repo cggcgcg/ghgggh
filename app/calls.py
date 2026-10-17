@@ -89,6 +89,157 @@ def _finalize_call_log(ended_by, peer_id, reason):
         print(f"[calls][{_REPLICA}] call log failed: {exc!r}", flush=True)
 
 
+# ---------------------------------------------------------------------------
+# Групповые звонки (до GROUP_CALL_MAX человек одновременно).
+# Схема «mesh»: каждый участник соединяется напрямую с каждым другим по
+# WebRTC, а сервер только пересылает служебные сигналы и помнит, кто в
+# комнате. Комната = одна группа (space_id).
+# ---------------------------------------------------------------------------
+GROUP_CALL_MAX = 6
+
+# space_id -> {"starter", "mode", "started_at", "members": {user_id: joined_at}}
+_group_rooms = {}
+# user_id -> space_id, чтобы человек не сидел в двух звонках сразу
+_user_room = {}
+_group_lock = threading.Lock()
+
+
+def group_room_status(space_id):
+    with _group_lock:
+        room = _group_rooms.get(space_id)
+        if not room:
+            return {"active": False, "count": 0, "participants": [], "mode": "audio"}
+        return {
+            "active": True,
+            "count": len(room["members"]),
+            "participants": list(room["members"].keys()),
+            "mode": room["mode"],
+            "started_at": room["started_at"],
+            "max": GROUP_CALL_MAX,
+        }
+
+
+def in_group_call(user_id):
+    with _group_lock:
+        return user_id in _user_room
+
+
+def _group_send(space_id, message, exclude=None):
+    with _group_lock:
+        room = _group_rooms.get(space_id)
+        targets = [u for u in room["members"] if u != exclude] if room else []
+    for uid in targets:
+        send_to(uid, message)
+
+
+def _group_join(handler, user_id, message):
+    from app.workspace import get_space, is_member, get_members  # локально: без циклов импорта
+    from app.users import get_user
+
+    space_id = str(message.get("space_id", "")).strip()
+    mode = "video" if message.get("mode") == "video" else "audio"
+    space = get_space(space_id)
+    if not space or space["kind"] != "group" or not is_member(space_id, user_id):
+        handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "not-allowed"})
+        return
+
+    with _calls_lock:
+        busy_1to1 = user_id in _active_calls
+    if busy_1to1:
+        handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "busy"})
+        return
+
+    is_new = False
+    with _group_lock:
+        if user_id in _user_room and _user_room[user_id] != space_id:
+            handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "busy"})
+            return
+        room = _group_rooms.get(space_id)
+        if room is None:
+            room = {"starter": user_id, "mode": mode, "started_at": time.time(), "members": {}}
+            _group_rooms[space_id] = room
+            is_new = True
+        if user_id not in room["members"] and len(room["members"]) >= GROUP_CALL_MAX:
+            handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "full", "max": GROUP_CALL_MAX})
+            return
+        peers = [u for u in room["members"] if u != user_id]
+        room["members"][user_id] = time.time()
+        room["max_seen"] = max(room.get("max_seen", 0), len(room["members"]))
+        _user_room[user_id] = space_id
+        room_mode = room["mode"]
+        started_at = room["started_at"]
+
+    handler.send_ws_json({
+        "type": "gc-joined", "space_id": space_id, "peers": peers,
+        "mode": room_mode, "started_at": started_at, "max": GROUP_CALL_MAX,
+    })
+    _group_send(space_id, {"type": "gc-peer-joined", "space_id": space_id, "user_id": user_id}, exclude=user_id)
+
+    if is_new:
+        # звоним остальным участникам группы, кто сейчас онлайн
+        user = get_user(user_id) or {}
+        for member in get_members(space_id):
+            mid = member.get("user_id") or member.get("id")
+            if mid and mid != user_id and is_online(mid) and not in_group_call(mid):
+                send_to(mid, {
+                    "type": "gc-ring", "space_id": space_id, "from": user_id,
+                    "from_name": user.get("display_name", ""), "space_name": space["name"], "mode": room_mode,
+                })
+
+
+def _group_leave(user_id, reason="left"):
+    with _group_lock:
+        space_id = _user_room.pop(user_id, None)
+        room = _group_rooms.get(space_id) if space_id else None
+        if not room or user_id not in room["members"]:
+            return
+        del room["members"][user_id]
+        remaining = len(room["members"])
+        finished = remaining == 0
+        if finished:
+            _group_rooms.pop(space_id, None)
+        # если остался один человек — звонок считается оконченным для него тоже
+        solo = None
+        if remaining == 1:
+            solo = next(iter(room["members"]))
+    _group_send(space_id, {"type": "gc-peer-left", "space_id": space_id, "user_id": user_id, "reason": reason})
+    if remaining == 1 and solo:
+        # одному в комнате делать нечего — закрываем её сразу
+        with _group_lock:
+            _user_room.pop(solo, None)
+            _group_rooms.pop(space_id, None)
+        send_to(solo, {"type": "gc-ended", "space_id": space_id})
+        finished = True
+    if finished:
+        _log_group_call(space_id, room)
+
+
+def _log_group_call(space_id, room):
+    """Кладёт в чат группы запись «Групповой звонок · 5 мин · 3 уч.»."""
+    try:
+        from app.space_messages import create_space_message
+        duration = int(time.time() - room["started_at"])
+        create_space_message(
+            space_id, room["starter"],
+            text=json.dumps({"mode": room["mode"], "status": "ended", "duration": duration,
+                             "participants": room.get("max_seen", len(room["members"]) or 2)}),
+            msg_type="call",
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[calls][{_REPLICA}] group call log failed: {exc!r}", flush=True)
+
+
+def _group_signal(user_id, message):
+    space_id = str(message.get("space_id", "")).strip()
+    to_user = str(message.get("to", "")).strip()
+    with _group_lock:
+        room = _group_rooms.get(space_id)
+        ok = bool(room and user_id in room["members"] and to_user in room["members"])
+    if ok:
+        send_to(to_user, {"type": "gc-signal", "space_id": space_id, "from": user_id, "data": message.get("data")})
+
+
+
 def compute_accept_key(key):
     digest = hashlib.sha1((key + WS_MAGIC).encode("utf-8")).digest()
     return base64.b64encode(digest).decode("utf-8")
@@ -175,6 +326,7 @@ def unregister(user_id, handler):
         if _clients.get(user_id) is handler:
             del _clients[user_id]
     print(f"[calls][{_REPLICA}] unregister user={user_id} online_now={list(_clients.keys())}", flush=True)
+    _group_leave(user_id, reason="disconnected")
     peer_id = clear_call_pair(user_id)
     if peer_id:
         _finalize_call_log(user_id, peer_id, "end")
@@ -250,6 +402,16 @@ def handle_client_message(handler, state, message):
 
     to_user = str(message.get("to", "")).strip()
 
+    if msg_type == "gc-join":
+        _group_join(handler, user_id, message)
+        return
+    if msg_type == "gc-leave":
+        _group_leave(user_id)
+        return
+    if msg_type == "gc-signal":
+        _group_signal(user_id, message)
+        return
+
     if msg_type == "call-offer":
         if not to_user:
             return
@@ -258,7 +420,7 @@ def handle_client_message(handler, state, message):
             handler.send_ws_json({"type": "call-unavailable", "to": to_user})
             return
         existing_peer = _active_calls.get(to_user)
-        if existing_peer and existing_peer != user_id:
+        if in_group_call(to_user) or (existing_peer and existing_peer != user_id):
             handler.send_ws_json({"type": "call-busy", "to": to_user})
             return
         set_call_pair(user_id, to_user)

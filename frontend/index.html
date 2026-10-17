@@ -1564,15 +1564,6 @@ body,[data-ui-design]{background:var(--bg);}
 .design-btn.active{background:var(--surface-hover);border-color:var(--accent-b);}
 [data-ui-design="light"]{--bg:#f1f3f6;--bg-alt:#ffffff;--surface:#e7ebf0;--surface-hi:#f7f8fa;--surface-hover:#dce2e8;--border:#c8cfd8;--border-soft:#d9dfe6;--text:#1d232a;--text-dim:#5f6874;--text-faint:#8a939e;--accent-a:#3d78e6;--accent-b:#2764d9;}
 [data-ui-design="light"] .sidebar,[data-ui-design="light"] .conv-header,[data-ui-design="light"] .conv-input-bar,[data-ui-design="light"] .app-nav{background:#fff;}
-[data-ui-design="gamer"]{--bg:#090b10;--bg-alt:#10131a;--surface:#151922;--surface-hi:#1b202b;--surface-hover:#232a38;--border:#343d4d;--border-soft:#262d39;--text:#eef4ff;--text-dim:#9aa8bc;--text-faint:#68758a;--accent-a:#ff2d95;--accent-b:#21d4fd;}
-[data-ui-design="gamer"] .sidebar,[data-ui-design="gamer"] .conv-header,[data-ui-design="gamer"] .conv-input-bar,[data-ui-design="gamer"] .app-nav,[data-ui-design="gamer"] .settings-window{background:#10131a;border-color:#30394a;}
-[data-ui-design="gamer"] .app-shell:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:linear-gradient(115deg,#ff2d9514,#21d4fd10 45%,#7a5cff12);}
-[data-ui-design="gamer"] .app-nav-btn.active,[data-ui-design="gamer"] .settings-menu-btn.active{background:#1e2633;border-color:#21d4fd;box-shadow:0 0 16px #21d4fd22;}
-[data-ui-design="gamer"] .send-btn{box-shadow:0 0 18px #21d4fd44,0 0 28px #ff2d9522;}
-[data-ui-design="gamer"] .media-mode-btn.is-video{box-shadow:0 0 14px #ff2d9544;}
-[data-ui-design="gamer"] .recording-camera-ring{border-color:#21d4fd;box-shadow:0 0 20px #21d4fd55,0 0 36px #ff2d9533;}
-[data-ui-design="gamer"] .recording-preview{border-color:#35435b;}
-[data-ui-design="gamer"] .msg.out{background:linear-gradient(135deg,#d91d7d,#1aaed0);}
 
 /* Chat canvas: messages stay above the animated background. */
 .conv-messages{position:relative;isolation:isolate;overflow-y:auto;background:#12131c!important;background-image:none!important;}
@@ -1654,7 +1645,7 @@ body,[data-ui-design]{background:var(--bg);}
 
 </style>
 </head>
-<body>
+<body data-app-theme="c-blue" data-ui-design="dark">
 
 <!-- ===== ЭКРАН РЕГИСТРАЦИИ ===== -->
 <section id="auth-screen" class="screen">
@@ -1723,7 +1714,7 @@ body,[data-ui-design]{background:var(--bg);}
           <button class="chat-tab active" data-filter="all" type="button">Все</button>
           <button class="chat-tab" data-filter="personal" type="button">Личные</button>
           <button class="chat-tab" data-filter="groups" type="button">Группы</button>
-          <button class="chat-tab" data-filter="channels" type="button">Каналы</button>
+          <button class="chat-tab" data-filter="channels" type="button" hidden>Каналы</button>
         </div>
         <div id="chat-list" class="chat-list">
           <!-- пустое состояние -->
@@ -1824,7 +1815,7 @@ body,[data-ui-design]{background:var(--bg);}
     <p>Начните новый разговор или пространство.</p>
     <button class="create-action" id="add-user-action" type="button"><span>👤</span><strong>Добавить пользователя</strong><small>По username</small></button>
     <button class="create-action" data-space-kind="group" type="button"><span>👥</span><strong>Создать группу</strong><small>Для общения команды</small></button>
-    <button class="create-action" data-space-kind="channel" type="button"><span>◈</span><strong>Создать канал</strong><small>Публикуйте новости и идеи</small></button>
+    <button class="create-action" data-space-kind="channel" type="button" hidden><span>◈</span><strong>Создать канал</strong><small>Публикуйте новости и идеи</small></button>
   </section>
 </div>
 
@@ -1852,10 +1843,10 @@ body,[data-ui-design]{background:var(--bg);}
       </nav>
       <div class="settings-content">
         <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p></div>
-        <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Фон чата</h4><div class="chat-theme-grid" id="chat-theme-grid"></div><h4>Цвет интерфейса</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
+        <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Цвет</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
-<button class="design-btn" data-design="gamer" type="button"><strong>Gamer</strong><small>Тёмная игровая тема с аккуратной RGB-подсветкой</small></button>
+<button class="design-btn" data-design="soft" type="button"><strong>Мягкий</strong><small>Приглушённые спокойные тона и крупные скругления</small></button>
 </div></div>
         <div class="settings-section" data-settings-panel="language"><h3>Язык интерфейса</h3><p class="section-note">Выберите язык меню и подписей.</p><div class="language-grid" id="language-grid"></div></div>
         <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
@@ -2145,6 +2136,7 @@ const MsgUI = (() => {
   function callPreview(m){
     const i = callInfo(m);
     const kind = i.mode === 'video' ? 'видеозвонок' : 'звонок';
+    if(i.participants) return '📞 Групповой ' + kind;
     if(i.status === 'missed') return m.out ? '📞 Нет ответа' : '📞 Пропущенный ' + kind;
     if(i.status === 'declined') return '📞 Звонок отклонён';
     return (m.out ? '📞 Исходящий ' : '📞 Входящий ') + kind;
@@ -2166,7 +2158,10 @@ const MsgUI = (() => {
     const kind = video ? 'видеозвонок' : 'звонок';
     const bubble = el('div', 'msg call-card ' + (m.out ? 'out' : 'in'));
     let title, sub;
-    if(i.status === 'missed'){
+    if(i.participants){
+      title = 'Групповой ' + kind;
+      sub = fmtDuration(i.duration) + ' · ' + i.participants + ' уч. · ' + fmtTime(m.created_at);
+    }else if(i.status === 'missed'){
       title = m.out ? 'Нет ответа' : 'Пропущенный ' + kind;
       sub = fmtTime(m.created_at);
       if(!m.out) bubble.classList.add('missed');
@@ -2182,7 +2177,8 @@ const MsgUI = (() => {
     text.append(el('span', 'call-title', title), el('span', 'call-sub', sub));
     bubble.append(ico, text);
     bubble.addEventListener('click', () => {
-      if(!isSpaceChat(chat)) CallManager.call(chat.id, displayNameFor(chat), video);
+      if(i.participants) GroupCall.start(chat, video);
+      else if(!isSpaceChat(chat)) CallManager.call(chat.id, displayNameFor(chat), video);
     });
     return bubble;
   }
@@ -2463,6 +2459,323 @@ const MsgUI = (() => {
 })();
 </script>
 
+<style id="v9-group-call-css">
+.gc-overlay{position:fixed;inset:0;z-index:85;display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
+.gc-overlay[hidden]{display:none;}
+.gc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-soft);background:var(--bg-alt);}
+.gc-title{font:700 16px var(--font-display);}
+.gc-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.gc-grid{flex:1;min-height:0;display:grid;gap:8px;padding:8px;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));grid-auto-rows:1fr;align-content:center;}
+.gc-grid[data-n="1"]{grid-template-columns:1fr;}
+.gc-grid[data-n="2"]{grid-template-columns:1fr;}
+@media (min-width:720px){.gc-grid[data-n="2"]{grid-template-columns:1fr 1fr;}.gc-grid[data-n="3"],.gc-grid[data-n="4"]{grid-template-columns:1fr 1fr;}.gc-grid[data-n="5"],.gc-grid[data-n="6"]{grid-template-columns:repeat(3,1fr);}}
+@media (max-width:719px){.gc-grid[data-n="3"],.gc-grid[data-n="4"],.gc-grid[data-n="5"],.gc-grid[data-n="6"]{grid-template-columns:1fr 1fr;}}
+.gc-tile{position:relative;min-height:110px;border-radius:18px;overflow:hidden;background:var(--surface);border:1px solid var(--border-soft);display:grid;place-items:center;}
+.gc-tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
+.gc-tile.local video{transform:scaleX(-1);}
+.gc-tile .gc-avatar{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;font:700 24px var(--font-display);background:var(--accent);color:#fff;}
+.gc-tile.has-video .gc-avatar{display:none;}
+.gc-tile .gc-name{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);padding:3px 9px;border-radius:10px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gc-tile .gc-state{position:absolute;right:8px;top:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,.5);color:#fff;}
+.gc-tile.muted .gc-name::after{content:" 🔇";}
+.gc-controls{display:flex;justify-content:center;gap:16px;padding:14px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--border-soft);background:var(--bg-alt);}
+.gc-btn{width:54px;height:54px;border-radius:50%;border:0;font-size:22px;cursor:pointer;background:var(--surface-hover);color:var(--text);}
+.gc-btn.off{background:var(--surface);opacity:.6;}
+.gc-btn.hang{background:var(--danger);color:#fff;}
+.gc-invite{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:95;width:min(380px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:var(--surface);border:1px solid var(--border);box-shadow:0 18px 40px -14px rgba(0,0,0,.8);color:var(--text);}
+.gc-invite .gi-text{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;}
+.gc-invite .gi-text b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gc-invite button{border:0;border-radius:50%;width:42px;height:42px;font-size:18px;cursor:pointer;color:#fff;}
+.gc-invite .gi-ok{background:#3c9a63;}.gc-invite .gi-no{background:var(--danger);}
+.gc-banner{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 14px;background:color-mix(in srgb,var(--accent) 16%,var(--surface));border-bottom:1px solid var(--border-soft);font-size:13px;}
+.gc-banner[hidden]{display:none;}
+.gc-banner span{flex:1;}
+.gc-banner button{border:0;border-radius:12px;padding:7px 14px;font-weight:600;font-size:13px;cursor:pointer;background:var(--accent);color:#fff;}
+</style>
+
+<script id="v9-group-call">
+// ==========================================================
+// GroupCall — групповой звонок до 6 человек (WebRTC mesh).
+// Новичок сам звонит каждому, кто уже в комнате; сервер только
+// пересылает сигналы (см. app/calls.py, сообщения gc-*).
+// ==========================================================
+const GroupCall = (() => {
+  const MAX = 6;
+  let room = null;      // {spaceId, name, mode, peers:Map, local, startedAt, timer, names, pending:true}
+  let invite = null;    // {node, timeout, spaceId}
+  let overlay = null, grid = null, subEl = null, titleEl = null, micBtn = null, camBtn = null;
+  let banner = null, lastPoll = 0, lastStatus = null;
+
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if(cls) n.className = cls; if(text != null) n.textContent = text; return n; };
+  const toast = text => { const t = el('div', 'msg-toast', text); document.body.appendChild(t); setTimeout(() => t.remove(), 2400); };
+  const send = obj => CallManager.send(obj);
+
+  function ensureOverlay(){
+    if(overlay) return;
+    overlay = el('div', 'gc-overlay'); overlay.hidden = true;
+    const head = el('div', 'gc-head');
+    const left = el('div');
+    titleEl = el('div', 'gc-title', 'Групповой звонок'); subEl = el('div', 'gc-sub', '');
+    left.append(titleEl, subEl); head.append(left);
+    grid = el('div', 'gc-grid');
+    const controls = el('div', 'gc-controls');
+    micBtn = el('button', 'gc-btn', '🎤'); micBtn.type = 'button'; micBtn.title = 'Микрофон';
+    camBtn = el('button', 'gc-btn', '📷'); camBtn.type = 'button'; camBtn.title = 'Камера';
+    const hang = el('button', 'gc-btn hang', '✕'); hang.type = 'button'; hang.title = 'Выйти из звонка';
+    micBtn.addEventListener('click', () => toggleTrack('audio', micBtn));
+    camBtn.addEventListener('click', () => toggleTrack('video', camBtn));
+    hang.addEventListener('click', () => leave());
+    controls.append(micBtn, camBtn, hang);
+    overlay.append(head, grid, controls);
+    document.body.appendChild(overlay);
+  }
+
+  function toggleTrack(kind, btn){
+    if(!room?.local) return;
+    const tracks = kind === 'audio' ? room.local.getAudioTracks() : room.local.getVideoTracks();
+    if(!tracks.length) return;
+    const on = !tracks[0].enabled;
+    tracks.forEach(t => { t.enabled = on; });
+    btn.classList.toggle('off', !on);
+    const tile = grid.querySelector('.gc-tile.local');
+    if(tile){
+      if(kind === 'audio') tile.classList.toggle('muted', !on);
+      else tile.classList.toggle('has-video', on);
+    }
+  }
+
+  function nameOf(userId){
+    if(userId === getCurrentUser()?.id) return 'Вы';
+    return room?.names?.get(userId) || 'Участник';
+  }
+
+  function tileFor(userId){
+    let tile = grid.querySelector(`.gc-tile[data-uid="${CSS.escape(userId)}"]`);
+    if(tile) return tile;
+    tile = el('div', 'gc-tile'); tile.dataset.uid = userId;
+    const video = document.createElement('video'); video.autoplay = true; video.playsInline = true;
+    const nm = nameOf(userId);
+    tile.append(video, el('div', 'gc-avatar', initials(nm)), el('span', 'gc-name', nm));
+    grid.appendChild(tile);
+    relayout();
+    return tile;
+  }
+  function relayout(){
+    grid.dataset.n = String(Math.min(MAX, Math.max(1, grid.children.length)));
+    const n = grid.children.length;
+    subEl.textContent = n + ' из ' + MAX + ' · ' + (room?.mode === 'video' ? 'видео' : 'аудио');
+  }
+  function refreshName(userId){
+    const tile = grid.querySelector(`.gc-tile[data-uid="${CSS.escape(userId)}"]`);
+    if(!tile) return;
+    const nm = nameOf(userId);
+    tile.querySelector('.gc-name').textContent = nm;
+    tile.querySelector('.gc-avatar').textContent = initials(nm);
+  }
+
+  async function localMedia(wantVideo){
+    const audio = {echoCancellation:true, noiseSuppression:true, autoGainControl:true};
+    if(wantVideo){
+      try{ return await navigator.mediaDevices.getUserMedia({audio, video:{width:{ideal:640}, height:{ideal:360}, frameRate:{ideal:20, max:24}}}); }
+      catch(err){ if(err.name === 'NotAllowedError') throw err; /* камеры нет — идём только со звуком */ }
+    }
+    return navigator.mediaDevices.getUserMedia({audio});
+  }
+
+  async function start(chat, wantVideo){
+    if(room){ overlay.hidden = false; return; }
+    if(!chat || chat.kind !== 'group') return;
+    if(CallManager.busy()){ toast('Сначала завершите текущий звонок'); return; }
+    dismissInvite();
+    let stream;
+    try{ stream = await localMedia(!!wantVideo); }
+    catch{ toast('Нет доступа к микрофону. Разрешите его в настройках браузера.'); return; }
+    ensureOverlay();
+    room = {spaceId: chat.id, name: chat.display_name, mode: wantVideo ? 'video' : 'audio', peers: new Map(), local: stream,
+            startedAt: Date.now(), timer: null, names: new Map(), joined: false};
+    titleEl.textContent = chat.display_name;
+    grid.innerHTML = '';
+    const me = getCurrentUser();
+    room.names.set(me.id, 'Вы');
+    const lt = tileFor(me.id); lt.classList.add('local');
+    lt.querySelector('video').srcObject = stream; lt.querySelector('video').muted = true;
+    const hasVideo = stream.getVideoTracks().length > 0;
+    lt.classList.toggle('has-video', hasVideo);
+    camBtn.hidden = !hasVideo; micBtn.classList.remove('off'); camBtn.classList.remove('off');
+    overlay.hidden = false;
+    // имена участников
+    fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/members`).then(r => r.ok ? r.json() : []).then(list => {
+      if(!room) return;
+      list.forEach(m => { if(m.user_id !== me.id) room.names.set(m.user_id, m.display_name); });
+      grid.querySelectorAll('.gc-tile').forEach(t => refreshName(t.dataset.uid));
+    }).catch(() => {});
+    send({type:'gc-join', space_id: chat.id, mode: room.mode});
+    // если сервер не ответил — не зависаем
+    setTimeout(() => { if(room && !room.joined){ toast('Нет соединения со звонками'); cleanup(); } }, 8000);
+  }
+
+  function makePeer(userId){
+    const pc = new RTCPeerConnection({iceServers: CallManager.iceServers});
+    const entry = {pc, pending: [], remoteSet: false};
+    room.peers.set(userId, entry);
+    room.local.getTracks().forEach(t => pc.addTrack(t, room.local));
+    pc.onicecandidate = e => { if(e.candidate) send({type:'gc-signal', space_id: room.spaceId, to: userId, data:{kind:'ice', candidate:e.candidate}}); };
+    pc.ontrack = e => {
+      const tile = tileFor(userId);
+      const video = tile.querySelector('video');
+      video.srcObject = e.streams[0];
+      const upd = () => tile.classList.toggle('has-video', e.streams[0].getVideoTracks().some(t => t.readyState === 'live' && !t.muted));
+      e.track.addEventListener('mute', upd); e.track.addEventListener('unmute', upd); e.track.addEventListener('ended', upd);
+      upd();
+      video.play?.().catch(() => {});
+    };
+    pc.onconnectionstatechange = () => {
+      const tile = grid.querySelector(`.gc-tile[data-uid="${CSS.escape(userId)}"]`);
+      if(!tile) return;
+      tile.querySelector('.gc-state')?.remove();
+      if(pc.connectionState === 'connecting' || pc.connectionState === 'new') tile.append(el('span', 'gc-state', 'соединение…'));
+      if(pc.connectionState === 'failed') tile.append(el('span', 'gc-state', 'нет связи'));
+    };
+    tileFor(userId);
+    return entry;
+  }
+
+  async function callPeer(userId){
+    const entry = room.peers.get(userId) || makePeer(userId);
+    const offer = await entry.pc.createOffer();
+    await entry.pc.setLocalDescription(offer);
+    send({type:'gc-signal', space_id: room.spaceId, to: userId, data:{kind:'offer', sdp: entry.pc.localDescription}});
+  }
+
+  async function onData(from, data){
+    if(!room || !data) return;
+    if(data.kind === 'offer'){
+      const entry = room.peers.get(from) || makePeer(from);
+      await entry.pc.setRemoteDescription(data.sdp);
+      entry.remoteSet = true;
+      for(const c of entry.pending.splice(0)) await entry.pc.addIceCandidate(c).catch(() => {});
+      const answer = await entry.pc.createAnswer();
+      await entry.pc.setLocalDescription(answer);
+      send({type:'gc-signal', space_id: room.spaceId, to: from, data:{kind:'answer', sdp: entry.pc.localDescription}});
+    }else if(data.kind === 'answer'){
+      const entry = room.peers.get(from); if(!entry) return;
+      await entry.pc.setRemoteDescription(data.sdp);
+      entry.remoteSet = true;
+      for(const c of entry.pending.splice(0)) await entry.pc.addIceCandidate(c).catch(() => {});
+    }else if(data.kind === 'ice'){
+      const entry = room.peers.get(from); if(!entry) return;
+      if(entry.remoteSet) await entry.pc.addIceCandidate(data.candidate).catch(() => {});
+      else entry.pending.push(data.candidate);
+    }
+  }
+
+  function removePeer(userId){
+    const entry = room?.peers.get(userId);
+    if(entry){ try{ entry.pc.close(); }catch{} room.peers.delete(userId); }
+    grid?.querySelector(`.gc-tile[data-uid="${CSS.escape(userId)}"]`)?.remove();
+    if(room) relayout();
+  }
+
+  function startTimer(){
+    clearInterval(room.timer);
+    room.timer = setInterval(() => {
+      const secs = Math.floor((Date.now() - room.startedAt) / 1000);
+      const mm = String(Math.floor(secs / 60)).padStart(2, '0'), ss = String(secs % 60).padStart(2, '0');
+      titleEl.dataset.t = mm + ':' + ss;
+      titleEl.textContent = room.name + ' · ' + mm + ':' + ss;
+    }, 500);
+  }
+
+  function cleanup(){
+    if(!room) return;
+    clearInterval(room.timer);
+    room.peers.forEach(e => { try{ e.pc.close(); }catch{} });
+    room.local?.getTracks().forEach(t => t.stop());
+    room = null;
+    if(overlay){ overlay.hidden = true; grid.innerHTML = ''; }
+    lastPoll = 0;
+  }
+  function leave(silent){
+    if(!room) return;
+    if(!silent) send({type:'gc-leave', space_id: room.spaceId});
+    cleanup();
+  }
+
+  // ---------- приглашение ----------
+  function dismissInvite(){
+    if(!invite) return;
+    clearTimeout(invite.timeout); invite.node.remove(); invite = null; CallManager.stopRing();
+  }
+  function showInvite(msg){
+    if(room || CallManager.busy()) return;
+    dismissInvite();
+    const node = el('div', 'gc-invite');
+    const text = el('div', 'gi-text');
+    text.append(el('b', '', msg.space_name || 'Группа'), el('span', '', (msg.from_name ? msg.from_name + ' · ' : '') + (msg.mode === 'video' ? 'групповой видеозвонок' : 'групповой звонок')));
+    const ok = el('button', 'gi-ok', '✓'); ok.type = 'button';
+    const no = el('button', 'gi-no', '✕'); no.type = 'button';
+    node.append(text, ok, no);
+    document.body.appendChild(node);
+    invite = {node, spaceId: msg.space_id, timeout: setTimeout(dismissInvite, 40000)};
+    CallManager.ring();
+    no.addEventListener('click', dismissInvite);
+    ok.addEventListener('click', () => {
+      const chat = openChats.get(msg.space_id) || {id: msg.space_id, kind: 'group', display_name: msg.space_name || 'Группа'};
+      start(chat, msg.mode === 'video');
+    });
+  }
+
+  // ---------- сигналы с сервера ----------
+  function onSignal(msg){
+    switch(msg.type){
+      case 'gc-ring': showInvite(msg); break;
+      case 'gc-joined':
+        if(!room || room.spaceId !== msg.space_id) break;
+        room.joined = true; room.mode = msg.mode || room.mode; room.startedAt = Date.now();
+        startTimer(); relayout();
+        msg.peers.forEach(uid => { tileFor(uid); callPeer(uid).catch(() => {}); });
+        break;
+      case 'gc-peer-joined': if(room && room.spaceId === msg.space_id) tileFor(msg.user_id); break;
+      case 'gc-peer-left': if(room && room.spaceId === msg.space_id) removePeer(msg.user_id); break;
+      case 'gc-signal': if(room && room.spaceId === msg.space_id) onData(msg.from, msg.data).catch(() => {}); break;
+      case 'gc-ended': if(room && room.spaceId === msg.space_id){ toast('Звонок завершён'); cleanup(); } break;
+      case 'gc-error':
+        if(msg.reason === 'full') toast('В звонке уже ' + (msg.max || MAX) + ' человек — это максимум');
+        else if(msg.reason === 'busy') toast('Вы уже в другом звонке');
+        else toast('Не удалось войти в звонок');
+        cleanup();
+        break;
+      default: break;
+    }
+  }
+
+  // ---------- плашка «идёт звонок» в чате группы ----------
+  async function pollStatus(chat){
+    if(!banner){
+      banner = el('div', 'gc-banner'); banner.hidden = true;
+      convMessages.parentNode.insertBefore(banner, convMessages);
+    }
+    if(!chat || chat.kind !== 'group' || room){ banner.hidden = true; return; }
+    if(Date.now() - lastPoll < 3000 && lastStatus?.id === chat.id){ return; }
+    lastPoll = Date.now();
+    try{
+      const res = await fetch(`${API_BASE}/api/group-call/${encodeURIComponent(chat.id)}`, {cache:'no-store'});
+      if(!res.ok || chat.id !== activeChatId) return;
+      const st = await res.json();
+      lastStatus = {id: chat.id};
+      if(!st.active){ banner.hidden = true; return; }
+      banner.hidden = false; banner.innerHTML = '';
+      const full = st.count >= (st.max || MAX);
+      const join = el('button', '', full ? 'Полно' : 'Присоединиться'); join.type = 'button'; join.disabled = full;
+      join.addEventListener('click', () => start(chat, st.mode === 'video'));
+      banner.append(el('span', '', '📞 Идёт групповой звонок · ' + st.count + ' из ' + (st.max || MAX)), join);
+    }catch{}
+  }
+
+  return {start, leave, onSignal, pollStatus, active: () => !!room};
+})();
+</script>
+
 <script>
 // ==========================================================
 // TGClone — frontend logic
@@ -2612,10 +2925,13 @@ const chatThemes = [
   ['night','Night','sw-night']
 ];
 const appThemes = [
-  ['night','Ночь','sw-app-night'],['mint','Мята','sw-app-mint'],['sunset','Закат','sw-app-sunset'],['ocean','Океан','sw-app-ocean'],
-  ['rose','Розовый','sw-app-rose'],['forest','Лес','sw-app-forest'],['coral','Коралловый','sw-app-coral'],['mono','Чёрно-белый','sw-app-mono'],
-  ['sky','Небо','sw-app-sky'],['amber','Янтарный','sw-app-amber'],['berry','Ягодный','sw-app-berry'],['citrus','Лайм','sw-app-citrus']
+  ['c-blue','Синий','sw-c-blue'],['c-teal','Бирюзовый','sw-c-teal'],['c-green','Зелёный','sw-c-green'],['c-violet','Фиолетовый','sw-c-violet'],
+  ['c-pink','Розовый','sw-c-pink'],['c-orange','Оранжевый','sw-c-orange'],['c-red','Красный','sw-c-red'],['c-graphite','Графитовый','sw-c-graphite']
 ];
+const DESIGNS = ['dark','light','soft'];
+const COLOR_IDS = appThemes.map(x => x[0]);
+const normColor = v => COLOR_IDS.includes(v) ? v : 'c-blue';
+const normDesign = v => DESIGNS.includes(v) ? v : 'dark';
 const languages = [['ru','Русский'],['uz','O\'zbekcha'],['en','English'],['de','Deutsch'],['fr','Français'],['es','Español'],['tr','Türkçe'],['zh','中文'],['ja','日本語'],['ko','한국어']];
 const UI_TEXT = {
   ru:{chats:'Чаты',newChat:'Новый чат',settings:'Настройки',search:'Найти пользователя…',all:'Все',personal:'Личные',groups:'Группы',channels:'Каналы',profile:'Профиль',chatSettings:'Чаты',theme:'Тема',language:'Язык',devices:'Устройства',create:'Создать',addUser:'Добавить пользователя',createGroup:'Создать группу',createChannel:'Создать канал',name:'Имя',username:'Username',save:'Сохранить изменения'},
@@ -2838,11 +3154,14 @@ const APP_THEME_NAMES = {
   ko:['나이트','민트','선셋','오션','로즈','포레스트','코랄','흑백','스카이','앰버','베리','라임']
 };
 
+const COLOR_NAMES = {
+  ru:['Синий','Бирюзовый','Зелёный','Фиолетовый','Розовый','Оранжевый','Красный','Графитовый'],
+  en:['Blue','Teal','Green','Violet','Pink','Orange','Red','Graphite'],
+  uz:['Ko‘k','Firuza','Yashil','Binafsha','Pushti','To‘q sariq','Qizil','Grafit']
+};
 function relabelThemeButtons(lang){
-  const chatNames=CHAT_THEME_NAMES[lang]||CHAT_THEME_NAMES.ru;
-  document.querySelectorAll('#chat-theme-grid .theme-swatch').forEach((b,i)=>{const el=b.querySelector('.theme-label'); if(el) el.textContent=chatNames[i]||'';});
-  const appNames=APP_THEME_NAMES[lang]||APP_THEME_NAMES.ru;
-  document.querySelectorAll('#app-theme-grid .theme-swatch').forEach((b,i)=>{const el=b.querySelector('.theme-label'); if(el) el.textContent=appNames[i]||'';});
+  const names = COLOR_NAMES[lang] || COLOR_NAMES.en;
+  document.querySelectorAll('#app-theme-grid .theme-swatch').forEach((b,i)=>{const el=b.querySelector('.theme-label'); if(el) el.textContent=names[i]||'';});
 }
 
 function applyStaticLocalization(lang){
@@ -2861,7 +3180,7 @@ function applyStaticLocalization(lang){
     }[lang]||'Размер текста');
     byPanel.chats.querySelectorAll('.font-scale-labels span')[0].textContent=t.fontSmall;
     byPanel.chats.querySelectorAll('.font-scale-labels span')[1].textContent=t.fontLarge;
-    byPanel.chats.querySelectorAll('h4')[1].textContent=t.chatThemeTitle;
+    byPanel.chats.querySelectorAll('h4')[1].textContent=({ru:'Цвет',uz:'Rang',en:'Colour',de:'Farbe',fr:'Couleur',es:'Color',tr:'Renk',zh:'颜色',ja:'色',ko:'색상'})[lang]||'Цвет';
   }
   if(byPanel.theme){
     byPanel.theme.querySelector('h3').textContent=t.appTheme;
@@ -2886,15 +3205,12 @@ applyInterfaceLanguage = function(lang){
 };
 
 const makeSwatches = (items, target, type) => { document.getElementById(target).innerHTML = items.map(([value,label,klass]) => `<button class="theme-swatch ${klass}" data-${type}="${value}" type="button"><span class="theme-label">${label}</span></button>`).join(''); };
-makeSwatches(chatThemes, 'chat-theme-grid', 'chat-theme');
 makeSwatches(appThemes, 'app-theme-grid', 'app-theme');
 document.getElementById('language-grid').innerHTML = languages.map(([value,label]) => `<button data-language="${value}" type="button">${label}</button>`).join('');
-document.querySelector('#chat-theme-grid [data-chat-theme="mist"]').classList.add('active');
-document.querySelector('#app-theme-grid [data-app-theme="night"]').classList.add('active');
+document.querySelector('#app-theme-grid [data-app-theme="c-blue"]').classList.add('active');
 
-document.getElementById('chat-theme-grid').addEventListener('click', event => { const button = event.target.closest('[data-chat-theme]'); if(!button) return; document.body.dataset.chatTheme = button.dataset.chatTheme; document.querySelectorAll('[data-chat-theme]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({chat_theme:button.dataset.chatTheme}); });
-document.getElementById('app-theme-grid').addEventListener('click', event => { const button = event.target.closest('[data-app-theme]'); if(!button) return; document.body.dataset.appTheme = button.dataset.appTheme; document.querySelectorAll('[data-app-theme]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({app_theme:button.dataset.appTheme}); });
-document.querySelectorAll('[data-design]').forEach(button => button.addEventListener('click', () => { document.body.dataset.uiDesign = ['dark','light','gamer'].includes(button.dataset.design) ? button.dataset.design : 'dark'; document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({design:button.dataset.design}); }));
+document.getElementById('app-theme-grid').addEventListener('click', event => { const button = event.target.closest('[data-app-theme]'); if(!button) return; document.body.dataset.appTheme = button.dataset.appTheme; document.querySelectorAll('#app-theme-grid [data-app-theme]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({app_theme:button.dataset.appTheme, chat_theme:button.dataset.appTheme}); });
+document.querySelectorAll('[data-design]').forEach(button => button.addEventListener('click', () => { document.body.dataset.uiDesign = normDesign(button.dataset.design); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({design:button.dataset.design}); }));
 document.getElementById('language-grid').addEventListener('click', event => { const button = event.target.closest('[data-language]'); if(!button) return; applyInterfaceLanguage(button.dataset.language); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item === button)); saveSettings({language:button.dataset.language}); });
 
 const fontButtons = [...document.querySelectorAll('[data-font]')];
@@ -2931,8 +3247,8 @@ document.getElementById('profile-save').addEventListener('click', async () => {
 
 window.settingsReady = false;
 async function saveSettings(values){ const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}); }
-function applySettings(settings){ document.body.dataset.appTheme = settings.app_theme; document.body.dataset.chatTheme = chatThemes.some(x=>x[0]===settings.chat_theme) ? settings.chat_theme : 'mist'; document.body.dataset.uiDesign = ['dark','light','gamer'].includes(settings.design) ? settings.design : 'dark'; document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('[data-chat-theme]').forEach(item => item.classList.toggle('active', item.dataset.chatTheme === settings.chat_theme)); document.querySelectorAll('[data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === settings.app_theme)); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === settings.design)); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
-async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!['dark','light','gamer'].includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!chatThemes.some(x=>x[0]===settings.chat_theme)){ settings.chat_theme='mist'; saveSettings({chat_theme:'mist'}); } applySettings(settings); } window.settingsReady = true; }
+function applySettings(settings){ document.body.dataset.appTheme = normColor(settings.app_theme); delete document.body.dataset.chatTheme; document.body.dataset.uiDesign = normDesign(settings.design); document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('#app-theme-grid [data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === normColor(settings.app_theme))); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === normDesign(settings.design))); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
+async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!DESIGNS.includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!COLOR_IDS.includes(settings.app_theme)){ settings.app_theme='c-blue'; saveSettings({app_theme:'c-blue', chat_theme:'c-blue'}); } applySettings(settings); } window.settingsReady = true; }
 document.getElementById('add-device').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/devices`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id,name:'Новое устройство'})}); loadDevices(); });
 async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
 async function loadSpaces(){
@@ -3286,9 +3602,9 @@ function renderChatList(){
 // личных настройках, но применяются только к ЭТОМУ конкретному чату, не
 // перекрывая глобальную тему пользователя в остальных чатах.
 const SPACE_THEME_COLORS = {mist:'#0d1420',sunrise:'#1c1220',ocean:'#071a24',violet:'#150f22',forest:'#0d1912',rose:'#1c0f18',amber:'#1a1108',night:'#0a0c12'};
-function applySpaceBackground(themeName){
-  convMessages.style.setProperty('background', themeName ? SPACE_THEME_COLORS[themeName] : '', themeName ? 'important' : '');
-  if(!themeName) convMessages.style.removeProperty('background');
+function applySpaceBackground(){
+  // Один общий цвет для всего приложения — отдельного фона у группы больше нет.
+  convMessages.style.removeProperty('background');
 }
 
 async function setActiveChat(id){
@@ -3318,8 +3634,8 @@ async function setActiveChat(id){
   mediaBtn.disabled = !canPost;
   document.getElementById('attach-btn').disabled = !canPost;
   document.getElementById('attach-menu').hidden = true;
-  document.getElementById('call-audio-btn').hidden = isSpace;
-  document.getElementById('call-video-btn').hidden = isSpace;
+  document.getElementById('call-audio-btn').hidden = isSpace && chat.kind !== 'group';
+  document.getElementById('call-video-btn').hidden = isSpace && chat.kind !== 'group';
 
   renderChatList();
   await refreshMessages(chat, { silent: false, force: true });
@@ -3353,6 +3669,7 @@ async function refreshMessages(chat, { silent, force = false }){
     if(!res.ok) throw new Error('Не удалось загрузить сообщения (код ' + res.status + ')');
 
     const messages = await res.json();
+    if(chat.id === activeChatId) GroupCall.pollStatus(chat);
     const countChanged = messages.length !== chat.lastCount;
     // Структура (какие сообщения есть / какое закреплено) — перерисовываем.
     // Статусы ✓/✓✓ меняются «на месте», чтобы не обрывать воспроизведение.
@@ -4061,6 +4378,7 @@ const CallManager = (() => {
     stopHeartbeat();
     if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     if(id) endCall({ notifyPeer:true, silent:true });
+    GroupCall.leave(true);
     try{ ws?.close(); }catch{}
     ws = null;
   }
@@ -4079,7 +4397,7 @@ const CallManager = (() => {
       case 'call-end': onRemoteEnd(); break;
       case 'call-unavailable': onUnavailable(); break;
       case 'replaced': try{ ws?.close(); }catch{} break;
-      default: break;
+      default: GroupCall.onSignal(msg); break;
     }
   }
 
@@ -4218,7 +4536,7 @@ const CallManager = (() => {
   }
 
   async function startCall(targetId, targetName, wantVideo){
-    if(!overlay.hidden) return; // уже в звонке
+    if(!overlay.hidden || GroupCall.active()) return; // уже в звонке
     peerId = targetId;
     mode = wantVideo ? 'video' : 'audio';
     role = 'caller';
@@ -4480,18 +4798,26 @@ const CallManager = (() => {
   return {
     connect,
     disconnect,
-    call: (targetId, targetName, wantVideo) => startCall(targetId, targetName, wantVideo)
+    call: (targetId, targetName, wantVideo) => startCall(targetId, targetName, wantVideo),
+    // для группового звонка (GroupCall)
+    send,
+    busy: () => !overlay.hidden,
+    ring: () => playRingtone(),
+    stopRing: () => stopRingtone(),
+    iceServers: ICE_SERVERS
   };
 })();
 
 document.getElementById('call-audio-btn').addEventListener('click', () => {
   const chat = openChats.get(activeChatId);
-  if(!chat || chat.kind === 'group' || chat.kind === 'channel') return;
+  if(!chat || chat.kind === 'channel') return;
+  if(chat.kind === 'group'){ GroupCall.start(chat, false); return; }
   CallManager.call(chat.id, chat.display_name, false);
 });
 document.getElementById('call-video-btn').addEventListener('click', () => {
   const chat = openChats.get(activeChatId);
-  if(!chat || chat.kind === 'group' || chat.kind === 'channel') return;
+  if(!chat || chat.kind === 'channel') return;
+  if(chat.kind === 'group'){ GroupCall.start(chat, true); return; }
   CallManager.call(chat.id, chat.display_name, true);
 });
 
@@ -5456,7 +5782,6 @@ function renderSpaceMenu(chat){
   if(manage){
     rows.push({icon:'✎', label:'Изменить название', panel:'name'});
     rows.push({icon:'📝', label:'Изменить описание', panel:'description'});
-    rows.push({icon:'🎨', label:'Изменить фон', panel:'background'});
     rows.push({icon:'🔒', label:'Приватность', value: chat.is_private ? 'Приватный' : 'Публичный', panel:'privacy'});
   }
   rows.push({icon:'👥', label:'Участники', panel:'members'});
@@ -5759,6 +6084,54 @@ function resetCallVideoRoles(){
    местами и выглядит неправильно для окружающих предметов. */
 .camera-preview.rear-camera { transform: scaleX(1) !important; }
 .camera-preview.front-camera { transform: scaleX(-1) !important; }
+</style>
+
+<style id="v8-theme">
+/* ==========================================================
+   Единая цветовая система: ОДИН цвет на весь интерфейс и на чаты.
+   Палитра спокойная, без градиентов и свечения.
+   ========================================================== */
+body[data-app-theme="c-blue"]{--accent:#3a78d8;}
+body[data-app-theme="c-teal"]{--accent:#1f8f8a;}
+body[data-app-theme="c-green"]{--accent:#3c9a63;}
+body[data-app-theme="c-violet"]{--accent:#7b63c9;}
+body[data-app-theme="c-pink"]{--accent:#c4577f;}
+body[data-app-theme="c-orange"]{--accent:#c87a32;}
+body[data-app-theme="c-red"]{--accent:#c0504d;}
+body[data-app-theme="c-graphite"]{--accent:#5f6f86;}
+body[data-app-theme]{
+  --accent-a:var(--accent);--accent-b:var(--accent);
+  --surface-hover:color-mix(in srgb,var(--accent) 13%,var(--surface));
+}
+.app-theme-grid .sw-c-blue{background:#3a78d8!important;}
+.app-theme-grid .sw-c-teal{background:#1f8f8a!important;}
+.app-theme-grid .sw-c-green{background:#3c9a63!important;}
+.app-theme-grid .sw-c-violet{background:#7b63c9!important;}
+.app-theme-grid .sw-c-pink{background:#c4577f!important;}
+.app-theme-grid .sw-c-orange{background:#c87a32!important;}
+.app-theme-grid .sw-c-red{background:#c0504d!important;}
+.app-theme-grid .sw-c-graphite{background:#5f6f86!important;}
+.app-theme-grid .theme-swatch{height:64px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);}
+
+.chat-tab[hidden],.create-action[hidden]{display:none!important;}
+/* пустой декоративный слой раздувал прокрутку и уводил короткие чаты за экран */
+.conv-messages::before{display:none!important;}
+
+/* фон чата — тот же цвет, очень мягкий оттенок; свои сообщения — сплошной цвет */
+body[data-ui-design] .conv-messages{background:color-mix(in srgb,var(--accent) 6%,var(--bg))!important;background-image:none!important;}
+body[data-ui-design] .msg.out{background:var(--accent)!important;color:#fff;}
+body[data-ui-design] .send-btn,body[data-ui-design] .settings-save{background:var(--accent);box-shadow:none;}
+
+/* дизайн «Мягкий» — приглушённые тона, крупные скругления */
+body[data-ui-design="soft"]{
+  --bg:#1a1e27;--bg-alt:#202531;--surface:#272d3a;--surface-hi:#2f3645;--border:#363e50;--border-soft:#2e3544;
+  --text:#e8ecf4;--text-dim:#a3acbd;--text-faint:#74809a;--radius-lg:26px;--radius-md:18px;--radius-sm:14px;
+}
+body[data-ui-design="soft"] .msg{border-radius:20px;}
+body[data-ui-design="soft"] .msg.out{border-bottom-right-radius:6px;}
+body[data-ui-design="soft"] .msg.in{border-bottom-left-radius:6px;background:var(--surface);border-color:transparent;}
+body[data-ui-design="soft"] .chat-item,body[data-ui-design="soft"] .search-box input,body[data-ui-design="soft"] .conv-input-bar input{border-radius:18px;}
+body[data-ui-design="soft"] .settings-window,body[data-ui-design="soft"] .create-sheet{border-radius:28px;}
 </style>
 
 </body>
