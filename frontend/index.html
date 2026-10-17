@@ -1644,6 +1644,25 @@ body,[data-ui-design]{background:var(--bg);}
 }
 
 </style>
+<style id="v10-groups">
+.avatar.has-photo{background-size:cover;background-position:center;font-size:0;}
+.space-avatar-row .avatar{position:relative;}
+.space-avatar-row .avatar.editable{cursor:pointer;}
+.space-avatar-row .avatar.editable::after{content:"📷";position:absolute;right:-2px;bottom:-2px;width:28px;height:28px;border-radius:50%;background:var(--surface-hi);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;}
+.perm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border-soft);font-size:14px;}
+.perm-row input{width:20px;height:20px;accent-color:var(--accent);}
+.perm-note{font-size:12px;color:var(--text-dim);margin:10px 0 0;}
+.invite-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.invite-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-dim);}
+.invite-form select{padding:9px;border:1px solid var(--border);border-radius:10px;background:var(--bg-alt);color:var(--text);font-size:13px;}
+.invite-item{border:1px solid var(--border-soft);border-radius:12px;padding:10px 12px;margin-top:10px;background:var(--surface-hi);}
+.invite-item.dead{opacity:.55;}
+.invite-link{font-size:12px;word-break:break-all;color:var(--accent-b);}
+.invite-meta{font-size:12px;color:var(--text-dim);margin:4px 0 8px;}
+.invite-actions{display:flex;gap:8px;}
+.invite-actions button,.space-member-actions button.mute-on{border:1px solid var(--border);background:var(--bg-alt);color:var(--text);border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;}
+.space-member-muted{font-size:11px;color:var(--text-dim);margin-left:6px;}
+</style>
 </head>
 <body data-app-theme="c-blue" data-ui-design="dark">
 
@@ -1927,6 +1946,7 @@ body,[data-ui-design]{background:var(--bg);}
          (как в Telegram), а не одна большая форма сразу. -->
     <div id="space-menu-view" hidden>
       <div class="space-avatar-row"><span class="avatar space-avatar-display" id="space-menu-avatar">👥</span></div>
+      <input type="file" id="space-photo-file" accept="image/*" hidden>
       <h2 id="space-menu-title" style="text-align:center">Название</h2>
       <p class="section-note" id="space-menu-description" style="text-align:center;margin:2px 0 16px"></p>
       <div class="space-menu-list" id="space-menu-list"></div>
@@ -1968,6 +1988,27 @@ body,[data-ui-design]{background:var(--bg);}
         <h2>Участники (<span id="space-members-count">0</span>)</h2>
         <div class="space-add-member-row" id="space-add-member-row"><input id="space-add-member-input" type="text" placeholder="Username нового участника"><button class="icon-btn" id="space-add-member-btn" type="button" title="Добавить">＋</button></div>
         <div id="space-members-list"></div>
+      </div>
+
+      <div class="space-detail-panel" id="space-detail-perms" hidden>
+        <h2>Права участников</h2>
+        <div id="space-perms-list"></div>
+        <p class="perm-note">Владелец и админы могут всё. Отдельного участника можно заглушить в списке участников.</p>
+      </div>
+
+      <div class="space-detail-panel" id="space-detail-invites" hidden>
+        <h2>Ссылки-приглашения</h2>
+        <div class="invite-form">
+          <label>Срок действия<select id="invite-hours">
+            <option value="1">1 час</option><option value="24" selected>1 день</option>
+            <option value="168">7 дней</option><option value="">Без срока</option></select></label>
+          <label>Число использований<select id="invite-uses">
+            <option value="1">1 человек</option><option value="5">5 человек</option>
+            <option value="10">10 человек</option><option value="50">50 человек</option>
+            <option value="" selected>Без ограничения</option></select></label>
+        </div>
+        <button class="settings-save" id="invite-create-btn" type="button">Создать ссылку</button>
+        <div id="invite-list"></div>
       </div>
 
       <p id="space-detail-error" class="auth-error" hidden></p>
@@ -2257,7 +2298,7 @@ const MsgUI = (() => {
     convMessages.querySelectorAll('.msg-selected').forEach(n => n.classList.remove('msg-selected'));
   }
   function canPin(chat){
-    return !isSpaceChat(chat) || chat.my_role === 'owner' || chat.my_role === 'admin';
+    return !isSpaceChat(chat) || canDo(chat, 'pin');
   }
 
   function openMenu(m, chat, bubble){
@@ -3263,7 +3304,7 @@ async function loadSpaces(){
       id:space.id, username:space.kind, display_name:space.name, kind:space.kind,
       owner_id:space.owner_id, description:space.description, photo:space.photo,
       background:space.background, is_private:space.is_private,
-      my_role:space.my_role
+      my_role:space.my_role, permissions:space.permissions, my_muted:!!space.my_muted
     });
     openChats.set(space.id, chat);
   });
@@ -3308,6 +3349,38 @@ let chatFilter = 'all';
 chatTabs.addEventListener('click', event => { const button = event.target.closest('[data-filter]'); if(!button) return; chatFilter = button.dataset.filter; document.querySelectorAll('.chat-tab').forEach(item => item.classList.toggle('active', item === button)); renderChatList(); });
 
 // ---------- helpers ----------
+// ---------- группы: фото, права ----------
+function safePhoto(photo){ return (typeof photo === 'string' && photo.startsWith('data:image/')) ? photo : null; }
+function paintAvatar(el, photo, text){
+  if(!el) return;
+  const ph = safePhoto(photo);
+  if(ph){ el.style.backgroundImage = 'url("' + ph + '")'; el.classList.add('has-photo'); el.textContent = ''; }
+  else { el.style.backgroundImage = ''; el.classList.remove('has-photo'); if(text !== undefined) el.textContent = text; }
+}
+function fileToAvatar(file, size = 256){
+  return new Promise((resolve, reject) => {
+    if(!file || !file.type.startsWith('image/')) return reject(new Error('Выберите изображение'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      c.getContext('2d').drawImage(img, (img.width-side)/2, (img.height-side)/2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не удалось прочитать изображение')); };
+    img.src = url;
+  });
+}
+const DEFAULT_PERMS = {send:true, media:true, add_members:false, invite_link:false, pin:false, calls:true};
+function canDo(chat, action){
+  if(!chat || !(chat.kind === 'group' || chat.kind === 'channel')) return true;
+  if(chat.my_role === 'owner' || chat.my_role === 'admin') return true;
+  if((action === 'send' || action === 'media') && chat.my_muted) return false;
+  return !!(chat.permissions || DEFAULT_PERMS)[action];
+}
+
 function initials(name){
   if(!name) return '?';
   return name.trim().split(/\s+/).slice(0,2).map(w => w[0]?.toUpperCase() || '').join('');
@@ -3381,7 +3454,10 @@ authForm.addEventListener('submit', async (e) => {
 // ---------- вход в приложение ----------
 async function enterApp(){
   const user = getCurrentUser();
-  if(!user){ showScreen('auth'); return; }
+  if(!user){
+    try{ const jc = new URLSearchParams(location.search).get('join'); if(jc) localStorage.setItem('tgclone_pending_join', jc); }catch{}
+    showScreen('auth'); return;
+  }
 
   try{
     const check = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'});
@@ -3398,7 +3474,7 @@ async function enterApp(){
   showScreen('app');
   loadSettings();
   loadDevices();
-  loadSpaces();
+  loadSpaces().then(handleJoinLink);
   loadContacts();
   loadBlocked();
   loadConversations();
@@ -3589,6 +3665,7 @@ function renderChatList(){
         <div class="chat-item-preview">${escapeHtml(lastPreview)}</div>
       </div>
     `;
+    if(chat.kind && chat.photo) paintAvatar(item.querySelector('.avatar'), chat.photo);
     item.addEventListener('click', () => setActiveChat(chat.id));
     chatList.appendChild(item);
   }
@@ -3620,10 +3697,11 @@ async function setActiveChat(id){
 
   const headerName = chat.kind ? chat.display_name : displayNameFor(chat);
   convAvatar.textContent = initials(headerName);
+  paintAvatar(convAvatar, chat.kind ? chat.photo : null, initials(headerName));
   convName.textContent = headerName;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
-  // В группе писать может любой участник; в канале — только владелец/админ.
-  const canPost = !isSpace || chat.kind === 'group' || chat.my_role === 'owner' || chat.my_role === 'admin';
+  // Писать может тот, кому разрешили права группы (владелец и админы — всегда).
+  const canPost = canDo(chat, 'send');
   document.getElementById('conv-header-status').textContent = isSpace
     ? (chat.kind === 'channel' ? 'канал' : 'группа')
     : '@' + chat.username;
@@ -5225,8 +5303,7 @@ async function sendRecordedMedia(blob,mode){
   const chat=openChats.get(activeChatId);
   if(!me || !chat){ showAttachError('Не удалось определить чат'); return; }
   const isSpace = chat.kind==='group' || chat.kind==='channel';
-  const canPost = !isSpace || chat.kind==='group' || chat.my_role==='owner' || chat.my_role==='admin';
-  if(!canPost){ showAttachError('Публиковать могут только владелец и админы'); return; }
+  if(!canDo(chat, 'media')){ showAttachError('В этой группе вам запрещено отправлять голосовые и кружочки'); return; }
 
   const pending = document.createElement('div');
   pending.className = 'msg out ' + (mode==='video' ? 'video-message' : 'voice-message');
@@ -5709,7 +5786,7 @@ document.getElementById('conv-header-identity').addEventListener('click', () => 
 // Создание / настройки канала и группы
 // ==========================================================
 const spaceModal = document.getElementById('space-modal');
-const spaceModalState = { mode:'create', kind:'group', spaceId:null, background:null };
+const spaceModalState = { mode:'create', kind:'group', spaceId:null, background:null, photo:null };
 const spaceAvatarDisplay = document.getElementById('space-avatar-display');
 
 function setSpaceAvatarText(elId, text){
@@ -5744,6 +5821,7 @@ function openSpaceModal(mode, kind, spaceId){
   spaceModalState.spaceId = spaceId || null;
   spaceModalState.background = null;
   spaceModalState.selectedMembers = new Set();
+  spaceModalState.photo = null;
   document.getElementById('space-error').hidden = true;
 
   const createView = document.getElementById('space-create-view');
@@ -5759,6 +5837,8 @@ function openSpaceModal(mode, kind, spaceId){
     document.getElementById('space-description-input').value = '';
     document.getElementById('space-private-input').checked = false;
     setSpaceAvatarText('space-avatar-display', '+');
+    paintAvatar(document.getElementById('space-avatar-display'), null);
+    document.getElementById('space-avatar-display').classList.add('editable');
     renderInitialMembersPicker();
   }else{
     const chat = openChats.get(spaceId);
@@ -5775,6 +5855,8 @@ function openSpaceModal(mode, kind, spaceId){
 function renderSpaceMenu(chat){
   const manage = chat.my_role === 'owner' || chat.my_role === 'admin';
   setSpaceAvatarText('space-menu-avatar', initials(chat.display_name));
+  paintAvatar(document.getElementById('space-menu-avatar'), chat.photo);
+  document.getElementById('space-menu-avatar').classList.toggle('editable', manage);
   document.getElementById('space-menu-title').textContent = chat.display_name;
   document.getElementById('space-menu-description').textContent = chat.description || (chat.kind === 'channel' ? 'Канал' : 'Группа');
 
@@ -5783,7 +5865,9 @@ function renderSpaceMenu(chat){
     rows.push({icon:'✎', label:'Изменить название', panel:'name'});
     rows.push({icon:'📝', label:'Изменить описание', panel:'description'});
     rows.push({icon:'🔒', label:'Приватность', value: chat.is_private ? 'Приватный' : 'Публичный', panel:'privacy'});
+    rows.push({icon:'🛡', label:'Права участников', panel:'perms'});
   }
+  if(canDo(chat, 'invite_link')) rows.push({icon:'🔗', label:'Ссылки-приглашения', panel:'invites'});
   rows.push({icon:'👥', label:'Участники', panel:'members'});
 
   const list = document.getElementById('space-menu-list');
@@ -5818,8 +5902,12 @@ function openSpaceDetail(panel, chat, manage){
   }else if(panel === 'privacy'){
     document.getElementById('space-edit-private-input').checked = !!chat.is_private;
   }else if(panel === 'members'){
-    document.getElementById('space-add-member-row').hidden = !manage;
+    document.getElementById('space-add-member-row').hidden = !canDo(chat, 'add_members');
     loadSpaceMembers(chat.id, manage, getCurrentUser()?.id);
+  }else if(panel === 'perms'){
+    renderPermsPanel(chat);
+  }else if(panel === 'invites'){
+    loadInvites(chat);
   }
 }
 
@@ -5909,7 +5997,7 @@ async function loadSpaceMembers(spaceId, manage, myId){
     const row = document.createElement('div');
     row.className = 'space-member-row';
     const roleLabel = m.role === 'owner' ? 'владелец' : m.role === 'admin' ? 'админ' : '';
-    row.innerHTML = `<span class="avatar">${escapeHtml(initials(m.display_name))}</span><span class="space-member-name">${escapeHtml(m.display_name)}</span><span class="space-member-role">${roleLabel}</span>`;
+    row.innerHTML = `<span class="avatar">${escapeHtml(initials(m.display_name))}</span><span class="space-member-name">${escapeHtml(m.display_name)}${m.muted ? '<span class="space-member-muted">🔇 заглушён</span>' : ''}</span><span class="space-member-role">${roleLabel}</span>`;
     if(manage && m.role !== 'owner'){
       const actions = document.createElement('div');
       actions.className = 'space-member-actions';
@@ -5921,6 +6009,15 @@ async function loadSpaceMembers(spaceId, manage, myId){
         await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,role: m.role === 'admin' ? 'member' : 'admin'})});
         loadSpaceMembers(spaceId, manage, myId);
       });
+      const muteBtn = document.createElement('button');
+      muteBtn.type = 'button';
+      muteBtn.textContent = m.muted ? 'разрешить писать' : 'заглушить';
+      if(m.role === 'admin') muteBtn.hidden = true;
+      muteBtn.addEventListener('click', async () => {
+        const me = getCurrentUser();
+        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}/mute`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,muted:!m.muted})});
+        loadSpaceMembers(spaceId, manage, myId);
+      });
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.textContent = '✕';
@@ -5929,7 +6026,7 @@ async function loadSpaceMembers(spaceId, manage, myId){
         await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
         loadSpaceMembers(spaceId, manage, myId);
       });
-      actions.append(roleBtn, removeBtn);
+      actions.append(muteBtn, roleBtn, removeBtn);
       row.appendChild(actions);
     }
     list.appendChild(row);
@@ -5960,7 +6057,7 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
   if(!name){ errorEl.textContent = 'Введите название'; errorEl.hidden = false; return; }
 
   try{
-    const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate})});
+    const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate,photo:spaceModalState.photo})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось создать'));
     const created = await res.json();
     // Участников, отмеченных галочкой, добавляем сразу же после создания
@@ -5974,6 +6071,153 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
     await loadSpaces();
   }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
 });
+
+// ----- фото группы -----
+document.getElementById('space-avatar-display').addEventListener('click', () => {
+  if(spaceModalState.mode === 'create') document.getElementById('space-photo-file').click();
+});
+document.getElementById('space-menu-avatar').addEventListener('click', () => {
+  const chat = openChats.get(spaceModalState.spaceId);
+  if(chat && (chat.my_role === 'owner' || chat.my_role === 'admin')) document.getElementById('space-photo-file').click();
+});
+document.getElementById('space-photo-file').addEventListener('change', async event => {
+  const file = event.target.files[0]; event.target.value = '';
+  if(!file) return;
+  const errEl = document.getElementById(spaceModalState.mode === 'create' ? 'space-error' : 'space-detail-error');
+  errEl.hidden = true;
+  try{
+    const photo = await fileToAvatar(file);
+    if(spaceModalState.mode === 'create'){
+      spaceModalState.photo = photo;
+      paintAvatar(document.getElementById('space-avatar-display'), photo);
+      return;
+    }
+    const me = getCurrentUser();
+    const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, photo})});
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить фото'));
+    const chat = openChats.get(spaceModalState.spaceId);
+    if(chat){ chat.photo = photo; paintAvatar(document.getElementById('space-menu-avatar'), photo); renderChatList(); if(activeChatId === chat.id) paintAvatar(convAvatar, photo); }
+  }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
+});
+
+// ----- права участников -----
+const PERM_LABELS = [
+  ['send','Писать сообщения'], ['media','Голосовые, кружочки, файлы'], ['calls','Начинать групповой звонок'],
+  ['add_members','Добавлять участников'], ['invite_link','Создавать ссылки-приглашения'], ['pin','Закреплять сообщения']
+];
+function renderPermsPanel(chat){
+  const list = document.getElementById('space-perms-list');
+  list.innerHTML = '';
+  const perms = Object.assign({}, DEFAULT_PERMS, chat.permissions || {});
+  PERM_LABELS.forEach(([key, label]) => {
+    const row = document.createElement('label');
+    row.className = 'perm-row';
+    row.innerHTML = `<span>${escapeHtml(label)}</span><input type="checkbox" ${perms[key] ? 'checked' : ''}>`;
+    row.querySelector('input').addEventListener('change', async event => {
+      const me = getCurrentUser();
+      const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
+      const value = event.target.checked;
+      try{
+        const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/permissions`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, permissions:{[key]:value}})});
+        if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить права'));
+        const updated = await res.json();
+        chat.permissions = updated.permissions;
+      }catch(err){ event.target.checked = !value; errEl.textContent = err.message; errEl.hidden = false; }
+    });
+    list.appendChild(row);
+  });
+}
+
+// ----- ссылки-приглашения -----
+function inviteUrl(code){ return location.origin + '/?join=' + encodeURIComponent(code); }
+function describeInvite(inv){
+  const parts = [];
+  if(inv.status === 'expired') parts.push('срок истёк');
+  else if(inv.status === 'exhausted') parts.push('лимит исчерпан');
+  else if(inv.expires_at){
+    const left = new Date(inv.expires_at) - Date.now();
+    const h = Math.max(1, Math.round(left/3600000));
+    parts.push(h >= 48 ? `ещё ${Math.round(h/24)} дн.` : `ещё ${h} ч.`);
+  } else parts.push('без срока');
+  parts.push(inv.max_uses ? `вступили ${inv.uses} из ${inv.max_uses}` : `вступили ${inv.uses}`);
+  return parts.join(' · ');
+}
+async function loadInvites(chat){
+  const me = getCurrentUser();
+  const box = document.getElementById('invite-list');
+  box.innerHTML = '';
+  const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites?by=${encodeURIComponent(me.id)}`);
+  if(!res.ok) return;
+  (await res.json()).forEach(inv => {
+    const item = document.createElement('div');
+    item.className = 'invite-item' + (inv.status !== 'active' ? ' dead' : '');
+    const url = inviteUrl(inv.code);
+    item.innerHTML = `<div class="invite-link">${escapeHtml(url)}</div><div class="invite-meta">${escapeHtml(describeInvite(inv))}</div><div class="invite-actions"></div>`;
+    const actions = item.querySelector('.invite-actions');
+    if(inv.status === 'active'){
+      const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Копировать';
+      copy.addEventListener('click', async () => {
+        try{ await navigator.clipboard.writeText(url); copy.textContent = 'Скопировано ✓'; }
+        catch{ prompt('Скопируйте ссылку:', url); }
+      });
+      actions.appendChild(copy);
+    }
+    const revoke = document.createElement('button'); revoke.type = 'button'; revoke.textContent = 'Отозвать';
+    revoke.addEventListener('click', async () => {
+      await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites/${encodeURIComponent(inv.code)}?by=${encodeURIComponent(me.id)}`, {method:'DELETE'});
+      loadInvites(chat);
+    });
+    actions.appendChild(revoke);
+    box.appendChild(item);
+  });
+}
+document.getElementById('invite-create-btn').addEventListener('click', async () => {
+  const me = getCurrentUser(); const chat = openChats.get(spaceModalState.spaceId); if(!me || !chat) return;
+  const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
+  const hours = document.getElementById('invite-hours').value;
+  const uses = document.getElementById('invite-uses').value;
+  try{
+    const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, hours: hours ? Number(hours) : null, max_uses: uses ? Number(uses) : null})});
+    if(!res.ok) throw new Error(await messageError(res,'Не удалось создать ссылку'));
+    loadInvites(chat);
+  }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
+});
+
+// ----- вход по ссылке ?join=КОД -----
+async function handleJoinLink(){
+  let code = null;
+  try{
+    code = new URLSearchParams(location.search).get('join') || localStorage.getItem('tgclone_pending_join');
+    localStorage.removeItem('tgclone_pending_join');
+  }catch{}
+  if(!code) return;
+  history.replaceState(null, '', location.pathname);
+  const me = getCurrentUser(); if(!me) return;
+  try{
+    const res = await fetch(`${API_BASE}/api/invites/${encodeURIComponent(code)}`);
+    if(!res.ok){ alert('Ссылка-приглашение не найдена'); return; }
+    const info = await res.json();
+    if(info.status !== 'active'){
+      alert({revoked:'Ссылка отозвана', expired:'Срок действия ссылки истёк', exhausted:'Ссылка уже использована максимальное число раз'}[info.status] || 'Ссылка недействительна');
+      return;
+    }
+    if(!confirm(`Вступить в группу «${info.name}»?` + (info.description ? `\n\n${info.description}` : '') + `\n\nУчастников: ${info.members}`)) return;
+    const join = await fetch(`${API_BASE}/api/invites/${encodeURIComponent(code)}/join`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
+    if(!join.ok){ alert(await messageError(join,'Не удалось вступить')); return; }
+    const space = await join.json();
+    await loadSpaces();
+    if(openChats.get(space.id)) openChat(openChats.get(space.id));
+  }catch(err){ alert('Не удалось открыть ссылку'); }
+}
+
+// Права/фото/участие могут поменяться, пока человек в чате — подтягиваем раз в 8 секунд.
+setInterval(() => {
+  if(!getCurrentUser() || document.hidden) return;
+  loadSpaces().then(() => {
+    const c = openChats.get(activeChatId);
+    if(c && c.kind) messageInput.disabled = !canDo(c, 'send');
+  }).catch(() => {});
+}, 8000);
 
 document.getElementById('space-leave-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;

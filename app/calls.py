@@ -142,6 +142,11 @@ def _group_join(handler, user_id, message):
     if not space or space["kind"] != "group" or not is_member(space_id, user_id):
         handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "not-allowed"})
         return
+    # Начать звонок можно только с правом «calls»; присоединиться к идущему — любой участник.
+    from app.workspace import can_do
+    if space_id not in _group_rooms and not can_do(space_id, user_id, "calls"):
+        handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "not-allowed"})
+        return
 
     with _calls_lock:
         busy_1to1 = user_id in _active_calls

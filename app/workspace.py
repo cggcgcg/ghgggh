@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -41,9 +42,39 @@ def update_settings(user_id, values):
 # Каналы / группы (spaces)
 # =====================================================
 
+# Права ОБЫЧНЫХ участников группы. Владелец и админы могут всё.
+#   send        — писать текстовые сообщения
+#   media       — отправлять голосовые, кружочки, фото и файлы
+#   add_members — добавлять людей по username
+#   invite_link — создавать ссылки-приглашения
+#   pin         — закреплять сообщения
+#   calls       — начинать групповой звонок
+DEFAULT_PERMISSIONS = {
+    "send": True,
+    "media": True,
+    "add_members": False,
+    "invite_link": False,
+    "pin": False,
+    "calls": True,
+}
+
+
+def _parse_permissions(raw):
+    perms = dict(DEFAULT_PERMISSIONS)
+    try:
+        saved = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        saved = {}
+    for key in DEFAULT_PERMISSIONS:
+        if key in saved:
+            perms[key] = bool(saved[key])
+    return perms
+
+
 def _row_to_space(row):
     space = dict(row)
     space["is_private"] = bool(space.get("is_private"))
+    space["permissions"] = _parse_permissions(space.get("permissions"))
     return space
 
 
@@ -94,7 +125,7 @@ def get_spaces(user_id):
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT spaces.*, space_members.role AS my_role
+            SELECT spaces.*, space_members.role AS my_role, space_members.muted AS my_muted
             FROM spaces
             JOIN space_members ON space_members.space_id = spaces.id
             WHERE space_members.user_id = ?
@@ -159,6 +190,50 @@ def can_manage(space_id, user_id):
     return role in ("owner", "admin")
 
 
+def set_permissions(space_id, values):
+    perms = _parse_permissions(json.dumps(get_space(space_id)["permissions"]))
+    for key in DEFAULT_PERMISSIONS:
+        if key in values:
+            perms[key] = bool(values[key])
+    with get_connection() as conn:
+        conn.execute("UPDATE spaces SET permissions = ? WHERE id = ?", (json.dumps(perms), space_id))
+        conn.commit()
+    return perms
+
+
+def is_muted(space_id, user_id):
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT muted FROM space_members WHERE space_id=? AND user_id=?", (space_id, user_id)
+        ).fetchone()
+    return bool(row and row["muted"])
+
+
+def set_member_muted(space_id, user_id, muted):
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE space_members SET muted=? WHERE space_id=? AND user_id=?",
+            (1 if muted else 0, space_id, user_id),
+        )
+        conn.commit()
+    return get_members(space_id)
+
+
+def can_do(space_id, user_id, action):
+    """Может ли user_id выполнить действие (send/media/add_members/invite_link/
+    pin/calls). Владелец и админы — всегда; обычный участник — по правам
+    группы. Заглушенный участник не может ни писать, ни слать медиа."""
+    role = get_member_role(space_id, user_id)
+    if role is None:
+        return False
+    if role in ("owner", "admin"):
+        return True
+    if action in ("send", "media") and is_muted(space_id, user_id):
+        return False
+    space = get_space(space_id)
+    return bool(space and space["permissions"].get(action))
+
+
 def add_member(space_id, user_id, role="member"):
     joined_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
@@ -194,7 +269,7 @@ def get_members(space_id):
         rows = conn.execute(
             """
             SELECT space_members.user_id, space_members.role, space_members.joined_at,
-                   users.username, users.display_name
+                   space_members.muted, users.username, users.display_name
             FROM space_members
             JOIN users ON users.id = space_members.user_id
             WHERE space_members.space_id = ?

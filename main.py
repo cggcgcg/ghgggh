@@ -17,10 +17,12 @@ from app.workspace import (
     create_space, get_spaces, get_space, update_space, set_privacy, delete_space,
     get_members, add_member, remove_member, set_member_role, get_member_role,
     can_manage, is_member, join_space, search_public_spaces,
+    can_do, set_permissions, set_member_muted,
     create_device, get_devices,
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
+from app import invites
 from app.space_messages import (
     create_space_message, get_space_messages,
     set_space_pinned, delete_space_message, get_space_message,
@@ -213,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # Главная страница TGClone
-        if self.path == "/" or self.path == "/index.html":
+        if self.path.split("?")[0] in ("/", "/index.html"):
             self.send_file(
                 FRONTEND_DIR / "index.html"
             )
@@ -245,9 +247,31 @@ class Handler(BaseHTTPRequestHandler):
         # /api/spaces/search/<query>        -> поиск публичных каналов/групп по названию
         # /api/spaces/<space_id>/members    -> список участников
         # /api/spaces/<user_id>             -> список пространств, где user_id состоит участником
+        # Предпросмотр ссылки-приглашения: /api/invites/<code>
+        if self.path.startswith("/api/invites/"):
+            code = self.path.replace("/api/invites/", "", 1).split("?")[0]
+            info = invites.preview(code)
+            if info:
+                self.send_json(200, info)
+            else:
+                self.send_json(404, {"error": "Ссылка не найдена"})
+            return
+
         if self.path.startswith("/api/spaces/"):
-            remainder = self.path.replace("/api/spaces/", "", 1)
+            remainder = self.path.replace("/api/spaces/", "", 1).split("?")[0]
             parts = remainder.split("/")
+
+            if len(parts) == 2 and parts[1] == "invites":
+                q = parse_qs(urlsplit(self.path).query)
+                by = (q.get("by") or [""])[0]
+                space_id = parts[0]
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_do(space_id, by, "invite_link"):
+                    self.send_json(403, {"error": "Нет права управлять ссылками"})
+                else:
+                    self.send_json(200, invites.list_invites(space_id))
+                return
 
             if parts[0] == "find" and len(parts) == 2:
                 space = get_space(parts[1])
@@ -585,8 +609,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             manager = can_manage(msg["space_id"], user_id)
             if self.path.endswith("/pin"):
-                if not manager:
-                    self.send_json(403, {"error": "Only the owner or an admin can pin"})
+                if not can_do(msg["space_id"], user_id, "pin"):
+                    self.send_json(403, {"error": "Нет права закреплять сообщения"})
                     return
                 self.send_json(200, set_space_pinned(message_id, bool(data.get("pinned", True))))
                 return
@@ -641,14 +665,52 @@ class Handler(BaseHTTPRequestHandler):
             if not get_space(space_id):
                 self.send_json(404, {"error": "Space not found"})
                 return
-            if not can_manage(space_id, by):
-                self.send_json(403, {"error": "Only the owner or an admin can add members"})
+            if not can_do(space_id, by, "add_members"):
+                self.send_json(403, {"error": "Нет права добавлять участников"})
                 return
             target = find_by_username(username) if username else None
             if not target:
                 self.send_json(404, {"error": "Пользователь с таким username не найден"})
                 return
             self.send_json(200, add_member(space_id, target["id"]))
+            return
+
+        # Создать ссылку-приглашение: {by, hours?, max_uses?}
+        if self.path.startswith("/api/spaces/") and self.path.endswith("/invites"):
+            space_id = self.path[len("/api/spaces/"):-len("/invites")]
+            data = self.read_json_body() or {}
+            by = str(data.get("by", "")).strip()
+            if not get_space(space_id):
+                self.send_json(404, {"error": "Space not found"})
+                return
+            if not can_do(space_id, by, "invite_link"):
+                self.send_json(403, {"error": "Нет права создавать ссылки"})
+                return
+            try:
+                hours = float(data["hours"]) if data.get("hours") else None
+                max_uses = int(data["max_uses"]) if data.get("max_uses") else None
+            except (TypeError, ValueError):
+                self.send_json(400, {"error": "Неверные параметры"})
+                return
+            if (hours is not None and not 0 < hours <= 24 * 365) or (max_uses is not None and not 0 < max_uses <= 100000):
+                self.send_json(400, {"error": "Неверные параметры"})
+                return
+            self.send_json(201, invites.create_invite(space_id, by, hours, max_uses))
+            return
+
+        # Вступить по ссылке: {user_id}
+        if self.path.startswith("/api/invites/") and self.path.endswith("/join"):
+            code = self.path[len("/api/invites/"):-len("/join")]
+            data = self.read_json_body() or {}
+            user_id = str(data.get("user_id", "")).strip()
+            if not get_user(user_id):
+                self.send_json(404, {"error": "User not found"})
+                return
+            space, error = invites.use_invite(code, user_id)
+            if error:
+                self.send_json(400, {"error": error})
+            else:
+                self.send_json(200, space)
             return
 
         if self.path.startswith("/api/spaces/") and self.path.endswith("/leave"):
@@ -755,8 +817,9 @@ class Handler(BaseHTTPRequestHandler):
             if not is_member(space_id, from_user):
                 self.send_json(403, {"error": "Not a member of this space"})
                 return
-            if space["kind"] == "channel" and not can_manage(space_id, from_user):
-                self.send_json(403, {"error": "Only the owner or an admin can post in this channel"})
+            need = "media" if msg_type in ("voice", "video", "image", "file") else "send"
+            if not can_do(space_id, from_user, need):
+                self.send_json(403, {"error": "Вам запрещено отправлять сообщения в этой группе" if need == "send" else "Вам запрещено отправлять медиа в этой группе"})
                 return
 
             if msg_type in ("voice", "video", "image", "file"):
@@ -818,10 +881,33 @@ class Handler(BaseHTTPRequestHandler):
         # /api/spaces/<id>/members/<user_id>  -> сменить роль (admin/member)
         # /api/spaces/<id>                    -> изменить название/фото/описание/фон
         if self.path.startswith("/api/spaces/"):
-            remainder = self.path.replace("/api/spaces/", "", 1)
+            remainder = self.path.replace("/api/spaces/", "", 1).split("?")[0]
             parts = remainder.split("/")
             data = self.read_json_body() or {}
             by = str(data.get("by", "")).strip()
+
+            if len(parts) == 2 and parts[1] == "permissions":
+                space_id = parts[0]
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_manage(space_id, by):
+                    self.send_json(403, {"error": "Только владелец или админ меняет права"})
+                else:
+                    set_permissions(space_id, data.get("permissions") or {})
+                    self.send_json(200, get_space(space_id))
+                return
+
+            if len(parts) == 4 and parts[1] == "members" and parts[3] == "mute":
+                space_id, target_id = parts[0], parts[2]
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_manage(space_id, by):
+                    self.send_json(403, {"error": "Только владелец или админ может заглушать"})
+                elif get_member_role(space_id, target_id) in (None, "owner", "admin"):
+                    self.send_json(400, {"error": "Нельзя заглушить этого участника"})
+                else:
+                    self.send_json(200, set_member_muted(space_id, target_id, bool(data.get("muted", True))))
+                return
 
             if len(parts) == 3 and parts[1] == "members":
                 space_id, _, target_id = parts
@@ -860,10 +946,23 @@ class Handler(BaseHTTPRequestHandler):
         # /api/spaces/<id>                    -> удалить канал/группу (только владелец)
         # /api/contacts/<owner_id>/<contact_user_id> -> убрать контакт
         if self.path.startswith("/api/spaces/"):
-            remainder = self.path.replace("/api/spaces/", "", 1)
+            remainder = self.path.replace("/api/spaces/", "", 1).split("?")[0]
             parts = remainder.split("/")
             data = self.read_json_body() or {}
             by = str(data.get("by", "")).strip()
+
+            if len(parts) == 3 and parts[1] == "invites":
+                space_id, code = parts[0], parts[2]
+                q = parse_qs(urlsplit(self.path).query)
+                by = (q.get("by") or [""])[0] or by
+                if not get_space(space_id):
+                    self.send_json(404, {"error": "Space not found"})
+                elif not can_do(space_id, by, "invite_link"):
+                    self.send_json(403, {"error": "Нет права"})
+                else:
+                    invites.revoke_invite(space_id, code)
+                    self.send_json(200, {"ok": True})
+                return
 
             if len(parts) == 3 and parts[1] == "members":
                 space_id, _, target_id = parts
