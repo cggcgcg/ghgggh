@@ -417,3 +417,32 @@ def use_invite(code, user_id):
         conn.execute("UPDATE space_invites SET uses = uses + 1 WHERE code = ?", (code,))
         conn.commit()
     return get_space(space["id"]), None
+
+
+# ---------- закреплённые чаты ----------
+MAX_PINNED = 5
+
+
+def list_pinned(user_id):
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT chat_id FROM pinned_chats WHERE user_id = ? ORDER BY pinned_at", (user_id,)
+        ).fetchall()
+    return [r["chat_id"] for r in rows]
+
+
+def set_pinned(user_id, chat_id, pinned):
+    """Возвращает (список, ошибка)."""
+    with get_connection() as conn:
+        if pinned:
+            have = [r["chat_id"] for r in conn.execute(
+                "SELECT chat_id FROM pinned_chats WHERE user_id = ?", (user_id,)).fetchall()]
+            if chat_id not in have and len(have) >= MAX_PINNED:
+                return have, "Можно закрепить не больше %d чатов" % MAX_PINNED
+            conn.execute(
+                "INSERT OR IGNORE INTO pinned_chats (user_id, chat_id, pinned_at) VALUES (?, ?, ?)",
+                (user_id, chat_id, datetime.now(timezone.utc).isoformat()))
+        else:
+            conn.execute("DELETE FROM pinned_chats WHERE user_id = ? AND chat_id = ?", (user_id, chat_id))
+        conn.commit()
+    return list_pinned(user_id), None

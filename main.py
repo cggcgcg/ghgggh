@@ -22,9 +22,16 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-APP_VERSION = "v11-presence-media"
+APP_VERSION = "v13-sync-saved-pins"
 
 from app import workspace as invites
+from app import messages as messages_mod
+from app import workspace as pins_mod
+from app import blocks as blocks_mod
+try:
+    from app import web_assets          # PWA и страницы правил (необязательный файл)
+except ImportError:
+    web_assets = None
 from app import users as users_mod
 from app.space_messages import (
     create_space_message, get_space_messages,
@@ -47,7 +54,16 @@ class Handler(BaseHTTPRequestHandler):
     # ещё до того, как долетал самый первый ws-фрейм ("hello") от клиента.
     protocol_version = "HTTP/1.1"
 
+    def send_bytes(self, status, body, content_type, cache="no-cache"):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", cache)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def send_json(self, status, data):
+        self._status = status
         response = json.dumps(
             data,
             ensure_ascii=False
@@ -187,7 +203,20 @@ class Handler(BaseHTTPRequestHandler):
                 "error": "File not found"
             })
 
+    def handle_one_request(self):
+        # Один обработчик обслуживает несколько запросов по одному соединению —
+        # кэш тела запроса надо сбрасывать перед каждым новым запросом.
+        self.__dict__.pop("_json_cache", None)
+        self._status = 0
+        super().handle_one_request()
+
     def read_json_body(self):
+        if hasattr(self, "_json_cache"):
+            return self._json_cache
+        self._json_cache = self._read_json_body_raw()
+        return self._json_cache
+
+    def _read_json_body_raw(self):
         try:
             content_length = int(
                 self.headers.get("Content-Length", 0)
@@ -222,6 +251,60 @@ class Handler(BaseHTTPRequestHandler):
             self.send_file(
                 FRONTEND_DIR / "index.html"
             )
+            return
+
+        # ---- установка как приложение (PWA) и страницы правил ----
+        route = self.path.split("?")[0]
+        if web_assets:
+            if route == "/manifest.webmanifest":
+                self.send_bytes(200, web_assets.manifest().encode("utf-8"), "application/manifest+json; charset=utf-8")
+                return
+            if route == "/sw.js":
+                self.send_bytes(200, web_assets.SERVICE_WORKER.encode("utf-8"), "application/javascript; charset=utf-8", "no-cache")
+                return
+            if route in ("/icon-192.png", "/icon-512.png"):
+                self.send_bytes(200, web_assets.icon(512 if "512" in route else 192), "image/png", "public, max-age=86400")
+                return
+            if route in ("/terms", "/privacy", "/delete-account"):
+                self.send_bytes(200, web_assets.page(route[1:]), "text/html; charset=utf-8")
+                return
+
+        # ---- «печатает…»: /api/activity/<viewer>/<chat_id> ----
+        if route.startswith("/api/activity/"):
+            parts = route[len("/api/activity/"):].split("/")
+            if len(parts) == 2:
+                viewer, chat_id = parts
+                if get_space(chat_id):
+                    acts = users_mod.get_activity(chat_id, exclude_user=viewer)
+                else:
+                    acts = [a for a in users_mod.get_activity(viewer) if a["user_id"] == chat_id]
+                for a in acts:
+                    u = get_user(a["user_id"])
+                    a["name"] = u["display_name"] if u else ""
+                self.send_json(200, acts)
+                return
+
+        # ---- закреплённые чаты: /api/pinned-chats/<user_id> ----
+        if route.startswith("/api/pinned-chats/"):
+            self.send_json(200, pins_mod.list_pinned(route[len("/api/pinned-chats/"):]))
+            return
+
+        # ---- непрочитанные: /api/unread/<user_id> ----
+        if route.startswith("/api/unread/"):
+            self.send_json(200, messages_mod.unread_summary(route[len("/api/unread/"):]))
+            return
+
+        # ---- админ ----
+        if route == "/api/admin/check":
+            q = parse_qs(urlsplit(self.path).query)
+            self.send_json(200, {"is_admin": blocks_mod.is_admin((q.get("user") or [""])[0])})
+            return
+        if route == "/api/admin/reports":
+            q = parse_qs(urlsplit(self.path).query)
+            if not blocks_mod.is_admin((q.get("admin") or [""])[0]):
+                self.send_json(403, {"error": "Только для администратора"})
+                return
+            self.send_json(200, blocks_mod.list_reports_for_admin())
             return
 
         # Проверка сервера
@@ -442,7 +525,54 @@ class Handler(BaseHTTPRequestHandler):
     # POST
     # =====================================================
 
+    # ---- мгновенные обновления: сервер «пинает» нужных людей по WebSocket,
+    # а страница сразу перезагружает чат (вместо опроса раз в 0,7 с) ----
+    def _sync_targets(self):
+        path = self.path.split("?")[0]
+        data = self.read_json_body() or {}
+        if not isinstance(data, dict):
+            return None
+        g = lambda k: str(data.get(k, "")).strip()
+        if path == "/api/messages":
+            return "msg", [g("to_user")]
+        if path == "/api/space-messages":
+            return "msg", [m["user_id"] for m in get_members(g("space_id")) if m["user_id"] != g("from_user")]
+        if path == "/api/messages/read":
+            return "msg", [g("other_id")]
+        if path in ("/api/messages/played", "/api/messages/pin", "/api/messages/delete", "/api/reactions"):
+            m = messages_mod.get_message(g("message_id"))
+            if m:
+                return "msg", [u for u in (m["from_user"], m["to_user"]) if u != g("user_id")]
+            sm = get_space_message(g("message_id"))
+            if sm:
+                return "msg", [x["user_id"] for x in get_members(sm["space_id"]) if x["user_id"] != g("user_id")]
+            return None
+        if path in ("/api/space-messages/pin", "/api/space-messages/delete"):
+            sm = get_space_message(g("message_id"))
+            if sm:
+                return "msg", [x["user_id"] for x in get_members(sm["space_id"]) if x["user_id"] != g("user_id")]
+            return None
+        if path == "/api/activity":
+            chat = g("chat_id")
+            if get_space(chat):
+                return "activity", [m["user_id"] for m in get_members(chat) if m["user_id"] != g("user_id")]
+            return "activity", [chat]
+        return None
+
     def do_POST(self):
+        self._status = 0
+        try:
+            sync = self._sync_targets()
+        except Exception as error:
+            print("SYNC TARGETS ERROR:", error)
+            sync = None
+        self._do_post_inner()
+        if sync and 200 <= self._status < 300:
+            for uid in set(sync[1]):
+                if uid:
+                    calls.push(uid, {"type": "sync", "scope": sync[0]})
+
+    def _do_post_inner(self):
 
         # Создание пользователя
         if self.path == "/api/users":
@@ -477,6 +607,10 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
 
+            if not data.get("accepted_terms"):
+                self.send_json(400, {"error": "Нужно принять правила и политику конфиденциальности"})
+                return
+
             # Проверяем, существует ли username
             if find_by_username(username):
                 self.send_json(409, {
@@ -489,6 +623,8 @@ class Handler(BaseHTTPRequestHandler):
                     username,
                     display_name
                 )
+                if data.get("accepted_terms"):
+                    users_mod.accept_terms(user["id"])
 
                 self.send_json(201, user)
 
@@ -502,6 +638,84 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # Отправка сообщения (текст или голосовое)
+        # ---- закрепить чат: {user_id, chat_id, pinned} ----
+        if self.path == "/api/pinned-chats":
+            data = self.read_json_body() or {}
+            uid, cid = str(data.get("user_id", "")).strip(), str(data.get("chat_id", "")).strip()
+            if not get_user(uid) or not cid:
+                self.send_json(400, {"error": "user_id and chat_id are required"})
+                return
+            result, error = pins_mod.set_pinned(uid, cid, bool(data.get("pinned", True)))
+            if error:
+                self.send_json(400, {"error": error, "pinned": result})
+            else:
+                self.send_json(200, result)
+            return
+
+        # ---- активность («печатает…»): {user_id, chat_id, kind} ----
+        if self.path == "/api/activity":
+            data = self.read_json_body() or {}
+            users_mod.set_activity(str(data.get("user_id", "")), str(data.get("chat_id", "")), str(data.get("kind", "none")))
+            self.send_json(200, {"ok": True})
+            return
+
+        # ---- прочитано в группе ----
+        if self.path == "/api/space-read":
+            data = self.read_json_body() or {}
+            uid, sid = str(data.get("user_id", "")), str(data.get("space_id", ""))
+            if is_member(sid, uid):
+                messages_mod.mark_space_read(sid, uid)
+            self.send_json(200, {"ok": True})
+            return
+
+        # ---- реакция: {message_id, user_id, emoji} ----
+        if self.path == "/api/reactions":
+            data = self.read_json_body() or {}
+            mid, uid = str(data.get("message_id", "")), str(data.get("user_id", ""))
+            msg = messages_mod.get_message(mid)
+            smsg = None if msg else get_space_message(mid)
+            allowed = (msg and uid in (msg["from_user"], msg["to_user"])) or (smsg and is_member(smsg["space_id"], uid))
+            if not allowed:
+                self.send_json(404, {"error": "Message not found"})
+                return
+            messages_mod.set_reaction(mid, uid, str(data.get("emoji", "")))
+            self.send_json(200, {"ok": True})
+            return
+
+        # ---- жалоба: {reporter_id, target_user_id?, message_id?, reason, details?} ----
+        if self.path == "/api/reports":
+            data = self.read_json_body() or {}
+            rid = str(data.get("reporter_id", "")).strip()
+            if not get_user(rid):
+                self.send_json(404, {"error": "User not found"})
+                return
+            result, error = blocks_mod.create_report(
+                rid, str(data.get("target_user_id", "")).strip() or None, str(data.get("reason", "")),
+                str(data.get("details", "")), str(data.get("message_id", "")).strip() or None)
+            if error:
+                self.send_json(400, {"error": error})
+            else:
+                self.send_json(201, result)
+            return
+
+        # ---- решение администратора: {admin, target_user_id, action: dismiss|ban|unban} ----
+        if self.path == "/api/admin/resolve":
+            data = self.read_json_body() or {}
+            if not blocks_mod.is_admin(str(data.get("admin", ""))):
+                self.send_json(403, {"error": "Только для администратора"})
+                return
+            action = str(data.get("action", ""))
+            if action not in ("dismiss", "ban", "unban"):
+                self.send_json(400, {"error": "action: dismiss | ban | unban"})
+                return
+            target = str(data.get("target_user_id", ""))
+            if blocks_mod.is_admin(target) and action == "ban":
+                self.send_json(400, {"error": "Нельзя заблокировать администратора"})
+                return
+            blocks_mod.resolve_reports(target, action)
+            self.send_json(200, {"ok": True})
+            return
+
         if self.path == "/api/messages":
 
             data = self.read_json_body()
@@ -514,6 +728,9 @@ class Handler(BaseHTTPRequestHandler):
 
             from_user = str(data.get("from_user", "")).strip()
             to_user = str(data.get("to_user", "")).strip()
+            if users_mod.is_banned(from_user):
+                self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
+                return
             text = str(data.get("text", "")).strip()
             msg_type = str(data.get("type", "text")).strip() or "text"
             audio_data = data.get("audio_data")
@@ -844,6 +1061,9 @@ class Handler(BaseHTTPRequestHandler):
             if not get_user(from_user):
                 self.send_json(404, {"error": "User not found"})
                 return
+            if users_mod.is_banned(from_user):
+                self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
+                return
             if not is_member(space_id, from_user):
                 self.send_json(403, {"error": "Not a member of this space"})
                 return
@@ -971,6 +1191,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"error": "Not found"})
 
     def do_DELETE(self):
+        # Удаление аккаунта: DELETE /api/users/<id>  тело: {confirm: "<username>"}
+        if self.path.startswith("/api/users/"):
+            uid = self.path[len("/api/users/"):].split("?")[0]
+            data = self.read_json_body() or {}
+            user = get_user(uid)
+            if not user:
+                self.send_json(404, {"error": "User not found"})
+            elif str(data.get("confirm", "")).strip().lower() != user["username"].lower():
+                self.send_json(400, {"error": "Введите свой username для подтверждения"})
+            else:
+                users_mod.delete_account(uid)
+                self.send_json(200, {"ok": True})
+            return
+
         # /api/spaces/<id>/members/<user_id>  -> убрать участника (сам вышел,
         #                                         либо владелец/админ выгнал)
         # /api/spaces/<id>                    -> удалить канал/группу (только владелец)

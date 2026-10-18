@@ -353,6 +353,19 @@ def send_to(user_id, message):
         return False
 
 
+def push(user_id, message):
+    """Тихая отправка события пользователю (без логов) — для мгновенных обновлений чата."""
+    with _clients_lock:
+        handler = _clients.get(user_id)
+    if not handler:
+        return False
+    try:
+        handler.send_ws_json(message)
+        return True
+    except Exception:
+        return False
+
+
 def is_online(user_id):
     with _clients_lock:
         return user_id in _clients

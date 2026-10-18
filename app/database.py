@@ -90,6 +90,42 @@ CREATE TABLE IF NOT EXISTS space_invites (
     revoked INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS message_reactions (
+    message_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS space_reads (
+    space_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    last_read_at TEXT NOT NULL,
+    PRIMARY KEY (space_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS pinned_chats (
+    user_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    pinned_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, chat_id)
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    reporter_id TEXT NOT NULL,
+    target_user_id TEXT NOT NULL,
+    space_id TEXT,
+    message_id TEXT,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    evidence TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS message_hidden (
     message_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -180,6 +216,11 @@ def init_db():
         if not _column_exists(conn, "users", "status_visibility"):
             conn.execute("ALTER TABLE users ADD COLUMN status_visibility TEXT NOT NULL DEFAULT 'everyone'")
             conn.execute("UPDATE users SET status_visibility = 'nobody' WHERE hide_status = 1")
+
+        if not _column_exists(conn, "users", "banned"):
+            conn.execute("ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0")
+        if not _column_exists(conn, "users", "terms_accepted_at"):
+            conn.execute("ALTER TABLE users ADD COLUMN terms_accepted_at TEXT")
 
         # Права участников группы (JSON) и «заглушенные» участники.
         if not _column_exists(conn, "spaces", "permissions"):

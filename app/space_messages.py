@@ -55,7 +55,8 @@ def get_space_messages(space_id, viewer=None):
             """,
             (space_id, viewer or ""),
         ).fetchall()
-    return [dict(row) for row in rows]
+    from app.messages import attach_reactions
+    return attach_reactions([dict(row) for row in rows])
 
 
 def set_space_pinned(message_id, pinned):
