@@ -22,7 +22,10 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-from app import invites
+APP_VERSION = "v11-presence-media"
+
+from app import workspace as invites
+from app import users as users_mod
 from app.space_messages import (
     create_space_message, get_space_messages,
     set_space_pinned, delete_space_message, get_space_message,
@@ -225,7 +228,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/health":
             self.send_json(200, {
                 "status": "ok",
-                "project": "TGClone"
+                "project": "TGClone",
+                "version": APP_VERSION
             })
             return
 
@@ -247,6 +251,17 @@ class Handler(BaseHTTPRequestHandler):
         # /api/spaces/search/<query>        -> поиск публичных каналов/групп по названию
         # /api/spaces/<space_id>/members    -> список участников
         # /api/spaces/<user_id>             -> список пространств, где user_id состоит участником
+        # Статус «в сети»: /api/presence/<user_id>?viewer=<id>
+        if self.path.startswith("/api/presence/"):
+            target = self.path.replace("/api/presence/", "", 1).split("?")[0]
+            q = parse_qs(urlsplit(self.path).query)
+            info = users_mod.get_presence(target, (q.get("viewer") or [""])[0])
+            if info:
+                self.send_json(200, info)
+            else:
+                self.send_json(404, {"error": "User not found"})
+            return
+
         # Предпросмотр ссылки-приглашения: /api/invites/<code>
         if self.path.startswith("/api/invites/"):
             code = self.path.replace("/api/invites/", "", 1).split("?")[0]
@@ -673,6 +688,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(404, {"error": "Пользователь с таким username не найден"})
                 return
             self.send_json(200, add_member(space_id, target["id"]))
+            return
+
+        # Пульс присутствия: {user_id, hide_status?}
+        if self.path == "/api/presence":
+            data = self.read_json_body() or {}
+            uid = str(data.get("user_id", "")).strip()
+            if not get_user(uid):
+                self.send_json(404, {"error": "User not found"})
+                return
+            if "status_visibility" in data:
+                if not users_mod.set_status_visibility(uid, str(data.get("status_visibility"))):
+                    self.send_json(400, {"error": "status_visibility: everyone | contacts | nobody"})
+                    return
+            users_mod.touch_user(uid)
+            self.send_json(200, users_mod.get_presence(uid, uid))
             return
 
         # Создать ссылку-приглашение: {by, hours?, max_uses?}

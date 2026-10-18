@@ -79,6 +79,17 @@ CREATE TABLE IF NOT EXISTS space_messages (
     waveform TEXT
 );
 
+CREATE TABLE IF NOT EXISTS space_invites (
+    code TEXT PRIMARY KEY,
+    space_id TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    max_uses INTEGER,
+    uses INTEGER NOT NULL DEFAULT 0,
+    revoked INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS message_hidden (
     message_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -160,6 +171,21 @@ def init_db():
 
         if not _column_exists(conn, "spaces", "invite_code"):
             conn.execute("ALTER TABLE spaces ADD COLUMN invite_code TEXT")
+
+        # Статус «в сети»: время последней активности и флаг «скрыть от всех».
+        if not _column_exists(conn, "users", "last_seen"):
+            conn.execute("ALTER TABLE users ADD COLUMN last_seen TEXT")
+        if not _column_exists(conn, "users", "hide_status"):
+            conn.execute("ALTER TABLE users ADD COLUMN hide_status INTEGER NOT NULL DEFAULT 0")
+        if not _column_exists(conn, "users", "status_visibility"):
+            conn.execute("ALTER TABLE users ADD COLUMN status_visibility TEXT NOT NULL DEFAULT 'everyone'")
+            conn.execute("UPDATE users SET status_visibility = 'nobody' WHERE hide_status = 1")
+
+        # Права участников группы (JSON) и «заглушенные» участники.
+        if not _column_exists(conn, "spaces", "permissions"):
+            conn.execute("ALTER TABLE spaces ADD COLUMN permissions TEXT NOT NULL DEFAULT '{}'")
+        if not _column_exists(conn, "space_members", "muted"):
+            conn.execute("ALTER TABLE space_members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0")
 
         # Каналы убраны из продукта: уже созданные становятся обычными группами.
         conn.execute("UPDATE spaces SET kind = 'group' WHERE kind = 'channel'")

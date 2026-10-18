@@ -1663,6 +1663,55 @@ body,[data-ui-design]{background:var(--bg);}
 .invite-actions button,.space-member-actions button.mute-on{border:1px solid var(--border);background:var(--bg-alt);color:var(--text);border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;}
 .space-member-muted{font-size:11px;color:var(--text-dim);margin-left:6px;}
 </style>
+<style id="v11-media">
+/* ---- меню «скрепка» ---- */
+.attach-menu{flex-direction:row;gap:10px;padding:12px;border-radius:18px;}
+.attach-menu button.at-tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:92px;padding:12px 6px;border-radius:14px;font-size:12px;color:var(--text);background:var(--surface-hi);border:1px solid var(--border-soft);}
+.attach-menu button.at-tile:hover{border-color:var(--accent);}
+.at-ico{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:20px;color:#fff;background:var(--accent);}
+.at-tile[data-attach="file"] .at-ico{background:color-mix(in srgb,var(--accent) 55%,#7a8599);}
+/* ---- окно подтверждения отправки ---- */
+.sp-backdrop{position:fixed;inset:0;z-index:90;background:rgba(5,7,14,.62);display:flex;align-items:flex-end;justify-content:center;}
+.sp-card{width:min(440px,100%);background:var(--surface);border:1px solid var(--border);border-radius:22px 22px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -20px 50px -20px rgba(0,0,0,.7);animation:spUp .22s ease-out;}
+@media(min-width:760px){.sp-backdrop{align-items:center}.sp-card{border-radius:22px}}
+@keyframes spUp{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.sp-title{margin:0 0 12px;font:700 16px var(--font-display);}
+.sp-image{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:14px;background:var(--bg-alt);}
+.sp-actions{display:flex;gap:10px;margin-top:14px;}
+.sp-actions button{flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surface-hi);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;}
+.sp-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+/* ---- карточка файла (и в превью, и в сообщении) ---- */
+.fcard{display:flex;align-items:center;gap:12px;min-width:0;}
+.fcard-ico{flex:0 0 auto;width:46px;height:46px;border-radius:13px;background:var(--fc,var(--accent));color:#fff;display:grid;place-items:center;font:700 11px var(--font-mono);letter-spacing:.03em;}
+.fcard-meta{min-width:0;display:flex;flex-direction:column;gap:3px;}
+.fcard-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fcard-size{font-size:12px;opacity:.7;}
+.fcard-dl{margin-left:auto;flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);font-size:15px;}
+.fcard[data-ext="pdf"]{--fc:#d9534f}.fcard[data-ext="doc"],.fcard[data-ext="docx"],.fcard[data-ext="txt"]{--fc:#3b7ddd}
+.fcard[data-ext="xls"],.fcard[data-ext="xlsx"],.fcard[data-ext="csv"]{--fc:#2f9e63}
+.fcard[data-ext="zip"],.fcard[data-ext="rar"],.fcard[data-ext="7z"]{--fc:#e08a2c}
+.fcard[data-ext="mp3"],.fcard[data-ext="wav"],.fcard[data-ext="ogg"]{--fc:#8a5bd6}
+.fcard[data-ext="ppt"],.fcard[data-ext="pptx"]{--fc:#d9702f}
+.msg.file-message{min-width:230px;max-width:min(320px,82%);padding:10px 12px;}
+.msg.file-message a{width:100%;}
+.msg.file-message .fcard-ico{border-radius:12px;}
+.msg.file-message{flex-wrap:wrap;}
+.msg.file-message .msg-meta{width:100%;justify-content:flex-end;white-space:nowrap;margin-top:2px;}
+.msg.image-message{padding:3px;border-radius:18px;max-width:min(290px,76%);overflow:hidden;}
+.msg.image-message img{border-radius:15px;width:100%;max-height:360px;object-fit:cover;background:var(--bg-alt);}
+.msg.pending-file{opacity:.85;}
+.msg.pending-file .fcard-dl{animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ---- просмотр фото ---- */
+.lightbox{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;}
+.lightbox img{max-width:100%;max-height:100%;object-fit:contain;}
+.lightbox button,.lightbox a{position:absolute;top:calc(12px + env(safe-area-inset-top));width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:18px;display:grid;place-items:center;text-decoration:none;cursor:pointer;}
+.lightbox .lb-close{right:14px}.lightbox .lb-dl{right:66px}
+/* ---- статус «в сети» ---- */
+#conv-header-status.online{color:var(--accent-b);}
+.vis-select{width:100%;padding:11px;border:1px solid var(--border);border-radius:12px;background:var(--bg-alt);color:var(--text);font-size:14px;margin:4px 0 6px;}
+.ver-note{margin-top:18px;font:11px var(--font-mono);color:var(--text-faint);}
+</style>
 </head>
 <body data-app-theme="c-blue" data-ui-design="dark">
 
@@ -1815,8 +1864,8 @@ body,[data-ui-design]{background:var(--bg);}
           <input type="file" id="attach-photo-input" accept="image/*" hidden>
           <input type="file" id="attach-file-input" hidden>
           <div class="attach-menu" id="attach-menu" hidden>
-            <button type="button" data-attach="photo">🖼 Фото</button>
-            <button type="button" data-attach="file">📄 Файл</button>
+            <button type="button" class="at-tile" data-attach="photo"><span class="at-ico">🖼</span>Фото</button>
+            <button type="button" class="at-tile" data-attach="file"><span class="at-ico">📄</span>Файл</button>
           </div>
           <p class="auth-error attach-error" id="attach-error" hidden></p>
           <button type="button" id="media-btn" class="icon-btn mic-hold media-mode-btn" aria-label="Нажмите для смены режима, удерживайте для записи">🎤</button>
@@ -1861,7 +1910,10 @@ body,[data-ui-design]{background:var(--bg);}
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
       </nav>
       <div class="settings-content">
-        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p></div>
+        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p>
+<h4 style="margin:22px 0 4px">Статус «в сети»</h4><p class="section-note" style="margin:0 0 6px">Кто видит, когда вы онлайн и во сколько заходили. Остальным показывается «был(а) недавно».</p>
+<select id="status-visibility" class="vis-select"><option value="everyone">Видят все</option><option value="contacts">Только мои контакты</option><option value="nobody">Скрыт ото всех</option></select>
+<div class="ver-note" id="ver-note"></div></div>
         <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Цвет</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
@@ -3475,6 +3527,7 @@ async function enterApp(){
   loadSettings();
   loadDevices();
   loadSpaces().then(handleJoinLink);
+  startPresence();
   loadContacts();
   loadBlocked();
   loadConversations();
@@ -3702,9 +3755,11 @@ async function setActiveChat(id){
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   // Писать может тот, кому разрешили права группы (владелец и админы — всегда).
   const canPost = canDo(chat, 'send');
+  document.getElementById('conv-header-status').classList.remove('online');
   document.getElementById('conv-header-status').textContent = isSpace
     ? (chat.kind === 'channel' ? 'канал' : 'группа')
     : '@' + chat.username;
+  if(!isSpace) setTimeout(() => { if(typeof refreshPresence === 'function') refreshPresence(); }, 0);
   if(isSpace) refreshSpaceMemberCount(chat.id);
   applySpaceBackground(isSpace ? chat.background : null);
   messageInput.disabled = !canPost;
@@ -4135,6 +4190,40 @@ function dataUrlByteSize(dataUrl){
   return Math.max(0, Math.floor(b64.length * 3 / 4) - padding);
 }
 
+function fileExt(name){
+  const m = /\.([A-Za-z0-9]{1,5})$/.exec(name || '');
+  return m ? m[1].toLowerCase() : '';
+}
+function fileCard(name, sizeText, extra){
+  const ext = fileExt(name);
+  const card = document.createElement('div');
+  card.className = 'fcard';
+  card.dataset.ext = ext;
+  const ico = document.createElement('span'); ico.className = 'fcard-ico'; ico.textContent = (ext || 'файл').slice(0,4).toUpperCase();
+  const meta = document.createElement('span'); meta.className = 'fcard-meta';
+  const n = document.createElement('span'); n.className = 'fcard-name'; n.textContent = name || 'file';
+  const sz = document.createElement('span'); sz.className = 'fcard-size'; sz.textContent = sizeText || '';
+  meta.append(n, sz);
+  card.append(ico, meta);
+  if(extra) card.append(extra);
+  return card;
+}
+
+function openLightbox(src, name){
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  const img = document.createElement('img'); img.src = src; img.alt = name || '';
+  const close = document.createElement('button'); close.className = 'lb-close'; close.type = 'button'; close.textContent = '✕';
+  const dl = document.createElement('a'); dl.className = 'lb-dl'; dl.href = src; dl.download = name || 'photo.jpg'; dl.textContent = '⬇';
+  const shut = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if(e.key === 'Escape') shut(); };
+  document.addEventListener('keydown', onKey);
+  close.addEventListener('click', shut);
+  box.addEventListener('click', e => { if(e.target === box) shut(); });
+  box.append(img, dl, close);
+  document.body.appendChild(box);
+}
+
 function ImageMessage(m){
   const bubble = document.createElement('div');
   bubble.className = 'msg ' + (m.out ? 'out' : 'in') + ' image-message';
@@ -4142,11 +4231,7 @@ function ImageMessage(m){
   img.src = m.audio_data;
   img.alt = m.text || 'photo';
   img.loading = 'lazy';
-  // Тап по фото — открыть в полном размере в новой вкладке.
-  img.addEventListener('click', () => {
-    const w = window.open();
-    if(w){ w.document.write(`<title>photo</title><body style="margin:0;background:#000;display:grid;place-items:center;min-height:100vh"><img src="${m.audio_data}" style="max-width:100%;max-height:100vh"></body>`); w.document.close(); }
-  });
+  img.addEventListener('click', () => openLightbox(m.audio_data, m.text));
   bubble.appendChild(img);
   return bubble;
 }
@@ -4157,19 +4242,8 @@ function FileMessage(m){
   const link = document.createElement('a');
   link.href = m.audio_data;
   link.download = m.text || 'file';
-  const icon = document.createElement('span');
-  icon.className = 'file-icon';
-  icon.textContent = '📄';
-  const meta = document.createElement('span');
-  meta.className = 'file-meta';
-  const name = document.createElement('span');
-  name.className = 'file-name';
-  name.textContent = m.text || 'file';
-  const size = document.createElement('span');
-  size.className = 'file-size';
-  size.textContent = formatFileSize(dataUrlByteSize(m.audio_data));
-  meta.append(name, size);
-  link.append(icon, meta);
+  const dl = document.createElement('span'); dl.className = 'fcard-dl'; dl.textContent = '⬇';
+  link.appendChild(fileCard(m.text || 'file', formatFileSize(dataUrlByteSize(m.audio_data)), dl));
   bubble.appendChild(link);
   return bubble;
 }
@@ -5499,8 +5573,14 @@ async function sendAttachment(kind, file){
   }
 
   const pending = document.createElement('div');
-  pending.className = 'msg out image-message';
-  pending.innerHTML = '<div class="media-pending" style="width:120px;height:120px;border-radius:14px"><span class="media-pending-spinner"></span></div>';
+  if(kind === 'photo'){
+    pending.className = 'msg out image-message';
+    pending.innerHTML = '<div class="media-pending" style="width:120px;height:120px;border-radius:14px"><span class="media-pending-spinner"></span></div>';
+  }else{
+    pending.className = 'msg out file-message pending-file';
+    const sp = document.createElement('span'); sp.className = 'fcard-dl'; sp.textContent = '⟳';
+    pending.appendChild(fileCard(file.name || 'file', formatFileSize(file.size), sp));
+  }
   convMessages.appendChild(pending);
   convMessages.scrollTop = convMessages.scrollHeight;
 
@@ -5537,16 +5617,93 @@ attachMenu.querySelectorAll('[data-attach]').forEach(option => option.addEventLi
 document.addEventListener('click', event => {
   if(!attachMenu.hidden && !event.target.closest('#attach-menu')) attachMenu.hidden = true;
 });
+function confirmSend(kind, file){
+  const back = document.createElement('div'); back.className = 'sp-backdrop';
+  const card = document.createElement('div'); card.className = 'sp-card';
+  const title = document.createElement('h3'); title.className = 'sp-title'; title.textContent = kind === 'photo' ? 'Отправить фото?' : 'Отправить файл?';
+  card.appendChild(title);
+  let url = null;
+  if(kind === 'photo' && String(file.type).startsWith('image/')){
+    url = URL.createObjectURL(file);
+    const img = document.createElement('img'); img.className = 'sp-image'; img.src = url; card.appendChild(img);
+  }else{
+    card.appendChild(fileCard(file.name || 'file', formatFileSize(file.size)));
+  }
+  const actions = document.createElement('div'); actions.className = 'sp-actions';
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Отмена';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'primary'; ok.textContent = 'Отправить';
+  const shut = () => { if(url) URL.revokeObjectURL(url); back.remove(); };
+  cancel.addEventListener('click', shut);
+  back.addEventListener('click', e => { if(e.target === back) shut(); });
+  ok.addEventListener('click', () => { shut(); sendAttachment(kind, file); });
+  actions.append(cancel, ok); card.appendChild(actions); back.appendChild(card);
+  document.body.appendChild(back);
+}
 attachPhotoInput.addEventListener('change', () => {
   const file = attachPhotoInput.files?.[0];
   attachPhotoInput.value = '';
-  if(file) sendAttachment('photo', file);
+  if(file) confirmSend('photo', file);
 });
 attachFileInput.addEventListener('change', () => {
   const file = attachFileInput.files?.[0];
   attachFileInput.value = '';
-  if(file) sendAttachment('file', file);
+  if(file) confirmSend('file', file);
 });
+
+// ==========================================================
+// Статус «в сети» / «был(а)…»
+// ==========================================================
+const CLIENT_VERSION = 'v11-presence-media';
+async function presencePing(extra){
+  const me = getCurrentUser(); if(!me) return null;
+  try{
+    const res = await fetch(`${API_BASE}/api/presence`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({user_id: me.id}, extra || {}))});
+    return res.ok ? await res.json() : null;
+  }catch{ return null; }
+}
+function lastSeenText(info){
+  const ru = (document.documentElement.lang || 'ru') === 'ru';
+  if(!info || info.status === 'recently') return ru ? 'был(а) недавно' : 'last seen recently';
+  if(info.status === 'online') return ru ? 'в сети' : 'online';
+  const d = new Date(info.last_seen), now = new Date();
+  const hm = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const days = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if(days <= 0) return (ru ? 'был(а) в ' : 'last seen at ') + hm;
+  if(days === 1) return (ru ? 'был(а) вчера в ' : 'last seen yesterday at ') + hm;
+  return (ru ? 'был(а) ' : 'last seen ') + d.toLocaleDateString();
+}
+async function refreshPresence(){
+  const me = getCurrentUser(); const chat = openChats.get(activeChatId);
+  const el = document.getElementById('conv-header-status');
+  if(!me || !chat || chat.kind || !el) return;
+  try{
+    const res = await fetch(`${API_BASE}/api/presence/${encodeURIComponent(chat.id)}?viewer=${encodeURIComponent(me.id)}`, {cache:'no-store'});
+    if(!res.ok || activeChatId !== chat.id) return;
+    const info = await res.json();
+    el.textContent = lastSeenText(info);
+    el.classList.toggle('online', info.status === 'online');
+  }catch{}
+}
+let presenceTimer = null;
+function startPresence(){
+  if(presenceTimer) return;
+  const tick = async () => {
+    if(document.hidden) return;
+    const info = await presencePing();
+    const sel = document.getElementById('status-visibility');
+    if(info && info.visibility && sel && document.activeElement !== sel) sel.value = info.visibility;
+    refreshPresence();
+  };
+  tick();
+  presenceTimer = setInterval(tick, 15000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) tick(); });
+}
+document.getElementById('status-visibility').addEventListener('change', async event => {
+  await presencePing({status_visibility: event.target.value});
+});
+fetch(`${API_BASE}/api/health`).then(r => r.json()).then(h => {
+  document.getElementById('ver-note').textContent = `Версия: страница ${CLIENT_VERSION} · сервер ${h.version || 'старая (без номера)'}`;
+}).catch(() => {});
 
 // ==========================================================
 // Профиль собеседника (попап по тапу на аватар/имя в шапке чата)
