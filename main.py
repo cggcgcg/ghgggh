@@ -22,7 +22,7 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-APP_VERSION = "v14-mijer"
+APP_VERSION = "v15-gcall"
 
 from app import workspace as invites
 from app import messages as messages_mod
@@ -319,6 +319,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # Проверка сервера
+        if self.path == "/api/ice-config":
+            self.send_json(200, {"iceServers": calls.ice_servers()})
+            return
+
         if self.path == "/api/health":
             self.send_json(200, {
                 "status": "ok",

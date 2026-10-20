@@ -96,6 +96,8 @@ def _finalize_call_log(ended_by, peer_id, reason):
 # комнате. Комната = одна группа (space_id).
 # ---------------------------------------------------------------------------
 GROUP_CALL_MAX = 6
+SOLO_GRACE = float(os.environ.get("SOLO_GRACE", "15"))      # сек: сколько ждём, если в звонке остался один
+DISCONNECT_GRACE = float(os.environ.get("DISCONNECT_GRACE", "12"))  # сек: сколько ждём переподключения сокета
 
 # space_id -> {"starter", "mode", "started_at", "members": {user_id: joined_at}}
 _group_rooms = {}
@@ -209,14 +211,65 @@ def _group_leave(user_id, reason="left"):
             solo = next(iter(room["members"]))
     _group_send(space_id, {"type": "gc-peer-left", "space_id": space_id, "user_id": user_id, "reason": reason})
     if remaining == 1 and solo:
-        # одному в комнате делать нечего — закрываем её сразу
-        with _group_lock:
-            _user_room.pop(solo, None)
-            _group_rooms.pop(space_id, None)
-        send_to(solo, {"type": "gc-ended", "space_id": space_id})
-        finished = True
+        # Остался один: даём 15 секунд — вдруг кто-то зайдёт или переподключится.
+        _later(SOLO_GRACE, _close_if_solo, space_id, solo)
     if finished:
         _log_group_call(space_id, room)
+
+
+def _later(delay, fn, *args):
+    t = threading.Timer(delay, fn, args=args)
+    t.daemon = True
+    t.start()
+
+
+def ice_servers():
+    """STUN/TURN для WebRTC. Свой TURN задаётся переменными TURN_URLS (через запятую),
+    TURN_USERNAME, TURN_CREDENTIAL — без него звонки между разными сетями/мобильным интернетом
+    часто не соединяются."""
+    servers = [{"urls": "stun:stun.l.google.com:19302"}]
+    urls = [u.strip() for u in os.environ.get("TURN_URLS", "").split(",") if u.strip()]
+    if urls:
+        servers.append({"urls": urls, "username": os.environ.get("TURN_USERNAME", ""),
+                        "credential": os.environ.get("TURN_CREDENTIAL", "")})
+    else:
+        for u in ("turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"):
+            servers.append({"urls": u, "username": "openrelayproject", "credential": "openrelayproject"})
+    return servers
+
+
+def _close_if_solo(space_id, solo):
+    with _group_lock:
+        room = _group_rooms.get(space_id)
+        if not room or list(room["members"].keys()) != [solo]:
+            return
+        _user_room.pop(solo, None)
+        _group_rooms.pop(space_id, None)
+    send_to(solo, {"type": "gc-ended", "space_id": space_id})
+    _log_group_call(space_id, room)
+
+
+def _leave_after_grace(user_id):
+    """Обрыв сокета (телефон уснул, сеть мигнула) — не выкидываем человека сразу."""
+    if is_online(user_id):
+        return  # уже переподключился
+    _group_leave(user_id, reason="disconnected")
+
+
+def _group_rejoin(handler, user_id, message):
+    """Клиент переподключился к сокету, пока шёл звонок."""
+    space_id = str(message.get("space_id", "")).strip()
+    with _group_lock:
+        room = _group_rooms.get(space_id)
+        ok = bool(room and user_id in room["members"] and _user_room.get(user_id) == space_id)
+        peers = [u for u in room["members"] if u != user_id] if ok else []
+        mode = room["mode"] if ok else "audio"
+        started_at = room["started_at"] if ok else 0
+    if not ok:
+        handler.send_ws_json({"type": "gc-ended", "space_id": space_id})
+        return
+    handler.send_ws_json({"type": "gc-joined", "space_id": space_id, "peers": peers, "mode": mode,
+                          "started_at": started_at, "max": GROUP_CALL_MAX, "rejoin": True})
 
 
 def _log_group_call(space_id, room):
@@ -331,7 +384,8 @@ def unregister(user_id, handler):
         if _clients.get(user_id) is handler:
             del _clients[user_id]
     print(f"[calls][{_REPLICA}] unregister user={user_id} online_now={list(_clients.keys())}", flush=True)
-    _group_leave(user_id, reason="disconnected")
+    if in_group_call(user_id):
+        _later(DISCONNECT_GRACE, _leave_after_grace, user_id)
     peer_id = clear_call_pair(user_id)
     if peer_id:
         _finalize_call_log(user_id, peer_id, "end")
@@ -422,6 +476,9 @@ def handle_client_message(handler, state, message):
 
     if msg_type == "gc-join":
         _group_join(handler, user_id, message)
+        return
+    if msg_type == "gc-rejoin":
+        _group_rejoin(handler, user_id, message)
         return
     if msg_type == "gc-leave":
         _group_leave(user_id)

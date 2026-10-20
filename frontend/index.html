@@ -2837,15 +2837,19 @@ const GroupCall = (() => {
       if(!tile) return;
       tile.querySelector('.gc-state')?.remove();
       if(pc.connectionState === 'connecting' || pc.connectionState === 'new') tile.append(el('span', 'gc-state', 'соединение…'));
-      if(pc.connectionState === 'failed') tile.append(el('span', 'gc-state', 'нет связи'));
+      if(pc.connectionState === 'failed'){
+        tile.append(el('span', 'gc-state', 'нет связи'));
+        // Переподключаем канал: инициирует тот, у кого id меньше (чтобы не было встречных offer).
+        if(room && getCurrentUser()?.id < userId) setTimeout(() => { if(room?.peers.get(userId) === entry && pc.connectionState === 'failed') callPeer(userId, true).catch(() => {}); }, 1200);
+      }
     };
     tileFor(userId);
     return entry;
   }
 
-  async function callPeer(userId){
+  async function callPeer(userId, iceRestart){
     const entry = room.peers.get(userId) || makePeer(userId);
-    const offer = await entry.pc.createOffer();
+    const offer = await entry.pc.createOffer(iceRestart ? {iceRestart:true} : undefined);
     await entry.pc.setLocalDescription(offer);
     send({type:'gc-signal', space_id: room.spaceId, to: userId, data:{kind:'offer', sdp: entry.pc.localDescription}});
   }
@@ -2934,6 +2938,21 @@ const GroupCall = (() => {
       case 'gc-ring': showInvite(msg); break;
       case 'gc-joined':
         if(!room || room.spaceId !== msg.space_id) break;
+        if(msg.rejoin){
+          // сокет переподключился посреди звонка: сверяем список, живые соединения не трогаем
+          room.joined = true;
+          [...room.peers.keys()].forEach(uid => { if(!msg.peers.includes(uid)) removePeer(uid); });
+          msg.peers.forEach(uid => {
+            const e = room.peers.get(uid);
+            tileFor(uid);
+            if(!e || ['failed','closed','disconnected'].includes(e.pc.connectionState)){
+              if(e){ try{ e.pc.close(); }catch{} room.peers.delete(uid); }
+              callPeer(uid).catch(() => {});
+            }
+          });
+          relayout();
+          break;
+        }
         room.joined = true; room.mode = msg.mode || room.mode; room.startedAt = Date.now();
         startTimer(); relayout();
         msg.peers.forEach(uid => { tileFor(uid); callPeer(uid).catch(() => {}); });
@@ -2975,7 +2994,8 @@ const GroupCall = (() => {
     }catch{}
   }
 
-  return {start, leave, onSignal, pollStatus, active: () => !!room};
+  function rejoin(){ if(room && room.joined) send({type:'gc-rejoin', space_id: room.spaceId}); }
+  return {start, leave, onSignal, pollStatus, rejoin, active: () => !!room};
 })();
 </script>
 
@@ -4569,6 +4589,8 @@ const CallManager = (() => {
     { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
   ];
 
+  let ICE_LIVE = ICE_SERVERS;
+  fetch('/api/ice-config').then(r => r.ok ? r.json() : null).then(c => { if(c && Array.isArray(c.iceServers) && c.iceServers.length) ICE_LIVE = c.iceServers; }).catch(() => {});
   const overlay        = document.getElementById('call-overlay');
   const avatarBig       = document.getElementById('call-avatar-big');
   const peerNameEl      = document.getElementById('call-peer-name');
@@ -4623,7 +4645,7 @@ const CallManager = (() => {
       scheduleReconnect();
       return;
     }
-    ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); setCallsStatus(true); window.__wsLive = true; window.onServerSync && window.onServerSync({scope:'msg'}); });
+    ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); setCallsStatus(true); window.__wsLive = true; GroupCall.rejoin(); window.onServerSync && window.onServerSync({scope:'msg'}); });
     ws.addEventListener('message', (event) => {
       let msg;
       try{ msg = JSON.parse(event.data); }catch{ return; }
@@ -4784,7 +4806,7 @@ const CallManager = (() => {
   // ---------- WebRTC ----------
 
   function createPeerConnection(){
-    const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const connection = new RTCPeerConnection({ iceServers: ICE_LIVE });
     connection.addEventListener('icecandidate', (event) => {
       if(event.candidate) send({ type:'ice-candidate', to: peerId, candidate: event.candidate });
     });
@@ -5102,7 +5124,7 @@ const CallManager = (() => {
     busy: () => !overlay.hidden,
     ring: () => playRingtone(),
     stopRing: () => stopRingtone(),
-    iceServers: ICE_SERVERS
+    get iceServers(){ return ICE_LIVE; }
   };
 })();
 
@@ -5802,7 +5824,7 @@ attachFileInput.addEventListener('change', () => {
 // ==========================================================
 // Статус «в сети» / «был(а)…»
 // ==========================================================
-const CLIENT_VERSION = 'v14-mijer';
+const CLIENT_VERSION = 'v15-gcall';
 async function presencePing(extra){
   const me = getCurrentUser(); if(!me) return null;
   try{
