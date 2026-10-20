@@ -22,7 +22,7 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-APP_VERSION = "v15-gcall"
+APP_VERSION = "v16-nogroupcall"
 
 from app import workspace as invites
 from app import messages as messages_mod

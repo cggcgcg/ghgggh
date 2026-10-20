@@ -2356,8 +2356,8 @@ const MsgUI = (() => {
     text.append(el('span', 'call-title', title), el('span', 'call-sub', sub));
     bubble.append(ico, text);
     bubble.addEventListener('click', () => {
-      if(i.participants) GroupCall.start(chat, video);
-      else if(!isSpaceChat(chat)) CallManager.call(chat.id, displayNameFor(chat), video);
+      if(i.participants) return;
+      if(!isSpaceChat(chat)) CallManager.call(chat.id, displayNameFor(chat), video);
     });
     return bubble;
   }
@@ -3920,8 +3920,8 @@ async function setActiveChat(id){
   mediaBtn.disabled = !canPost;
   document.getElementById('attach-btn').disabled = !canPost;
   document.getElementById('attach-menu').hidden = true;
-  document.getElementById('call-audio-btn').hidden = isSpace && chat.kind !== 'group';
-  document.getElementById('call-video-btn').hidden = isSpace && chat.kind !== 'group';
+  document.getElementById('call-audio-btn').hidden = isSpace;
+  document.getElementById('call-video-btn').hidden = isSpace;
   if(chat.isSaved){
     paintAvatar(convAvatar, null, '★');
     document.getElementById('conv-header-status').textContent = 'заметки для себя';
@@ -5824,7 +5824,7 @@ attachFileInput.addEventListener('change', () => {
 // ==========================================================
 // Статус «в сети» / «был(а)…»
 // ==========================================================
-const CLIENT_VERSION = 'v15-gcall';
+const CLIENT_VERSION = 'v16-nogroupcall';
 async function presencePing(extra){
   const me = getCurrentUser(); if(!me) return null;
   try{

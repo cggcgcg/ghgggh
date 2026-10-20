@@ -140,6 +140,9 @@ def _group_join(handler, user_id, message):
 
     space_id = str(message.get("space_id", "")).strip()
     mode = "video" if message.get("mode") == "video" else "audio"
+    if os.environ.get("GROUP_CALLS", "") != "1":  # групповые звонки временно отключены
+        handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "disabled"})
+        return
     space = get_space(space_id)
     if not space or space["kind"] != "group" or not is_member(space_id, user_id):
         handler.send_ws_json({"type": "gc-error", "space_id": space_id, "reason": "not-allowed"})
