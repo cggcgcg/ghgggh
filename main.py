@@ -22,7 +22,7 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-APP_VERSION = "v13-sync-saved-pins"
+APP_VERSION = "v14-mijer"
 
 from app import workspace as invites
 from app import messages as messages_mod
@@ -203,6 +203,18 @@ class Handler(BaseHTTPRequestHandler):
                 "error": "File not found"
             })
 
+    def _admin_guard(self, user_id):
+        """Админ-доступ = аккаунт из ADMIN_IDS/ADMIN_USERNAMES + секретный ключ
+        ADMIN_KEY в заголовке X-Admin-Key (в адресную строку/логи ключ не попадает)."""
+        if not blocks_mod.is_admin(user_id):
+            self.send_json(403, {"error": "Только для администратора"})
+            return False
+        ok, error, status = blocks_mod.check_admin_key(self.headers.get("X-Admin-Key", ""))
+        if not ok:
+            self.send_json(status, {"error": error})
+            return False
+        return True
+
     def handle_one_request(self):
         # Один обработчик обслуживает несколько запросов по одному соединению —
         # кэш тела запроса надо сбрасывать перед каждым новым запросом.
@@ -246,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_ws_calls()
             return
 
-        # Главная страница TGClone
+        # Главная страница Mijer Chat
         if self.path.split("?")[0] in ("/", "/index.html"):
             self.send_file(
                 FRONTEND_DIR / "index.html"
@@ -301,8 +313,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if route == "/api/admin/reports":
             q = parse_qs(urlsplit(self.path).query)
-            if not blocks_mod.is_admin((q.get("admin") or [""])[0]):
-                self.send_json(403, {"error": "Только для администратора"})
+            if not self._admin_guard((q.get("admin") or [""])[0]):
                 return
             self.send_json(200, blocks_mod.list_reports_for_admin())
             return
@@ -311,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/health":
             self.send_json(200, {
                 "status": "ok",
-                "project": "TGClone",
+                "project": "Mijer Chat",
                 "version": APP_VERSION
             })
             return
@@ -701,8 +712,7 @@ class Handler(BaseHTTPRequestHandler):
         # ---- решение администратора: {admin, target_user_id, action: dismiss|ban|unban} ----
         if self.path == "/api/admin/resolve":
             data = self.read_json_body() or {}
-            if not blocks_mod.is_admin(str(data.get("admin", ""))):
-                self.send_json(403, {"error": "Только для администратора"})
+            if not self._admin_guard(str(data.get("admin", ""))):
                 return
             action = str(data.get("action", ""))
             if action not in ("dismiss", "ban", "unban"):
@@ -1284,7 +1294,7 @@ server = ThreadingHTTPServer(
 )
 
 print(
-    f"TGClone server started on port {PORT} (replica={os.environ.get('RAILWAY_REPLICA_ID', 'local')[:8]})",
+    f"Mijer Chat server started on port {PORT} (replica={os.environ.get('RAILWAY_REPLICA_ID', 'local')[:8]})",
     flush=True,
 )
 

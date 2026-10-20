@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TGClone</title>
+<title>Mijer Chat</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#3b82f6">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="TGClone">
+<meta name="apple-mobile-web-app-title" content="Mijer">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="icon" type="image/png" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -903,7 +903,7 @@ button, input{font-family:inherit;}
 
 
 /* ==========================================================
-   TGClone Liquid Glass 2.0 — visual system
+   Mijer Chat Liquid Glass 2.0 — visual system
    Old motion presets are intentionally replaced. Every chat
    theme below owns one distinct, lightweight background motion.
    ========================================================== */
@@ -1547,7 +1547,7 @@ body::after{
 
 
 /* ==========================================================
-   TGClone V4 — clean solid interface + 16 chat backgrounds
+   Mijer Chat V4 — clean solid interface + 16 chat backgrounds
    No glass, no backdrop blur, no transparent UI surfaces.
    ========================================================== */
 :root{
@@ -1650,6 +1650,11 @@ body,[data-ui-design]{background:var(--bg);}
   .msg-video,.video-message-shell{width:180px!important;height:180px!important;}
 }
 
+
+/* v14 polish */
+.msg.image-message img{min-height:120px;min-width:160px;}
+input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
+.profile-field .field-hint{display:block;margin:2px 0 6px;font-weight:400;}
 </style>
 <style id="v10-groups">
 .avatar.has-photo{background-size:cover;background-position:center;font-size:0;}
@@ -1788,7 +1793,7 @@ body,[data-ui-design]{background:var(--bg);}
     <div class="auth-mark">
       <span class="auth-mark-dot"></span>
     </div>
-    <h1 class="auth-title">TGClone</h1>
+    <h1 class="auth-title">Mijer Chat</h1>
     <p class="auth-subtitle">Свой канал связи. Без посредников.</p>
 
     <label class="field">
@@ -1972,7 +1977,7 @@ body,[data-ui-design]{background:var(--bg);}
 
 <div class="modal-backdrop" id="settings-modal" hidden>
   <section class="settings-window" aria-labelledby="settings-title">
-    <header class="settings-window-head"><div><span class="eyebrow">TGCLONE</span><h2 id="settings-title">Настройки</h2></div><button class="modal-close" data-close-modal="settings-modal" type="button" aria-label="Закрыть">×</button></header>
+    <header class="settings-window-head"><div><span class="eyebrow">MIJER CHAT</span><h2 id="settings-title">Настройки</h2></div><button class="modal-close" data-close-modal="settings-modal" type="button" aria-label="Закрыть">×</button></header>
     <div class="settings-layout">
       <nav class="settings-menu" aria-label="Разделы настроек">
         <button class="settings-menu-btn active" data-settings-section="profile" type="button">◉ Профиль</button>
@@ -1993,14 +1998,14 @@ body,[data-ui-design]{background:var(--bg);}
 <button class="settings-save" id="admin-open-btn" type="button" hidden style="margin-top:18px">Модерация: жалобы</button>
 <div class="danger-zone"><button class="settings-save" id="delete-account-btn" type="button">Удалить аккаунт</button>
 <p class="section-note" style="margin:8px 0 0"><a href="/terms" target="_blank" rel="noopener">Правила</a> · <a href="/privacy" target="_blank" rel="noopener">Конфиденциальность</a></p></div>
-<div class="ver-note" id="ver-note"></div></div>
+<div class="ver-note" id="ver-note"></div><div class="ver-note" id="my-id-note"></div></div>
         <div class="settings-section" data-settings-panel="chats"><h3>Чаты</h3><p class="section-note">Настройте привычный ритм переписки.</p><h4>Размер текста</h4><div class="font-scale-row" id="font-scale-row"><button data-font="tiny" type="button">A</button><button data-font="small" type="button">A</button><button data-font="medium" type="button">A</button><button data-font="large" type="button">A</button><button data-font="huge" type="button">A</button></div><div class="font-scale-labels"><span>Очень маленькое</span><span>Очень большое</span></div><h4>Цвет</h4><div class="app-theme-grid" id="app-theme-grid"></div><h4>Дизайн</h4><div class="design-row">
 <button class="design-btn active" data-design="dark" type="button"><strong>Тёмный</strong><small>Простой тёмный интерфейс без лишних эффектов</small></button>
 <button class="design-btn" data-design="light" type="button"><strong>Светлый</strong><small>Чистый белый интерфейс в том же стиле</small></button>
 <button class="design-btn" data-design="soft" type="button"><strong>Мягкий</strong><small>Приглушённые спокойные тона и крупные скругления</small></button>
 </div></div>
         <div class="settings-section" data-settings-panel="language"><h3>Язык интерфейса</h3><p class="section-note">Выберите язык меню и подписей.</p><div class="language-grid" id="language-grid"></div></div>
-        <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
+        <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
       </div>
     </div>
   </section>
@@ -2976,7 +2981,7 @@ const GroupCall = (() => {
 
 <script>
 // ==========================================================
-// TGClone — frontend logic
+// Mijer Chat — frontend logic
 // Работает поверх существующих эндпоинтов:
 //   GET  /api/health
 //   POST /api/users
@@ -3243,16 +3248,16 @@ function applyInterfaceLanguage(lang){
   document.querySelector('#auth-screen .auth-subtitle').textContent = lang === 'ru' ? 'Свой канал связи. Без посредников.' : lang === 'en' ? 'Your private channel. No middlemen.' : lang === 'uz' ? 'Shaxsiy aloqa kanalingiz.' : lang === 'de' ? 'Dein eigener Kanal. Ohne Umwege.' : lang === 'fr' ? 'Votre canal privé. Sans intermédiaire.' : lang === 'es' ? 'Tu canal privado. Sin intermediarios.' : lang === 'tr' ? 'Kendi iletişim kanalınız.' : lang === 'zh' ? '你的私人通信频道。' : lang === 'ja' ? 'あなた専用の通信チャンネル。' : '나만의 소통 채널입니다.';
   document.querySelector('#message-input').setAttribute('aria-label', t.chats);
   const extra = {
-    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'По username',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · TGClone Web',addDevice:'Добавить устройство'},
-    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'Username orqali',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · TGClone Web',addDevice:'Qurilma qo‘shish'},
-    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'By username',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · TGClone Web',addDevice:'Add device'},
-    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Per Username',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · TGClone Web',addDevice:'Gerät hinzufügen'},
-    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Par username',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · TGClone Web',addDevice:'Ajouter un appareil'},
-    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Por username',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · TGClone Web',addDevice:'Añadir dispositivo'},
-    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'Username ile',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · TGClone Web',addDevice:'Cihaz ekle'},
-    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按用户名查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · TGClone Web',addDevice:'添加设备'},
-    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'ユーザー名で検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · TGClone Web',addDevice:'デバイスを追加'},
-    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'사용자 이름으로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · TGClone Web',addDevice:'기기 추가'}
+    ru:{authSub:'Свой канал связи. Без посредников.',usernameHint:'3–20 символов: латиница, цифры, «_»',createDesc:'Начните новый разговор или пространство.',addUserHint:'По username',groupHint:'Для общения команды',channelHint:'Публикуйте новости и идеи',deviceSelf:'Это устройство',deviceSession:'Активная сессия · Mijer Chat Web',addDevice:'Добавить устройство'},
+    uz:{authSub:'Shaxsiy aloqa kanalingiz.',usernameHint:'3–20 belgi: lotin harflari, raqamlar, «_»',createDesc:'Yangi suhbat yoki makon yarating.',addUserHint:'Username orqali',groupHint:'Jamoa bilan muloqot uchun',channelHint:'Yangilik va g‘oyalarni ulashing',deviceSelf:'Bu qurilma',deviceSession:'Faol sessiya · Mijer Chat Web',addDevice:'Qurilma qo‘shish'},
+    en:{authSub:'Your private channel. No middlemen.',usernameHint:'3–20 characters: letters, numbers, “_”',createDesc:'Start a new conversation or space.',addUserHint:'By username',groupHint:'For team communication',channelHint:'Share news and ideas',deviceSelf:'This device',deviceSession:'Active session · Mijer Chat Web',addDevice:'Add device'},
+    de:{authSub:'Dein eigener Kanal. Ohne Umwege.',usernameHint:'3–20 Zeichen: Buchstaben, Zahlen, „_“',createDesc:'Starte einen neuen Chat oder Bereich.',addUserHint:'Per Username',groupHint:'Für Teamkommunikation',channelHint:'Nachrichten und Ideen teilen',deviceSelf:'Dieses Gerät',deviceSession:'Aktive Sitzung · Mijer Chat Web',addDevice:'Gerät hinzufügen'},
+    fr:{authSub:'Votre canal privé. Sans intermédiaire.',usernameHint:'3–20 caractères : lettres, chiffres, « _ »',createDesc:'Commencez une nouvelle discussion ou un espace.',addUserHint:'Par username',groupHint:'Pour communiquer en équipe',channelHint:'Publiez des nouvelles et des idées',deviceSelf:'Cet appareil',deviceSession:'Session active · Mijer Chat Web',addDevice:'Ajouter un appareil'},
+    es:{authSub:'Tu canal privado. Sin intermediarios.',usernameHint:'3–20 caracteres: letras, números y «_»',createDesc:'Inicia una nueva conversación o espacio.',addUserHint:'Por username',groupHint:'Para comunicación de equipo',channelHint:'Comparte noticias e ideas',deviceSelf:'Este dispositivo',deviceSession:'Sesión activa · Mijer Chat Web',addDevice:'Añadir dispositivo'},
+    tr:{authSub:'Kendi iletişim kanalınız.',usernameHint:'3–20 karakter: harf, rakam, «_»',createDesc:'Yeni bir sohbet veya alan başlatın.',addUserHint:'Username ile',groupHint:'Ekip iletişimi için',channelHint:'Haberleri ve fikirleri paylaşın',deviceSelf:'Bu cihaz',deviceSession:'Aktif oturum · Mijer Chat Web',addDevice:'Cihaz ekle'},
+    zh:{authSub:'你的私人通信频道。',usernameHint:'3–20 个字符：字母、数字、“_”',createDesc:'开始新的聊天或空间。',addUserHint:'按用户名查找',groupHint:'用于团队交流',channelHint:'发布新闻和想法',deviceSelf:'此设备',deviceSession:'活动会话 · Mijer Chat Web',addDevice:'添加设备'},
+    ja:{authSub:'あなた専用の通信チャンネル。',usernameHint:'3～20文字：英字、数字、「_」',createDesc:'新しいチャットまたはスペースを開始します。',addUserHint:'ユーザー名で検索',groupHint:'チームでの交流に',channelHint:'ニュースやアイデアを共有',deviceSelf:'このデバイス',deviceSession:'アクティブなセッション · Mijer Chat Web',addDevice:'デバイスを追加'},
+    ko:{authSub:'나만의 소통 채널입니다.',usernameHint:'3~20자: 영문, 숫자, “_”',createDesc:'새로운 대화 또는 공간을 시작하세요.',addUserHint:'사용자 이름으로 찾기',groupHint:'팀 커뮤니케이션용',channelHint:'뉴스와 아이디어를 공유',deviceSelf:'이 기기',deviceSession:'활성 세션 · Mijer Chat Web',addDevice:'기기 추가'}
   };
   const e = extra[lang] || extra.ru;
   document.querySelector('#auth-screen .auth-subtitle').textContent=e.authSub;
@@ -3448,7 +3453,7 @@ async function saveSettings(values){ const user = getCurrentUser(); if(!user) re
 function applySettings(settings){ document.body.dataset.appTheme = normColor(settings.app_theme); delete document.body.dataset.chatTheme; document.body.dataset.uiDesign = normDesign(settings.design); document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('#app-theme-grid [data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === normColor(settings.app_theme))); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === normDesign(settings.design))); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
 async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!DESIGNS.includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!COLOR_IDS.includes(settings.app_theme)){ settings.app_theme='c-blue'; saveSettings({app_theme:'c-blue', chat_theme:'c-blue'}); } applySettings(settings); } window.settingsReady = true; }
 document.getElementById('add-device').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/devices`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id,name:'Новое устройство'})}); loadDevices(); });
-async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · TGClone Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
+async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
 async function loadSpaces(){
   const user = getCurrentUser(); if(!user) return;
   const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(user.id)}`);
@@ -5797,7 +5802,7 @@ attachFileInput.addEventListener('change', () => {
 // ==========================================================
 // Статус «в сети» / «был(а)…»
 // ==========================================================
-const CLIENT_VERSION = 'v13-sync-saved-pins';
+const CLIENT_VERSION = 'v14-mijer';
 async function presencePing(extra){
   const me = getCurrentUser(); if(!me) return null;
   try{
@@ -5846,6 +5851,7 @@ document.getElementById('status-visibility').addEventListener('change', async ev
   await presencePing({status_visibility: event.target.value});
 });
 fetch(`${API_BASE}/api/health`).then(r => r.json()).then(h => {
+  { const me0 = getCurrentUser(); const n = document.getElementById('my-id-note'); if(n && me0) n.textContent = 'ID аккаунта: ' + me0.id; }
   document.getElementById('ver-note').textContent = `Версия: страница ${CLIENT_VERSION} · сервер ${h.version || 'старая (без номера)'}`;
 }).catch(() => {});
 
@@ -5921,7 +5927,7 @@ function previewText(info){
 }
 function notifyMessage(chatId, info){
   const chat = openChats.get(chatId);
-  const title = chat ? (chat.kind ? chat.display_name : displayNameFor(chat)) : (info.sender || 'TGClone');
+  const title = chat ? (chat.kind ? chat.display_name : displayNameFor(chat)) : (info.sender || 'Mijer Chat');
   const body = (chat && chat.kind ? info.sender + ': ' : '') + previewText(info);
   const cfg = NotifCfg.get();
   if(cfg.sound) beep();
@@ -5956,7 +5962,7 @@ async function pollUnread(){
   const changed = JSON.stringify(shown) !== JSON.stringify(window.unreadMap);
   window.unreadMap = shown;
   const total = Object.values(shown).reduce((n, i) => n + i.count, 0);
-  document.title = (total ? `(${total}) ` : '') + 'TGClone';
+  document.title = (total ? `(${total}) ` : '') + 'Mijer Chat';
   if(changed) renderChatList();
 }
 document.getElementById('notif-enabled').addEventListener('change', async e => {
@@ -6021,16 +6027,40 @@ document.getElementById('profile-report-btn').addEventListener('click', () => {
 });
 
 // ----- панель модерации (только для админа) -----
+let adminKey = '';   // секретный ключ хранится только в памяти страницы, на диск не пишется
+function adminFetch(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({'X-Admin-Key': adminKey}, opts.headers || {});
+  return fetch(`${API_BASE}${path}`, opts);
+}
+function adminPost(path, body){
+  return adminFetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+}
 async function openAdminPanel(){
   const me = getCurrentUser(); if(!me) return;
   const back = document.createElement('div'); back.className = 'sp-backdrop';
   const card = document.createElement('div'); card.className = 'sp-card tall';
   back.appendChild(card); document.body.appendChild(back);
   back.addEventListener('click', e => { if(e.target === back) back.remove(); });
+  function askKey(message){
+    card.innerHTML = `<h3 class="sp-title">Админ-ключ</h3><p class="section-note">Введите секретный ключ администратора (переменная ADMIN_KEY на сервере). Он хранится только до закрытия страницы.</p>
+      <label class="profile-field"><input id="adm-key" type="password" autocomplete="off" placeholder="ключ"></label>
+      <p class="auth-error" id="adm-key-err" ${message ? '' : 'hidden'}>${escapeHtml(message || '')}</p>
+      <div class="sp-actions"><button type="button" id="adm-key-cancel">Отмена</button><button type="button" class="primary" id="adm-key-ok">Войти</button></div>`;
+    card.querySelector('#adm-key-cancel').onclick = () => back.remove();
+    const go = () => { adminKey = card.querySelector('#adm-key').value; load(); };
+    card.querySelector('#adm-key-ok').onclick = go;
+    card.querySelector('#adm-key').addEventListener('keydown', e => { if(e.key === 'Enter') go(); });
+    card.querySelector('#adm-key').focus();
+  }
   async function load(){
+    if(!adminKey){ askKey(''); return; }
     card.innerHTML = '<h3 class="sp-title">Жалобы</h3><p class="section-note">Загрузка…</p>';
-    const res = await fetch(`${API_BASE}/api/admin/reports?admin=${encodeURIComponent(me.id)}`);
-    if(!res.ok){ card.innerHTML = '<h3 class="sp-title">Жалобы</h3><p class="auth-error">Нет доступа</p>'; return; }
+    const res = await adminFetch(`/api/admin/reports?admin=${encodeURIComponent(me.id)}`);
+    if(!res.ok){
+      let msg = 'Нет доступа'; try{ msg = (await res.json()).error || msg; }catch{}
+      adminKey = ''; askKey(msg); return;
+    }
     const groups = await res.json();
     card.innerHTML = '<h3 class="sp-title">Жалобы</h3>';
     if(!groups.length) card.insertAdjacentHTML('beforeend', '<p class="section-note">Открытых жалоб нет.</p>');
@@ -6043,7 +6073,7 @@ async function openAdminPanel(){
         `<div class="adm-acts"><button data-a="dismiss">Отклонить</button><button class="danger" data-a="ban">Заблокировать аккаунт</button></div>`;
       box.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
         if(b.dataset.a === 'ban' && !confirm(`Заблокировать @${g.target.username}? Он не сможет отправлять сообщения.`)) return;
-        await jsonPost('/api/admin/resolve', {admin: me.id, target_user_id: g.target.id, action: b.dataset.a});
+        await adminPost('/api/admin/resolve', {admin: me.id, target_user_id: g.target.id, action: b.dataset.a});
         load();
       });
       card.appendChild(box);
@@ -6055,7 +6085,7 @@ async function openAdminPanel(){
       const r = await fetch(`${API_BASE}/api/users/search/${encodeURIComponent(name)}`);
       if(!r.ok){ msg.textContent = 'Пользователь не найден'; msg.hidden = false; return; }
       const u = await r.json();
-      await jsonPost('/api/admin/resolve', {admin: me.id, target_user_id: u.id, action: 'unban'});
+      await adminPost('/api/admin/resolve', {admin: me.id, target_user_id: u.id, action: 'unban'});
       msg.textContent = '@' + u.username + ' разблокирован'; msg.hidden = false;
     };
     card.appendChild(un);

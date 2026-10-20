@@ -1,4 +1,4 @@
-"""Веб-ресурсы TGClone: установка как приложение (PWA), страницы правил.
+"""Веб-ресурсы Mijer Chat: установка как приложение (PWA), страницы правил.
 Файл необязательный: если его нет, main.py просто не отдаёт эти страницы."""
 
 import json
@@ -6,7 +6,7 @@ import os
 import struct
 import zlib
 
-APP_NAME = "TGClone"
+APP_NAME = "Mijer Chat"
 THEME = "#3b82f6"
 BG = "#0b1020"
 
@@ -18,7 +18,7 @@ def _contact():
 # ---------------- PWA ----------------
 def manifest():
     return json.dumps({
-        "name": APP_NAME, "short_name": APP_NAME, "start_url": "/", "scope": "/",
+        "name": APP_NAME, "short_name": "Mijer", "start_url": "/", "scope": "/",
         "display": "standalone", "background_color": BG, "theme_color": THEME,
         "description": "Мессенджер: чаты, группы, голосовые и видеозвонки",
         "icons": [
@@ -31,7 +31,7 @@ def manifest():
 SERVICE_WORKER = """
 // Страница всегда берётся с сервера (network-first) — обновления приходят сами.
 // Кэш нужен только как запасной вариант, если нет сети.
-const CACHE = 'tgclone-shell-v1';
+const CACHE = 'mijer-shell-v2';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -97,13 +97,13 @@ def icon(size):
 
 # ---------------- Страницы правил ----------------
 _PAGE = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} — TGClone</title>
+<title>{title} — Mijer Chat</title>
 <style>body{{margin:0;background:#0b1020;color:#e7ebf5;font:16px/1.6 system-ui,sans-serif}}main{{max-width:720px;margin:0 auto;padding:28px 18px 60px}}
 h1{{font-size:26px}}h2{{font-size:18px;margin-top:28px}}a{{color:#7aa7ff}}li{{margin:4px 0}}.note{{color:#9aa6c2;font-size:14px}}</style></head>
 <body><main><p><a href="/">← В приложение</a></p><h1>{title}</h1>{body}<p class="note">Редакция от 18.10.2026</p></main></body></html>"""
 
 TERMS = """
-<p>Пользуясь TGClone, вы соглашаетесь с этими правилами.</p>
+<p>Пользуясь Mijer Chat, вы соглашаетесь с этими правилами.</p>
 <h2>Что нельзя</h2>
 <ul><li>Спам, массовые рассылки и реклама без согласия получателей.</li>
 <li>Оскорбления, травля, угрозы, разжигание ненависти.</li>
@@ -120,7 +120,7 @@ TERMS = """
 """
 
 PRIVACY = """
-<p>Эта политика объясняет, какие данные хранит TGClone и что с ними происходит.</p>
+<p>Эта политика объясняет, какие данные хранит Mijer Chat и что с ними происходит.</p>
 <h2>Какие данные мы храним</h2>
 <ul><li>Имя, username и время создания аккаунта.</li>
 <li>Время последней активности (для статуса «в сети») — вы можете скрыть его в настройках.</li>
@@ -138,7 +138,7 @@ PRIVACY = """
 DELETE = """
 <p>Вы можете удалить аккаунт и все связанные данные самостоятельно.</p>
 <h2>Как удалить</h2>
-<ol><li>Откройте TGClone и войдите в аккаунт.</li><li>Настройки → Профиль → «Удалить аккаунт».</li>
+<ol><li>Откройте Mijer Chat и войдите в аккаунт.</li><li>Настройки → Профиль → «Удалить аккаунт».</li>
 <li>Введите свой username для подтверждения и нажмите «Удалить навсегда».</li></ol>
 <h2>Что будет удалено</h2>
 <ul><li>Профиль, настройки, список контактов и блокировок.</li><li>Все ваши сообщения и вложения.</li>

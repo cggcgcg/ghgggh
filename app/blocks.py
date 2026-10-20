@@ -58,13 +58,52 @@ REVIEW_THRESHOLD = 3   # столько РАЗНЫХ людей — и акка�
 
 
 def is_admin(user_id):
-    """Админы задаются переменной окружения ADMIN_USERNAMES (через запятую)."""
+    """Этот аккаунт ВООБЩЕ может быть админом. Админы задаются ТОЛЬКО переменными
+    окружения на сервере (из приложения их изменить нельзя):
+      ADMIN_IDS       — внутренние id аккаунтов через запятую (надёжно: id не занять);
+      ADMIN_USERNAMES — запасной вариант по username (если имя свободно, его может
+                        занять чужой человек — поэтому для входа всё равно нужен ключ).
+    Без ADMIN_KEY админ-панель отключена полностью (см. check_admin_key)."""
+    if not user_id or not os.environ.get("ADMIN_KEY", ""):
+        return False
+    ids = {n.strip() for n in os.environ.get("ADMIN_IDS", "").split(",") if n.strip()}
+    if user_id in ids:
+        return True
     names = {n.strip().lower() for n in os.environ.get("ADMIN_USERNAMES", "").split(",") if n.strip()}
-    if not names or not user_id:
+    if not names:
         return False
     with get_connection() as conn:
         row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
     return bool(row and row["username"].lower() in names)
+
+
+# Защита ключа от подбора: 5 неверных попыток подряд — блокировка на 15 минут.
+import hmac
+import threading
+import time as _time
+
+_key_fail = {"count": 0, "until": 0.0}
+_key_lock = threading.Lock()
+
+
+def check_admin_key(provided):
+    """Возвращает (ok, error_text, http_status)."""
+    secret = os.environ.get("ADMIN_KEY", "")
+    if not secret:
+        return False, "Админ-ключ не настроен на сервере (переменная ADMIN_KEY)", 503
+    with _key_lock:
+        if _key_fail["until"] > _time.time():
+            return False, "Слишком много неверных попыток, подождите 15 минут", 429
+    if provided and hmac.compare_digest(str(provided).encode(), secret.encode()):
+        with _key_lock:
+            _key_fail["count"] = 0
+        return True, "", 200
+    with _key_lock:
+        _key_fail["count"] += 1
+        if _key_fail["count"] >= 5:
+            _key_fail["until"] = _time.time() + 15 * 60
+            _key_fail["count"] = 0
+    return False, "Неверный ключ", 403
 
 
 def _label(row):
