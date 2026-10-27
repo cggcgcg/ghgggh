@@ -12,6 +12,24 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS google_accounts (
+    google_sub TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS google_oauth_states (
+    state_hash TEXT PRIMARY KEY,
+    code_verifier TEXT NOT NULL,
+    accepted_terms INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS google_login_tickets (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     from_user TEXT NOT NULL,

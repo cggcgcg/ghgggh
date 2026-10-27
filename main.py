@@ -1,13 +1,18 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit, parse_qs, urlencode
+import base64
 import json
+import os
 import socket
 import threading
 import time
+import hashlib
+import secrets
+import urllib.request
 
-from app.database import init_db
-from app.users import create_user, get_user, find_by_username, update_user
+from app.database import init_db, get_connection
+from app.users import create_user, get_user, find_by_username, update_user, find_or_create_google_user
 from app.messages import (
     create_message, get_conversation, get_conversations,
     mark_read, mark_played, set_pinned, delete_message,
@@ -23,6 +28,11 @@ from app.workspace import (
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
 APP_VERSION = "v16-nogroupcall"
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+GOOGLE_AUTH_STATE_TTL = 600
+GOOGLE_LOGIN_TTL = 900
 
 from app import workspace as invites
 from app import messages as messages_mod
@@ -76,6 +86,62 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)
+
+    def _hash_value(self, value):
+        return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+
+    def _base64url_decode(self, value):
+        if not value:
+            return b''
+        padded = value + '=' * (-len(value) % 4)
+        return base64.urlsafe_b64decode(padded.encode('utf-8'))
+
+    def _store_google_state(self, state, code_verifier, accepted_terms):
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO google_oauth_states (state_hash, code_verifier, accepted_terms, expires_at) VALUES (?, ?, ?, ?)",
+                (self._hash_value(state), code_verifier, 1 if accepted_terms else 0, int(time.time()) + GOOGLE_AUTH_STATE_TTL),
+            )
+            conn.commit()
+
+    def _load_google_state(self, state):
+        state_hash = self._hash_value(state)
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT code_verifier, accepted_terms FROM google_oauth_states WHERE state_hash = ? AND expires_at > ?",
+                (state_hash, int(time.time())),
+            ).fetchone()
+        if not row:
+            return None
+        with get_connection() as conn:
+            conn.execute("DELETE FROM google_oauth_states WHERE state_hash = ?", (state_hash,))
+            conn.commit()
+        return {"code_verifier": row["code_verifier"], "accepted_terms": bool(row["accepted_terms"]) }
+
+    def _store_google_ticket(self, user_id):
+        token = secrets.token_urlsafe(32)
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO google_login_tickets (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                (self._hash_value(token), user_id, int(time.time()) + GOOGLE_LOGIN_TTL),
+            )
+            conn.commit()
+        return token
+
+    def _consume_google_ticket(self, token):
+        if not token:
+            return None
+        token_hash = self._hash_value(token)
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM google_login_tickets WHERE token_hash = ? AND expires_at > ?",
+                (token_hash, int(time.time())),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute("DELETE FROM google_login_tickets WHERE token_hash = ?", (token_hash,))
+            conn.commit()
+            return get_user(row["user_id"])
 
     # ---- WebSocket (звонки) ----------------------------------------
 
@@ -316,6 +382,98 @@ class Handler(BaseHTTPRequestHandler):
             if not self._admin_guard((q.get("admin") or [""])[0]):
                 return
             self.send_json(200, blocks_mod.list_reports_for_admin())
+            return
+
+        if route == "/api/auth/google/start":
+            if not GOOGLE_CLIENT_ID:
+                self.send_json(500, {"error": "GOOGLE_CLIENT_ID is not configured"})
+                return
+            accepted_terms = self.headers.get("X-Accepted-Terms", "0") == "1"
+            state = secrets.token_urlsafe(24)
+            code_verifier = secrets.token_urlsafe(32)
+            self._store_google_state(state, code_verifier, accepted_terms)
+            code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode("utf-8")).digest()).decode("ascii").rstrip("=")
+            params = {
+                "client_id": GOOGLE_CLIENT_ID,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "state": state,
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+                "prompt": "select_account",
+            }
+            google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+            self.send_json(200, {"url": google_auth_url})
+            return
+
+        if route == "/api/auth/google/finish":
+            token = (parse_qs(urlsplit(self.path).query).get("token") or [None])[0]
+            if token is None:
+                data = self.read_json_body() or {}
+                token = str(data.get("token", "")).strip()
+            user = self._consume_google_ticket(token)
+            if not user:
+                self.send_json(401, {"error": "invalid or expired login token"})
+                return
+            self.send_json(200, user)
+            return
+
+        if route == "/api/auth/google/callback":
+            parsed = urlsplit(self.path)
+            query = parse_qs(parsed.query)
+            code = (query.get("code") or [None])[0]
+            state = (query.get("state") or [None])[0]
+            if not code or not state:
+                self.send_json(400, {"error": "missing code or state"})
+                return
+            auth_state = self._load_google_state(state)
+            if not auth_state:
+                self.send_json(400, {"error": "invalid or expired state"})
+                return
+            if not auth_state["accepted_terms"]:
+                self.send_json(400, {"error": "Need accept terms before Google login"})
+                return
+            if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+                self.send_json(500, {"error": "Google OAuth is not configured"})
+                return
+            body = urlencode({
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+                "code_verifier": auth_state["code_verifier"],
+            }).encode("utf-8")
+            req = urllib.request.Request("https://oauth2.googleapis.com/token", data=body, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    token_data = json.loads(resp.read().decode("utf-8"))
+            except Exception as exc:
+                self.send_json(400, {"error": f"Google token exchange failed: {exc}"})
+                return
+            id_token = token_data.get("id_token")
+            if not id_token:
+                self.send_json(400, {"error": "Google OAuth did not return id_token"})
+                return
+            try:
+                header, payload_part, signature = id_token.split(".")
+                payload = json.loads(self._base64url_decode(payload_part).decode("utf-8"))
+            except Exception:
+                self.send_json(400, {"error": "Google token payload is invalid"})
+                return
+            google_sub = str(payload.get("sub") or "").strip()
+            email = str(payload.get("email") or "").strip()
+            display_name = str(payload.get("name") or payload.get("given_name") or "Google User").strip()
+            if not google_sub:
+                self.send_json(400, {"error": "Google profile is missing sub"})
+                return
+            user = find_or_create_google_user(google_sub, email, display_name)
+            ticket = self._store_google_ticket(user["id"])
+            frontend_target = f"{self.headers.get('Origin') or 'http://localhost:8000'}?google_ticket={ticket}"
+            self.send_response(302)
+            self.send_header('Location', frontend_target)
+            self.end_headers()
             return
 
         # Проверка сервера

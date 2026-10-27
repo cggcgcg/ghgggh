@@ -1,7 +1,16 @@
+import re
 import uuid
 from datetime import datetime, timezone
 
 from app.database import get_connection
+
+
+def google_username_from_email(email):
+    base = (email or '').strip().lower().split('@', 1)[0]
+    base = re.sub(r'[^a-z0-9_]+', '', base)
+    base = base.replace('.', '').replace('-', '_')
+    base = base[:20] or 'googleuser'
+    return base
 
 
 def create_user(username, display_name):
@@ -59,6 +68,49 @@ def find_by_username(username):
         return dict(row)
 
     return None
+
+
+def find_or_create_google_user(google_sub, email, display_name):
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT u.*
+            FROM google_accounts ga
+            JOIN users u ON u.id = ga.user_id
+            WHERE ga.google_sub = ?
+            """,
+            (google_sub,),
+        ).fetchone()
+        if row:
+            return dict(row)
+
+        username = google_username_from_email(email)
+        candidate = username
+        counter = 1
+        while conn.execute("SELECT 1 FROM users WHERE LOWER(username) = LOWER(?)", (candidate,)).fetchone():
+            candidate = f"{username}{counter}"
+            counter += 1
+
+        user_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            INSERT INTO users (id, username, display_name, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, candidate, display_name or candidate, created_at),
+        )
+        conn.execute(
+            "INSERT INTO google_accounts (google_sub, user_id) VALUES (?, ?)",
+            (google_sub, user_id),
+        )
+        conn.commit()
+        return {
+            "id": user_id,
+            "username": candidate,
+            "display_name": display_name or candidate,
+            "created_at": created_at,
+        }
 
 
 def update_user(user_id, username, display_name):

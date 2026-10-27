@@ -240,6 +240,22 @@ button, input{font-family:inherit;}
 }
 .btn-primary.loading .btn-spinner{display:block;}
 .btn-primary.loading .btn-label{opacity:.6;}
+.auth-divider{
+  position:relative; margin:8px 0; text-align:center; color:var(--text-faint); font-size:11px; text-transform:uppercase; letter-spacing:.12em;
+}
+.auth-divider::before{
+  content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--border); z-index:0;
+}
+.auth-divider span{ position:relative; z-index:1; display:inline-block; padding:0 10px; background:var(--surface); }
+.btn-google{
+  display:flex; align-items:center; justify-content:center; gap:10px; width:100%; border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:12px 14px; background:var(--bg-alt); color:var(--text); font-weight:600; cursor:pointer; transition:transform .12s, border-color .15s, background .15s;
+}
+.btn-google:hover{ border-color:var(--accent-b); background:var(--surface-hover); transform:translateY(-1px); }
+.btn-google:disabled{opacity:.65; cursor:default; transform:none;}
+.google-mark{
+  display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg, #fbbc05, #ea4335 35%, #34a853 65%, #4285f4); color:#fff; font-size:12px; font-weight:700; font-family:var(--font-display);
+}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .auth-error{
@@ -1816,6 +1832,13 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
       <span class="btn-spinner" aria-hidden="true"></span>
     </button>
 
+    <div class="auth-divider"><span>или</span></div>
+
+    <button id="google-signin" type="button" class="btn-google">
+      <span class="google-mark">G</span>
+      <span>Войти через Google</span>
+    </button>
+
     <p id="auth-error" class="auth-error" hidden></p>
   </form>
 </section>
@@ -3023,6 +3046,7 @@ const authForm     = document.getElementById('auth-form');
 const usernameEl   = document.getElementById('input-username');
 const displayEl    = document.getElementById('input-displayname');
 const authSubmit   = document.getElementById('auth-submit');
+const googleSignIn = document.getElementById('google-signin');
 const authError    = document.getElementById('auth-error');
 
 const meAvatar     = document.getElementById('me-avatar');
@@ -3585,6 +3609,59 @@ function showScreen(screen){
   appScreen.hidden  = screen !== 'app';
 }
 
+function showAuthError(message){
+  authError.textContent = message;
+  authError.hidden = false;
+}
+
+async function finishGoogleTicket(ticket){
+  if(!ticket) return;
+  try{
+    const res = await fetch(`${API_BASE}/api/auth/google/finish?token=${encodeURIComponent(ticket)}`, {cache: 'no-store'});
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Не удалось завершить вход через Google');
+    }
+    const user = await res.json();
+    setCurrentUser({
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name
+    });
+    enterApp();
+  }catch(err){
+    showAuthError(err.message || 'Ошибка входа через Google');
+  }
+}
+
+async function startGoogleLogin(){
+  if(!document.getElementById('accept-terms').checked){
+    showAuthError('Чтобы продолжить, примите правила и политику конфиденциальности');
+    return;
+  }
+  googleSignIn.disabled = true;
+  authSubmit.disabled = true;
+  try{
+    const res = await fetch(`${API_BASE}/api/auth/google/start`, {
+      method: 'GET',
+      headers: { 'X-Accepted-Terms': '1' }
+    });
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Не удалось запустить Google Login');
+    }
+    const data = await res.json();
+    if(!data?.url){ throw new Error('Сервер не вернул ссылку для входа'); }
+    window.location.href = data.url;
+  }catch(err){
+    showAuthError(err.message === 'Failed to fetch'
+      ? 'Не удаётся подключиться к серверу. Проверь, что backend запущен на ' + API_BASE + '.'
+      : err.message);
+    googleSignIn.disabled = false;
+    authSubmit.disabled = false;
+  }
+}
+
 // ---------- регистрация ----------
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -3619,7 +3696,6 @@ authForm.addEventListener('submit', async (e) => {
     }
 
     const user = await res.json();
-    // ожидаем { id, username, display_name, created_at }
     setCurrentUser({
       id: user.id,
       username: user.username ?? username,
@@ -3637,6 +3713,14 @@ authForm.addEventListener('submit', async (e) => {
     authSubmit.classList.remove('loading');
   }
 });
+
+googleSignIn.addEventListener('click', startGoogleLogin);
+
+const pendingGoogleTicket = new URLSearchParams(window.location.search).get('google_ticket');
+if(pendingGoogleTicket){
+  history.replaceState({}, '', window.location.pathname);
+  finishGoogleTicket(pendingGoogleTicket);
+}
 
 // ---------- вход в приложение ----------
 async function enterApp(){
