@@ -12,24 +12,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS google_accounts (
-    google_sub TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS google_oauth_states (
-    state_hash TEXT PRIMARY KEY,
-    code_verifier TEXT NOT NULL,
-    accepted_terms INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS google_login_tickets (
-    token_hash TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    expires_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     from_user TEXT NOT NULL,
@@ -239,6 +221,16 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0")
         if not _column_exists(conn, "users", "terms_accepted_at"):
             conn.execute("ALTER TABLE users ADD COLUMN terms_accepted_at TEXT")
+
+        # Вход через Google: стабильный id аккаунта Google и почта.
+        if not _column_exists(conn, "users", "google_sub"):
+            conn.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+        if not _column_exists(conn, "users", "email"):
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub "
+            "ON users(google_sub) WHERE google_sub IS NOT NULL"
+        )
 
         # Права участников группы (JSON) и «заглушенные» участники.
         if not _column_exists(conn, "spaces", "permissions"):

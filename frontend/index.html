@@ -240,22 +240,6 @@ button, input{font-family:inherit;}
 }
 .btn-primary.loading .btn-spinner{display:block;}
 .btn-primary.loading .btn-label{opacity:.6;}
-.auth-divider{
-  position:relative; margin:8px 0; text-align:center; color:var(--text-faint); font-size:11px; text-transform:uppercase; letter-spacing:.12em;
-}
-.auth-divider::before{
-  content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--border); z-index:0;
-}
-.auth-divider span{ position:relative; z-index:1; display:inline-block; padding:0 10px; background:var(--surface); }
-.btn-google{
-  display:flex; align-items:center; justify-content:center; gap:10px; width:100%; border:1px solid var(--border); border-radius:var(--radius-sm);
-  padding:12px 14px; background:var(--bg-alt); color:var(--text); font-weight:600; cursor:pointer; transition:transform .12s, border-color .15s, background .15s;
-}
-.btn-google:hover{ border-color:var(--accent-b); background:var(--surface-hover); transform:translateY(-1px); }
-.btn-google:disabled{opacity:.65; cursor:default; transform:none;}
-.google-mark{
-  display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg, #fbbc05, #ea4335 35%, #34a853 65%, #4285f4); color:#fff; font-size:12px; font-weight:700; font-family:var(--font-display);
-}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .auth-error{
@@ -1671,6 +1655,11 @@ body,[data-ui-design]{background:var(--bg);}
 .msg.image-message img{min-height:120px;min-width:160px;}
 input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
 .profile-field .field-hint{display:block;margin:2px 0 6px;font-weight:400;}
+
+/* вход через Google */
+.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0 12px;color:var(--text-faint);font-size:12px;}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--border);}
+#google-signin-btn{display:flex;justify-content:center;min-height:44px;}
 </style>
 <style id="v10-groups">
 .avatar.has-photo{background-size:cover;background-position:center;font-size:0;}
@@ -1832,12 +1821,10 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
       <span class="btn-spinner" aria-hidden="true"></span>
     </button>
 
-    <div class="auth-divider"><span>или</span></div>
-
-    <button id="google-signin" type="button" class="btn-google">
-      <span class="google-mark">G</span>
-      <span>Войти через Google</span>
-    </button>
+    <div id="google-signin-wrap" hidden>
+      <div class="auth-divider">или</div>
+      <div id="google-signin-btn"></div>
+    </div>
 
     <p id="auth-error" class="auth-error" hidden></p>
   </form>
@@ -3046,7 +3033,6 @@ const authForm     = document.getElementById('auth-form');
 const usernameEl   = document.getElementById('input-username');
 const displayEl    = document.getElementById('input-displayname');
 const authSubmit   = document.getElementById('auth-submit');
-const googleSignIn = document.getElementById('google-signin');
 const authError    = document.getElementById('auth-error');
 
 const meAvatar     = document.getElementById('me-avatar');
@@ -3609,59 +3595,6 @@ function showScreen(screen){
   appScreen.hidden  = screen !== 'app';
 }
 
-function showAuthError(message){
-  authError.textContent = message;
-  authError.hidden = false;
-}
-
-async function finishGoogleTicket(ticket){
-  if(!ticket) return;
-  try{
-    const res = await fetch(`${API_BASE}/api/auth/google/finish?token=${encodeURIComponent(ticket)}`, {cache: 'no-store'});
-    if(!res.ok){
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Не удалось завершить вход через Google');
-    }
-    const user = await res.json();
-    setCurrentUser({
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name
-    });
-    enterApp();
-  }catch(err){
-    showAuthError(err.message || 'Ошибка входа через Google');
-  }
-}
-
-async function startGoogleLogin(){
-  if(!document.getElementById('accept-terms').checked){
-    showAuthError('Чтобы продолжить, примите правила и политику конфиденциальности');
-    return;
-  }
-  googleSignIn.disabled = true;
-  authSubmit.disabled = true;
-  try{
-    const res = await fetch(`${API_BASE}/api/auth/google/start`, {
-      method: 'GET',
-      headers: { 'X-Accepted-Terms': '1' }
-    });
-    if(!res.ok){
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Не удалось запустить Google Login');
-    }
-    const data = await res.json();
-    if(!data?.url){ throw new Error('Сервер не вернул ссылку для входа'); }
-    window.location.href = data.url;
-  }catch(err){
-    showAuthError(err.message === 'Failed to fetch'
-      ? 'Не удаётся подключиться к серверу. Проверь, что backend запущен на ' + API_BASE + '.'
-      : err.message);
-    googleSignIn.disabled = false;
-    authSubmit.disabled = false;
-  }
-}
-
 // ---------- регистрация ----------
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -3696,6 +3629,7 @@ authForm.addEventListener('submit', async (e) => {
     }
 
     const user = await res.json();
+    // ожидаем { id, username, display_name, created_at }
     setCurrentUser({
       id: user.id,
       username: user.username ?? username,
@@ -3713,14 +3647,6 @@ authForm.addEventListener('submit', async (e) => {
     authSubmit.classList.remove('loading');
   }
 });
-
-googleSignIn.addEventListener('click', startGoogleLogin);
-
-const pendingGoogleTicket = new URLSearchParams(window.location.search).get('google_ticket');
-if(pendingGoogleTicket){
-  history.replaceState({}, '', window.location.pathname);
-  finishGoogleTicket(pendingGoogleTicket);
-}
 
 // ---------- вход в приложение ----------
 async function enterApp(){
@@ -4186,12 +4112,6 @@ function VoiceMessage(message){
       bubble.classList.remove('loading');
       return;
     }
-    // Chrome/Firefox write blobs coming out of MediaRecorder without a
-    // duration in the container header, so audio.duration reads Infinity
-    // right after load — which broke both the progress bar (always stuck
-    // at 0%) and seeking (seekFromEvent bails out whenever !durationValue).
-    // Seeking to a huge currentTime forces the browser to scan the file and
-    // resolve the real duration; we then snap back to the start.
     audio.currentTime = 1e101;
     const resolveDuration = ()=>{
       audio.removeEventListener('timeupdate', resolveDuration);
@@ -4250,9 +4170,6 @@ function ProgressRing(){
   circle.setAttribute('cx','50'); circle.setAttribute('cy','50'); circle.setAttribute('r','48');
   circle.style.strokeDasharray = '301.59';
   circle.style.strokeDashoffset = '301.59';
-  // Wide, invisible "hit ring" just for grabbing/dragging along the edge —
-  // wider than the visible stroke so it's actually easy to grab on touch,
-  // without stealing taps meant for the center play/pause toggle.
   const hit = document.createElementNS('http://www.w3.org/2000/svg','circle');
   hit.setAttribute('cx','50'); hit.setAttribute('cy','50'); hit.setAttribute('r','48');
   hit.setAttribute('fill','none');
@@ -4268,9 +4185,6 @@ function ProgressRing(){
     const rect=svg.getBoundingClientRect();
     const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
     const dx=event.clientX-cx, dy=event.clientY-cy;
-    // atan2 gives 0 at 3 o'clock; the ring itself is drawn rotated -90deg so
-    // its own 0% sits at 12 o'clock — rotate here to match, then normalize
-    // clockwise into 0..1.
     let deg=Math.atan2(dy,dx)*180/Math.PI;
     deg=(deg+90+360)%360;
     return deg/360;
@@ -4343,10 +4257,6 @@ function VideoMessage(message){
       skeleton.remove();
       return;
     }
-    // Same Chrome/Firefox MediaRecorder-blob quirk as voice messages: no
-    // duration written into the container, so video.duration is Infinity
-    // until we force a seek-scan. Without this the progress ring around the
-    // circle never advances even though playback works fine.
     const wasMuted = video.muted, wasTime = video.currentTime;
     video.currentTime = 1e101;
     const resolveDuration = ()=>{
@@ -4358,32 +4268,16 @@ function VideoMessage(message){
     };
     video.addEventListener('timeupdate', resolveDuration, {once:true});
   });
-  video.addEventListener('loadeddata',()=>{
-    skeleton.remove();
-  });
-  video.addEventListener('timeupdate',()=>{
-    ring.setProgress(duration ? video.currentTime / duration : 0);
-  });
+  video.addEventListener('loadeddata',()=>{ skeleton.remove(); });
+  video.addEventListener('timeupdate',()=>{ ring.setProgress(duration ? video.currentTime / duration : 0); });
   video.addEventListener('play',()=>{
-    if(!userInitiated){
-      // Some browsers auto-start muted, inline videos as a preview even
-      // without an autoplay attribute or a JS .play() call from us. Stop
-      // any playback we didn't explicitly trigger from a tap.
-      video.pause();
-      video.currentTime = 0;
-      return;
-    }
+    if(!userInitiated){ video.pause(); video.currentTime = 0; return; }
     shell.classList.remove('paused');
   });
-  video.addEventListener('pause',()=>{
-    shell.classList.add('paused');
-  });
+  video.addEventListener('pause',()=>{ shell.classList.add('paused'); });
   video.addEventListener('ended',()=>{
-    video.pause();
-    video.currentTime = 0;
-    ring.setProgress(0);
-    shell.classList.add('paused');
-    userInitiated = false;
+    video.pause(); video.currentTime = 0; ring.setProgress(0);
+    shell.classList.add('paused'); userInitiated = false;
   });
   video.addEventListener('error',()=>{
     skeleton.remove();
@@ -4392,9 +4286,7 @@ function VideoMessage(message){
     err.textContent = formatMediaError('video');
     if(message.audio_data){
       const dl = document.createElement('a');
-      dl.href = message.audio_data;
-      dl.download = 'video-message';
-      dl.textContent = 'Скачать';
+      dl.href = message.audio_data; dl.download = 'video-message'; dl.textContent = 'Скачать';
       dl.style.cssText = 'display:block;margin-top:6px;color:var(--accent-b);text-decoration:underline;font-size:11px;';
       err.appendChild(dl);
     }
@@ -4403,17 +4295,9 @@ function VideoMessage(message){
   shell.addEventListener('click',async()=>{
     if(!ready && video.readyState < 1) return;
     if(video.paused){
-      try{
-        userInitiated = true;
-        video.muted = false;
-        await video.play();
-      }catch{
-        userInitiated = false;
-      }
-    }else{
-      userInitiated = false;
-      video.pause();
-    }
+      try{ userInitiated = true; video.muted = false; await video.play(); }
+      catch{ userInitiated = false; }
+    }else{ userInitiated = false; video.pause(); }
   });
 
   return bubble;
@@ -4426,7 +4310,6 @@ function formatFileSize(bytes){
   return (bytes/1024/1024).toFixed(1) + ' MB';
 }
 
-// Примерный размер файла по длине base64 в data:-ссылке (без лишнего запроса).
 function dataUrlByteSize(dataUrl){
   const comma = (dataUrl || '').indexOf(',');
   if(comma < 0) return 0;
@@ -4473,9 +4356,7 @@ function ImageMessage(m){
   const bubble = document.createElement('div');
   bubble.className = 'msg ' + (m.out ? 'out' : 'in') + ' image-message';
   const img = document.createElement('img');
-  img.src = m.audio_data;
-  img.alt = m.text || 'photo';
-  img.loading = 'lazy';
+  img.src = m.audio_data; img.alt = m.text || 'photo'; img.loading = 'lazy';
   img.addEventListener('click', () => openLightbox(m.audio_data, m.text));
   bubble.appendChild(img);
   return bubble;
@@ -4485,8 +4366,7 @@ function FileMessage(m){
   const bubble = document.createElement('div');
   bubble.className = 'msg ' + (m.out ? 'out' : 'in') + ' file-message';
   const link = document.createElement('a');
-  link.href = m.audio_data;
-  link.download = m.text || 'file';
+  link.href = m.audio_data; link.download = m.text || 'file';
   const dl = document.createElement('span'); dl.className = 'fcard-dl'; dl.textContent = '⬇';
   link.appendChild(fileCard(m.text || 'file', formatFileSize(dataUrlByteSize(m.audio_data)), dl));
   bubble.appendChild(link);
@@ -4521,8 +4401,6 @@ function renderMessages(chat){
       bubble.textContent = m.text || '';
     }
     MsgUI.decorate(bubble, m, chat);
-    // В группе/канале у входящих сообщений нескольких людей — подписываем,
-    // кто именно написал (в 1:1-чате это и так понятно по стороне бабла).
     if(isSpace && !m.out && m.senderName){
       const wrap = document.createElement('div');
       wrap.className = 'space-msg-wrap';
@@ -4544,8 +4422,6 @@ function startPolling(){
   stopPolling();
   let pollTick = 0;
   pollTimer = setInterval(() => {
-    // Пока работает WebSocket, обновления приходят мгновенно сами (событие «sync»);
-    // обычный опрос остаётся лишь редкой страховкой (раз в ~6 с).
     if(window.__wsLive && (++pollTick % 8)) return;
     loadConversations();
     if(!activeChatId) return;
@@ -4555,10 +4431,7 @@ function startPolling(){
 }
 
 function stopPolling(){
-  if(pollTimer){
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
 }
 
 convBack.addEventListener('click', () => {
@@ -4604,12 +4477,12 @@ messageForm.addEventListener('submit', async (e) => {
 
     await refreshMessages(chat, { silent: false, force: true });
   }catch(err){
-    messageInput.value = text; // вернуть текст, если не отправилось
+    messageInput.value = text;
     showAttachError(err.message);
   }
 });
 
-// ---------- Media services / predictable recorder architecture ----------
+// ---------- Media services ----------
 const MediaRecorderService = {
   pickMime(kind){
     const candidates = kind === 'voice'
@@ -4632,7 +4505,7 @@ const MediaStreamService = {
     if(!navigator.mediaDevices?.getUserMedia){
       throw new Error(window.isSecureContext
         ? 'MediaRecorder/getUserMedia недоступен в этом браузере'
-        : 'Запись голосовых и видеосообщений работает только по HTTPS (или на localhost). Откройте сайт по защищённому адресу и попробуйте снова.');
+        : 'Запись голосовых и видеосообщений работает только по HTTPS (или на localhost).');
     }
     const constraints = kind === 'voice'
       ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}
@@ -4640,32 +4513,16 @@ const MediaStreamService = {
          video:{facingMode:{ideal:facingMode},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}};
     return navigator.mediaDevices.getUserMedia(constraints);
   },
-  stop(stream){
-    stream?.getTracks().forEach(track=>track.stop());
-  }
+  stop(stream){ stream?.getTracks().forEach(track=>track.stop()); }
 };
 
 function useMediaStream(){
   let stream = null;
-  return {
-    get(){ return stream; },
-    set(next){ stream = next; },
-    stop(){ MediaStreamService.stop(stream); stream = null; }
-  };
+  return { get(){ return stream; }, set(next){ stream = next; }, stop(){ MediaStreamService.stop(stream); stream = null; } };
 }
 
 // ================= Звонки (WebRTC + сигналинг по WebSocket) =================
 const CallManager = (() => {
-  // Один STUN подходит не всегда: если оба телефона за NAT, который не
-  // пропускает прямое P2P (типично для мобильного интернета и части wifi-
-  // роутеров), сигналинг (offer/answer/ICE) проходит успешно, а сам
-  // медиапоток так и не устанавливается — визуально это как раз «пишет
-  // вызов, но ничего не слышно». TURN-сервер решает это, ретранслируя
-  // медиа через себя, когда прямое соединение невозможно.
-  // Ниже — публичные тестовые TURN-креды проекта Open Relay (metered.ca),
-  // бесплатные и без регистрации, но НЕ для продакшена (нет SLA, могут
-  // резать скорость/лимиты под нагрузкой) — для реального запуска нужен
-  // свой TURN (coturn на своём сервере или платный провайдер вроде Twilio/Xirsys).
   const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
@@ -4688,53 +4545,25 @@ const CallManager = (() => {
   const cameraBtn       = document.getElementById('call-camera-btn');
   const speakerBtn      = document.getElementById('call-speaker-btn');
   const flipBtn         = document.getElementById('call-flip-btn');
-  let callFacing = 'user'; // какая камера сейчас в видеозвонке: 'user' (фронтальная) или 'environment' (основная)
+  let callFacing = 'user';
   const hangupBtn       = document.getElementById('call-hangup-btn');
   const remoteVideo     = document.getElementById('call-remote-video');
   const localVideo      = document.getElementById('call-local-video');
 
-  let ws = null;
-  let wsReconnectTimer = null;
-  let wsHeartbeatTimer = null;
-  let myId = null;
+  let ws = null, wsReconnectTimer = null, wsHeartbeatTimer = null, myId = null;
+  let pc = null, localStream = null, pendingCandidates = [], remoteDescSet = false;
+  let peerId = null, mode = 'audio', role = null, pendingOffer = null;
+  let ringCtx = null, ringInterval = null;
+  let timerInterval = null, startedAt = 0, noAnswerTimeout = null;
 
-  let pc = null;
-  let localStream = null;
-  let pendingCandidates = [];
-  let remoteDescSet = false;
-
-  let peerId = null;
-  let mode = 'audio';   // 'audio' | 'video'
-  let role = null;      // 'caller' | 'callee'
-  let pendingOffer = null;
-
-  let ringCtx = null;
-  let ringInterval = null;
-
-  let timerInterval = null;
-  let startedAt = 0;
-  let noAnswerTimeout = null;
-
-  function wsUrl(){
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${location.host}/ws/calls`;
-  }
+  function wsUrl(){ const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${proto}//${location.host}/ws/calls`; }
 
   function connect(userId){
     myId = userId;
     if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-    try{
-      ws = new WebSocket(wsUrl());
-    }catch{
-      scheduleReconnect();
-      return;
-    }
+    try{ ws = new WebSocket(wsUrl()); }catch{ scheduleReconnect(); return; }
     ws.addEventListener('open', () => { send({ type:'hello', user_id: myId }); startHeartbeat(); setCallsStatus(true); window.__wsLive = true; GroupCall.rejoin(); window.onServerSync && window.onServerSync({scope:'msg'}); });
-    ws.addEventListener('message', (event) => {
-      let msg;
-      try{ msg = JSON.parse(event.data); }catch{ return; }
-      handleSignal(msg);
-    });
+    ws.addEventListener('message', (event) => { let msg; try{ msg = JSON.parse(event.data); }catch{ return; } handleSignal(msg); });
     ws.addEventListener('close', () => { stopHeartbeat(); scheduleReconnect(); setCallsStatus(false); window.__wsLive = false; });
     ws.addEventListener('error', () => { setCallsStatus(false); });
   }
@@ -4750,45 +4579,24 @@ const CallManager = (() => {
 
   function startHeartbeat(){
     stopHeartbeat();
-    // Многие прокси/туннели (ngrok, nginx и т.п.) тихо рвут простаивающий
-    // WebSocket через ~60с без трафика — без ошибки, без close-фрейма,
-    // просто перестают доставлять байты. Тогда сервер думает, что мы всё
-    // ещё онлайн, шлёт входящий звонок в мёртвый сокет, а мы его никогда
-    // не увидим. Периодический "hello" держит соединение живым и заодно
-    // подтверждает регистрацию на сервере.
     wsHeartbeatTimer = setInterval(() => {
       if(!myId) return;
-      if(ws && ws.readyState === WebSocket.OPEN){
-        send({ type:'hello', user_id: myId });
-      }else{
-        scheduleReconnect();
-      }
+      if(ws && ws.readyState === WebSocket.OPEN){ send({ type:'hello', user_id: myId }); }
+      else{ scheduleReconnect(); }
     }, 10000);
   }
-
-  function stopHeartbeat(){
-    if(wsHeartbeatTimer){ clearInterval(wsHeartbeatTimer); wsHeartbeatTimer = null; }
-  }
-
-  function scheduleReconnect(){
-    if(!myId || wsReconnectTimer) return;
-    wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connect(myId); }, 2000);
-  }
+  function stopHeartbeat(){ if(wsHeartbeatTimer){ clearInterval(wsHeartbeatTimer); wsHeartbeatTimer = null; } }
+  function scheduleReconnect(){ if(!myId || wsReconnectTimer) return; wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connect(myId); }, 2000); }
 
   function disconnect(){
-    const id = myId;
-    myId = null;
-    stopHeartbeat();
+    const id = myId; myId = null; stopHeartbeat();
     if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     if(id) endCall({ notifyPeer:true, silent:true });
     GroupCall.leave(true);
-    try{ ws?.close(); }catch{}
-    ws = null;
+    try{ ws?.close(); }catch{} ws = null;
   }
 
-  function send(obj){
-    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
-  }
+  function send(obj){ if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
 
   function handleSignal(msg){
     switch(msg.type){
@@ -4805,115 +4613,49 @@ const CallManager = (() => {
     }
   }
 
-  // ---------- UI ----------
-
   function showOverlay(){ overlay.hidden = false; }
-  // Единая точка управления кнопками звонка. Раньше каждое место
-  // (исходящий/входящий/принятый звонок) вручную выставляло 3-4 отдельных
-  // .hidden флага — если хоть один шаг пропускался или порядок ломался,
-  // на экране оставались кнопки от предыдущего состояния одновременно с
-  // новыми (например «Отклонить/Принять» одновременно с «Микрофон/Камера/
-  // Завершить»). Теперь любой переход задаёт ВСЕ флаги разом, смешанное
-  // состояние просто невозможно.
   function setCallControlsMode(uiMode){
-    idleControls.hidden = true;
-    activeControls.hidden = true;
-    acceptBtn.hidden = true;
-    if(uiMode === 'outgoing'){
-      idleControls.hidden = false;
-      declineBtn.title = 'Отменить';
-    }else if(uiMode === 'incoming'){
-      idleControls.hidden = false;
-      acceptBtn.hidden = false;
-      declineBtn.title = 'Отклонить';
-    }else if(uiMode === 'active'){
-      activeControls.hidden = false;
-      cameraBtn.hidden = mode !== 'video';
-      flipBtn.hidden = mode !== 'video';
-      refreshSpeakerButton();
-    }
-    // uiMode === 'none' (сброс после звонка) — оба блока просто скрыты.
+    idleControls.hidden = true; activeControls.hidden = true; acceptBtn.hidden = true;
+    if(uiMode === 'outgoing'){ idleControls.hidden = false; declineBtn.title = 'Отменить'; }
+    else if(uiMode === 'incoming'){ idleControls.hidden = false; acceptBtn.hidden = false; declineBtn.title = 'Отклонить'; }
+    else if(uiMode === 'active'){ activeControls.hidden = false; cameraBtn.hidden = mode !== 'video'; flipBtn.hidden = mode !== 'video'; refreshSpeakerButton(); }
   }
-
   function hideOverlay(){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
 
-  function setPeerLabel(id, name){
-    const label = name || id;
-    peerNameEl.textContent = label;
-    avatarBig.textContent = initials(label);
-  }
+  function setPeerLabel(id, name){ const label = name || id; peerNameEl.textContent = label; avatarBig.textContent = initials(label); }
+  function startTimer(){ startedAt = Date.now(); timerEl.hidden = false; statusEl.hidden = true; timerInterval = setInterval(() => { const secs = Math.floor((Date.now() - startedAt) / 1000); timerEl.textContent = `${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`; }, 500); }
+  function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval = null; timerEl.hidden = true; statusEl.hidden = false; }
 
-  function startTimer(){
-    startedAt = Date.now();
-    timerEl.hidden = false;
-    statusEl.hidden = true;
-    timerInterval = setInterval(() => {
-      const secs = Math.floor((Date.now() - startedAt) / 1000);
-      timerEl.textContent = `${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
-    }, 500);
-  }
-
-  function stopTimer(){
-    if(timerInterval) clearInterval(timerInterval);
-    timerInterval = null;
-    timerEl.hidden = true;
-    statusEl.hidden = false;
-  }
-
-  // Простой бип вместо файла-рингтона — коротким тоном раз в 1.5с, пока
-  // экран входящего звонка открыт.
   function playRingtone(){
     stopRingtone();
     try{ ringCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch{ return; }
     const beep = () => {
       if(!ringCtx) return;
-      const osc = ringCtx.createOscillator();
-      const gain = ringCtx.createGain();
+      const osc = ringCtx.createOscillator(), gain = ringCtx.createGain();
       osc.frequency.value = 880;
       gain.gain.setValueAtTime(0.0001, ringCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.18, ringCtx.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, ringCtx.currentTime + 0.35);
-      osc.connect(gain).connect(ringCtx.destination);
-      osc.start();
-      osc.stop(ringCtx.currentTime + 0.4);
+      osc.connect(gain).connect(ringCtx.destination); osc.start(); osc.stop(ringCtx.currentTime + 0.4);
     };
-    beep();
-    ringInterval = setInterval(beep, 1500);
+    beep(); ringInterval = setInterval(beep, 1500);
   }
-
-  function stopRingtone(){
-    if(ringInterval) clearInterval(ringInterval);
-    ringInterval = null;
-    if(ringCtx){ try{ ringCtx.close(); }catch{} ringCtx = null; }
-  }
-
-  // ---------- WebRTC ----------
+  function stopRingtone(){ if(ringInterval) clearInterval(ringInterval); ringInterval = null; if(ringCtx){ try{ ringCtx.close(); }catch{} ringCtx = null; } }
 
   function createPeerConnection(){
     const connection = new RTCPeerConnection({ iceServers: ICE_LIVE });
-    connection.addEventListener('icecandidate', (event) => {
-      if(event.candidate) send({ type:'ice-candidate', to: peerId, candidate: event.candidate });
-    });
+    connection.addEventListener('icecandidate', (event) => { if(event.candidate) send({ type:'ice-candidate', to: peerId, candidate: event.candidate }); });
     connection.addEventListener('track', (event) => {
       remoteVideo.srcObject = event.streams[0];
       if(mode === 'video') overlay.classList.add('video-active');
-      // srcObject выставляется тут асинхронно (уже вне клика "Принять"),
-      // так что autoplay-атрибута браузеру может быть недостаточно —
-      // звук молча не заиграет. Просим явно и подсказываем, если браузер
-      // всё равно отказал (тогда обычно нужен ещё один тап по экрану).
       remoteVideo.play().catch(() => {
-        statusEl.textContent = 'Нажмите на экран, чтобы включить звук';
-        statusEl.hidden = false;
+        statusEl.textContent = 'Нажмите на экран, чтобы включить звук'; statusEl.hidden = false;
         const resume = () => { remoteVideo.play().catch(()=>{}); statusEl.hidden = true; document.removeEventListener('click', resume); };
         document.addEventListener('click', resume, { once:true });
       });
     });
     connection.addEventListener('connectionstatechange', () => {
-      if(connection.connectionState === 'failed'){
-        statusEl.textContent = 'Не удалось установить соединение';
-        statusEl.hidden = false;
-        setTimeout(() => endCall({ notifyPeer:true }), 1200);
-      }
+      if(connection.connectionState === 'failed'){ statusEl.textContent = 'Не удалось установить соединение'; statusEl.hidden = false; setTimeout(() => endCall({ notifyPeer:true }), 1200); }
     });
     return connection;
   }
@@ -4922,128 +4664,61 @@ const CallManager = (() => {
     const full = wantVideo
       ? { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video:{width:{ideal:1280},height:{ideal:720}} }
       : { audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true} };
-    try{
-      return await navigator.mediaDevices.getUserMedia(full);
-    }catch(err){
-      // Chrome обычно валит ВЕСЬ getUserMedia, если хоть одно запрошенное
-      // устройство отсутствует (например ноутбук без микрофона) — даже
-      // если другое устройство (камера) есть и работает. Пробуем по
-      // отдельности, чтобы взять хотя бы то, что реально есть — иначе
-      // тестовое устройство без микрофона вообще не сможет зайти в звонок.
+    try{ return await navigator.mediaDevices.getUserMedia(full); }
+    catch(err){
       if(err.name !== 'NotFoundError' && err.name !== 'OverconstrainedError') throw err;
-      if(wantVideo){
-        try{ return await navigator.mediaDevices.getUserMedia({ video: full.video }); }
-        catch{ /* и камеры нет — падаем ниже на общую ошибку */ }
-      }
+      if(wantVideo){ try{ return await navigator.mediaDevices.getUserMedia({ video: full.video }); }catch{} }
       throw err;
     }
   }
 
   async function startCall(targetId, targetName, wantVideo){
-    if(!overlay.hidden || GroupCall.active()) return; // уже в звонке
-    peerId = targetId;
-    mode = wantVideo ? 'video' : 'audio';
-    role = 'caller';
+    if(!overlay.hidden || GroupCall.active()) return;
+    peerId = targetId; mode = wantVideo ? 'video' : 'audio'; role = 'caller';
     setPeerLabel(targetId, targetName);
-    statusEl.textContent = 'Вызов…';
-    overlay.classList.add('ringing');
-    setCallControlsMode('outgoing');
-    showOverlay();
-
-    try{
-      localStream = await getMedia(wantVideo);
-    }catch{
-      statusEl.textContent = 'Нет доступа к камере/микрофону';
-      setTimeout(() => endCall({ notifyPeer:false }), 1500);
-      return;
-    }
-
+    statusEl.textContent = 'Вызов…'; overlay.classList.add('ringing');
+    setCallControlsMode('outgoing'); showOverlay();
+    try{ localStream = await getMedia(wantVideo); }
+    catch{ statusEl.textContent = 'Нет доступа к камере/микрофону'; setTimeout(() => endCall({ notifyPeer:false }), 1500); return; }
     if(wantVideo){ localVideo.srcObject = localStream; localVideo.hidden = false; }
-
     pc = createPeerConnection();
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     send({ type:'call-offer', to: targetId, mode, sdp: offer });
-
-    // Без этого при обрыве сигналинга (например, второй человек не в сети,
-    // но по каким-то причинам ответ call-unavailable не дошёл) экран
-    // застревал на «Вызов…» навсегда. Через 30с без ответа — сами вешаем трубку.
     clearTimeout(noAnswerTimeout);
-    noAnswerTimeout = setTimeout(() => {
-      if(role === 'caller' && overlay.classList.contains('ringing')){
-        statusEl.textContent = 'Нет ответа';
-        setTimeout(() => endCall({ notifyPeer:true }), 1200);
-      }
-    }, 30000);
+    noAnswerTimeout = setTimeout(() => { if(role === 'caller' && overlay.classList.contains('ringing')){ statusEl.textContent = 'Нет ответа'; setTimeout(() => endCall({ notifyPeer:true }), 1200); } }, 30000);
   }
 
   async function onIncomingOffer(msg){
-    if(!overlay.hidden){
-      send({ type:'call-busy', to: msg.from });
-      return;
-    }
-    peerId = msg.from;
-    mode = msg.mode === 'video' ? 'video' : 'audio';
-    role = 'callee';
-    pendingOffer = msg.sdp;
-    remoteDescSet = false;
-    pendingCandidates = [];
-
+    if(!overlay.hidden){ send({ type:'call-busy', to: msg.from }); return; }
+    peerId = msg.from; mode = msg.mode === 'video' ? 'video' : 'audio'; role = 'callee';
+    pendingOffer = msg.sdp; remoteDescSet = false; pendingCandidates = [];
     let chat = openChats.get(msg.from);
-    if(!chat){
-      try{
-        const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(msg.from)}`);
-        if(res.ok) chat = await res.json();
-      }catch{}
-    }
+    if(!chat){ try{ const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(msg.from)}`); if(res.ok) chat = await res.json(); }catch{} }
     setPeerLabel(msg.from, chat?.display_name);
     statusEl.textContent = mode === 'video' ? 'Входящий видеозвонок' : 'Входящий звонок';
-    overlay.classList.add('ringing');
-    setCallControlsMode('incoming');
-    showOverlay();
-    playRingtone();
+    overlay.classList.add('ringing'); setCallControlsMode('incoming'); showOverlay(); playRingtone();
   }
 
   async function acceptCall(){
-    stopRingtone();
-    overlay.classList.remove('ringing');
-    setCallControlsMode('none');
-    statusEl.textContent = 'Соединение…';
-
-    try{
-      localStream = await getMedia(mode === 'video');
-    }catch{
-      statusEl.textContent = 'Нет доступа к камере/микрофону';
-      send({ type:'call-reject', to: peerId });
-      setTimeout(() => endCall({ notifyPeer:false }), 1500);
-      return;
-    }
-
+    stopRingtone(); overlay.classList.remove('ringing'); setCallControlsMode('none'); statusEl.textContent = 'Соединение…';
+    try{ localStream = await getMedia(mode === 'video'); }
+    catch{ statusEl.textContent = 'Нет доступа к камере/микрофону'; send({ type:'call-reject', to: peerId }); setTimeout(() => endCall({ notifyPeer:false }), 1500); return; }
     if(mode === 'video'){ localVideo.srcObject = localStream; localVideo.hidden = false; }
-
     pc = createPeerConnection();
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
     await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
     remoteDescSet = true;
     for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
     pendingCandidates = [];
-
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     send({ type:'call-answer', to: peerId, sdp: answer });
-
-    setCallControlsMode('active');
-    startTimer();
+    setCallControlsMode('active'); startTimer();
   }
 
-  function declineCall(){
-    stopRingtone();
-    send({ type: role === 'callee' ? 'call-reject' : 'call-end', to: peerId });
-    endCall({ notifyPeer:false });
-  }
+  function declineCall(){ stopRingtone(); send({ type: role === 'callee' ? 'call-reject' : 'call-end', to: peerId }); endCall({ notifyPeer:false }); }
 
   async function onRemoteAnswer(msg){
     if(!pc || role !== 'caller') return;
@@ -5052,18 +4727,13 @@ const CallManager = (() => {
     remoteDescSet = true;
     for(const candidate of pendingCandidates){ try{ await pc.addIceCandidate(candidate); }catch{} }
     pendingCandidates = [];
-    overlay.classList.remove('ringing');
-    setCallControlsMode('active');
-    startTimer();
+    overlay.classList.remove('ringing'); setCallControlsMode('active'); startTimer();
   }
 
   async function onRemoteIce(msg){
     if(!msg.candidate) return;
-    if(pc && remoteDescSet){
-      try{ await pc.addIceCandidate(msg.candidate); }catch{}
-    }else{
-      pendingCandidates.push(msg.candidate);
-    }
+    if(pc && remoteDescSet){ try{ await pc.addIceCandidate(msg.candidate); }catch{} }
+    else{ pendingCandidates.push(msg.candidate); }
   }
 
   function onRemoteReject(){ statusEl.textContent = 'Отклонено'; setTimeout(() => endCall({ notifyPeer:false }), 900); }
@@ -5072,56 +4742,25 @@ const CallManager = (() => {
   function onUnavailable(){ statusEl.textContent = 'Пользователь не в сети'; setTimeout(() => endCall({ notifyPeer:false }), 1400); }
 
   function endCall({ notifyPeer=true, silent=false } = {}){
-    stopRingtone();
-    stopTimer();
-    clearTimeout(noAnswerTimeout);
+    stopRingtone(); stopTimer(); clearTimeout(noAnswerTimeout);
     if(notifyPeer && peerId) send({ type:'call-end', to: peerId });
-
     if(pc){ try{ pc.close(); }catch{} pc = null; }
     if(localStream){ MediaStreamService.stop(localStream); localStream = null; }
-    remoteVideo.srcObject = null;
-    localVideo.srcObject = null;
-    localVideo.hidden = true;
-    muteBtn.classList.remove('active');
-    cameraBtn.classList.remove('active');
-    speakerBtn.classList.remove('active');
-    callFacing = 'user';
-    localVideo.style.transform = '';
-    resetCallVideoRoles();
-
-    peerId = null; role = null; pendingOffer = null;
-    pendingCandidates = []; remoteDescSet = false;
+    remoteVideo.srcObject = null; localVideo.srcObject = null; localVideo.hidden = true;
+    muteBtn.classList.remove('active'); cameraBtn.classList.remove('active'); speakerBtn.classList.remove('active');
+    callFacing = 'user'; localVideo.style.transform = ''; resetCallVideoRoles();
+    peerId = null; role = null; pendingOffer = null; pendingCandidates = []; remoteDescSet = false;
     setCallControlsMode('none');
-
     if(silent){ overlay.hidden = true; overlay.classList.remove('ringing','video-active'); }
     else hideOverlay();
   }
 
-  function toggleMute(){
-    const track = localStream?.getAudioTracks()[0];
-    if(!track) return;
-    track.enabled = !track.enabled;
-    muteBtn.classList.toggle('active', !track.enabled);
-  }
+  function toggleMute(){ const track = localStream?.getAudioTracks()[0]; if(!track) return; track.enabled = !track.enabled; muteBtn.classList.toggle('active', !track.enabled); }
+  function toggleCamera(){ const track = localStream?.getVideoTracks()[0]; if(!track) return; track.enabled = !track.enabled; cameraBtn.classList.toggle('active', !track.enabled); }
 
-  function toggleCamera(){
-    const track = localStream?.getVideoTracks()[0];
-    if(!track) return;
-    track.enabled = !track.enabled;
-    cameraBtn.classList.toggle('active', !track.enabled);
-  }
-
-  // Динамик: браузер позволяет переключать вывод звука только если есть
-  // setSinkId и больше одного устройства вывода. Иначе кнопку прячем —
-  // не притворяемся, что она что-то делает.
   async function refreshSpeakerButton(){
     let usable = false;
-    try{
-      if(typeof remoteVideo.setSinkId === 'function' && navigator.mediaDevices?.enumerateDevices){
-        const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
-        usable = outputs.length > 1;
-      }
-    }catch{}
+    try{ if(typeof remoteVideo.setSinkId === 'function' && navigator.mediaDevices?.enumerateDevices){ const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput'); usable = outputs.length > 1; } }catch{}
     speakerBtn.hidden = !usable;
   }
 
@@ -5136,9 +4775,6 @@ const CallManager = (() => {
     }catch{}
   }
 
-  // Переворот камеры прямо во время звонка: берём новую дорожку с другой
-  // камеры и подменяем её у отправителя — собеседник видит смену без
-  // переподключения.
   async function flipCamera(){
     if(!pc || !localStream || mode !== 'video') return;
     flipBtn.disabled = true;
@@ -5146,43 +4782,22 @@ const CallManager = (() => {
     const nextFacing = callFacing === 'user' ? 'environment' : 'user';
     const oldTrack = localStream.getVideoTracks()[0];
     const wasEnabled = oldTrack ? oldTrack.enabled : true;
-    // КРИТИЧНО: сначала отпускаем текущую камеру, и только потом просим
-    // новую. На телефоне обычно активна только ОДНА камера одновременно —
-    // если запросить вторую, пока первая ещё не остановлена, браузер
-    // нередко отдаёт поток, который никогда не выдаёт кадров (чёрный
-    // экран), хотя getUserMedia формально резолвится без ошибки.
     if(oldTrack){ localStream.removeTrack(oldTrack); oldTrack.stop(); }
     try{
       let fresh, actualFacing = nextFacing;
-      try{
-        fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: nextFacing }, width:{ideal:1280}, height:{ideal:720} } });
-      }catch(err){
-        // Не вышло — пробуем вернуть прежнюю камеру, чтобы не остаться в
-        // звонке совсем без изображения.
-        fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: prevFacing }, width:{ideal:1280}, height:{ideal:720} } });
-        actualFacing = prevFacing;
-      }
+      try{ fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: nextFacing }, width:{ideal:1280}, height:{ideal:720} } }); }
+      catch(err){ fresh = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal: prevFacing }, width:{ideal:1280}, height:{ideal:720} } }); actualFacing = prevFacing; }
       const newTrack = fresh.getVideoTracks()[0];
       if(!newTrack) throw new Error('no video track');
-      newTrack.enabled = wasEnabled; // если камера была выключена — остаётся выключенной
+      newTrack.enabled = wasEnabled;
       const sender = pc.getSenders().find(item => item.track && item.track.kind === 'video');
       if(sender) await sender.replaceTrack(newTrack);
       localStream.addTrack(newTrack);
-      // Переприсвоить тот же объект-поток без .load() — в части браузеров
-      // это no-op, и превью продолжает показывать старую камеру.
-      localVideo.srcObject = null;
-      localVideo.load?.();
-      localVideo.srcObject = localStream;
+      localVideo.srcObject = null; localVideo.load?.(); localVideo.srcObject = localStream;
       await Promise.resolve(localVideo.play?.()).catch(() => {});
       callFacing = actualFacing;
-      // Фронтальную показываем зеркально (как в зеркале), основную — как есть.
       localVideo.style.transform = actualFacing === 'user' ? '' : 'none';
-    }catch{
-      // Ни новая, ни прежняя камера не взялись — звонок продолжает идти
-      // хотя бы по звуку, картинку просто не трогаем дальше.
-    }finally{
-      flipBtn.disabled = false;
-    }
+    }catch{}finally{ flipBtn.disabled = false; }
   }
 
   acceptBtn.addEventListener('click', acceptCall);
@@ -5193,51 +4808,16 @@ const CallManager = (() => {
   muteBtn.addEventListener('click', toggleMute);
   cameraBtn.addEventListener('click', toggleCamera);
 
-  document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'visible' && myId && (!ws || ws.readyState === WebSocket.CLOSED)){
-      connect(myId);
-    }
-  });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && myId && (!ws || ws.readyState === WebSocket.CLOSED)){ connect(myId); } });
 
-  return {
-    connect,
-    disconnect,
-    call: (targetId, targetName, wantVideo) => startCall(targetId, targetName, wantVideo),
-    // для группового звонка (GroupCall)
-    send,
-    busy: () => !overlay.hidden,
-    ring: () => playRingtone(),
-    stopRing: () => stopRingtone(),
-    get iceServers(){ return ICE_LIVE; }
-  };
+  return { connect, disconnect, call: (targetId, targetName, wantVideo) => startCall(targetId, targetName, wantVideo), send, busy: () => !overlay.hidden, ring: () => playRingtone(), stopRing: () => stopRingtone(), get iceServers(){ return ICE_LIVE; } };
 })();
 
-document.getElementById('call-audio-btn').addEventListener('click', () => {
-  const chat = openChats.get(activeChatId);
-  if(!chat || chat.kind === 'channel') return;
-  if(chat.kind === 'group'){ GroupCall.start(chat, false); return; }
-  CallManager.call(chat.id, chat.display_name, false);
-});
-document.getElementById('call-video-btn').addEventListener('click', () => {
-  const chat = openChats.get(activeChatId);
-  if(!chat || chat.kind === 'channel') return;
-  if(chat.kind === 'group'){ GroupCall.start(chat, true); return; }
-  CallManager.call(chat.id, chat.display_name, true);
-});
-
-function useAudioPlayer(audio){
-  return {
-    play:()=>audio.play(),
-    pause:()=>audio.pause(),
-    seek:(seconds)=>{ if(Number.isFinite(seconds)) audio.currentTime = seconds; },
-    destroy:()=>{ audio.pause(); audio.src=''; audio.load(); }
-  };
-}
+document.getElementById('call-audio-btn').addEventListener('click', () => { const chat = openChats.get(activeChatId); if(!chat || chat.kind === 'channel') return; if(chat.kind === 'group'){ GroupCall.start(chat, false); return; } CallManager.call(chat.id, chat.display_name, false); });
+document.getElementById('call-video-btn').addEventListener('click', () => { const chat = openChats.get(activeChatId); if(!chat || chat.kind === 'channel') return; if(chat.kind === 'group'){ GroupCall.start(chat, true); return; } CallManager.call(chat.id, chat.display_name, true); });
 
 function useAudioRecorder(){
-  let recorder = null;
-  let chunks = [];
-  let stream = null;
+  let recorder = null, chunks = [], stream = null;
   return {
     async start(){
       stream = await MediaStreamService.request('voice');
@@ -5260,11 +4840,8 @@ function useAudioRecorder(){
         if(recorder.state!=='inactive') recorder.stop(); else done();
       });
     },
-    cancel(){
-      try{ if(recorder?.state!=='inactive') recorder?.stop(); }catch{}
-      MediaStreamService.stop(stream); stream=null; recorder=null; chunks=[];
-    },
-    getStream(){return stream;}
+    cancel(){ try{ if(recorder?.state!=='inactive') recorder?.stop(); }catch{} MediaStreamService.stop(stream); stream=null; recorder=null; chunks=[]; },
+    getStream(){ return stream; }
   };
 }
 
@@ -5273,13 +4850,6 @@ function useVideoRecorder(){
   let hiddenVideo=null, canvas=null, ctx=null, rafId=null, drawing=false;
   let facingMode='user';
 
-  // ВАЖНО: записанные байты (то, что реально сохраняется и уходит
-  // собеседнику) НИКОГДА не зеркалим — ни для фронтальной, ни для задней
-  // камеры. Зеркалить имеет смысл только локальное превью для удобства
-  // (см. CSS .camera-preview.front-camera), чтобы было похоже на зеркало
-  // при съёмке себя. А в сам видеопоток зеркало попадать не должно —
-  // иначе у заднeй камеры всё, что справа, оказывается слева у получателя.
-  // (Раньше тут было зеркалирование именно задней камеры — это был баг.)
   function drawFrame(){
     if(!drawing) return;
     if(hiddenVideo.readyState>=2){
@@ -5295,10 +4865,8 @@ function useVideoRecorder(){
 
   function teardownPipeline(){
     drawing=false;
-    if(rafId) cancelAnimationFrame(rafId);
-    rafId=null;
-    canvasStream?.getTracks().forEach(t=>t.stop());
-    canvasStream=null;
+    if(rafId) cancelAnimationFrame(rafId); rafId=null;
+    canvasStream?.getTracks().forEach(t=>t.stop()); canvasStream=null;
     if(hiddenVideo){ hiddenVideo.srcObject=null; hiddenVideo=null; }
     canvas=null; ctx=null;
   }
@@ -5306,37 +4874,18 @@ function useVideoRecorder(){
   return {
     async start(){
       cameraStream=await MediaStreamService.request('video',facingMode);
-
-      hiddenVideo=document.createElement('video');
-      hiddenVideo.muted=true;
-      hiddenVideo.playsInline=true;
-      hiddenVideo.srcObject=cameraStream;
+      hiddenVideo=document.createElement('video'); hiddenVideo.muted=true; hiddenVideo.playsInline=true; hiddenVideo.srcObject=cameraStream;
       await hiddenVideo.play().catch(()=>{});
-
-      canvas=document.createElement('canvas');
-      canvas.width=720; canvas.height=720;
-      // alpha:false — кадр всегда непрозрачный (камера), браузеру не нужно
-      // каждый раз считать альфа-смешивание — чуть меньше нагрузки на
-      // слабых телефонах, где и были лаги.
-      ctx=canvas.getContext('2d', {alpha:false});
-      drawing=true;
-      drawFrame();
-
+      canvas=document.createElement('canvas'); canvas.width=720; canvas.height=720;
+      ctx=canvas.getContext('2d', {alpha:false}); drawing=true; drawFrame();
       canvasStream=canvas.captureStream(30);
       const audioTrack=cameraStream.getAudioTracks()[0];
       if(audioTrack) canvasStream.addTrack(audioTrack);
-
       const mimeType=MediaRecorderService.pickMime('video');
-      recorder=mimeType
-        ? new MediaRecorder(canvasStream,{mimeType,videoBitsPerSecond:1000000,audioBitsPerSecond:64000})
-        : new MediaRecorder(canvasStream);
+      recorder=mimeType ? new MediaRecorder(canvasStream,{mimeType,videoBitsPerSecond:1000000,audioBitsPerSecond:64000}) : new MediaRecorder(canvasStream);
       chunks=[];
       recorder.addEventListener('dataavailable',e=>{if(e.data?.size)chunks.push(e.data);});
       recorder.start(250);
-      // The live local preview still binds to the raw camera stream (and
-      // still gets its own CSS mirror for a natural selfie-style view) —
-      // it's the canvas pipeline above, invisible to the user, that actually
-      // gets encoded by MediaRecorder and sent to the other person.
       return {stream:cameraStream,recorder};
     },
     stop(){
@@ -5345,60 +4894,28 @@ function useVideoRecorder(){
         const done=()=>{
           const blob=new Blob(chunks,{type:(recorder.mimeType||'video/webm').split(';')[0]});
           MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[];
-          teardownPipeline();
-          resolve(blob);
+          teardownPipeline(); resolve(blob);
         };
         recorder.addEventListener('stop',done,{once:true});
         if(recorder.state!=='inactive') recorder.stop(); else done();
       });
     },
-    cancel(){
-      try{if(recorder?.state!=='inactive')recorder.stop();}catch{}
-      MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[];
-      teardownPipeline();
-    },
+    cancel(){ try{if(recorder?.state!=='inactive')recorder.stop();}catch{} MediaStreamService.stop(cameraStream); cameraStream=null; recorder=null; chunks=[]; teardownPipeline(); },
     async switchCamera(){
       if(!cameraStream) return null;
       const prevFacing=facingMode;
       const nextFacing=facingMode==='user'?'environment':'user';
       const oldVideo=cameraStream.getVideoTracks()[0];
-      // КРИТИЧНО: сначала отпускаем текущую камеру и только потом просим
-      // новую. На большинстве телефонов аппаратно активна только ОДНА
-      // камера одновременно — если запросить вторую, пока первая ещё не
-      // остановлена, браузер иногда отдаёт поток, который никогда не
-      // выдаёт кадров (визуально — чёрный экран), хотя getUserMedia
-      // формально резолвится без ошибки.
       if(oldVideo){ cameraStream.removeTrack(oldVideo); oldVideo.stop(); }
       let next;
-      try{
-        next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:nextFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
-        facingMode=nextFacing;
-      }catch(err){
-        // Новую камеру взять не удалось (например, второй камеры физически
-        // нет) — пробуем вернуть прежнюю, чтобы хотя бы не остаться совсем
-        // без изображения.
-        try{
-          next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:prevFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}});
-          facingMode=prevFacing;
-        }catch{
-          throw err;
-        }
+      try{ next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:nextFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}}); facingMode=nextFacing; }
+      catch(err){
+        try{ next=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:prevFacing},width:{ideal:720},height:{ideal:720},frameRate:{ideal:30,max:30}}}); facingMode=prevFacing; }
+        catch{ throw err; }
       }
       const nextVideo=next.getVideoTracks()[0];
-      // Swap the track on the SAME stream object the recorder is already
-      // capturing from, so recording continues across the flip with no
-      // gap and no re-encoding pipeline (that's what used to break playback).
       cameraStream.addTrack(nextVideo);
-      // The hidden <video> feeding the canvas has the same srcObject-is-a-
-      // no-op quirk as the visible preview, so force a rebind here too —
-      // otherwise the canvas (and therefore the recording) would keep
-      // drawing frames from the old camera even after the flip.
-      if(hiddenVideo){
-        hiddenVideo.srcObject=null;
-        hiddenVideo.load();
-        hiddenVideo.srcObject=cameraStream;
-        await hiddenVideo.play().catch(()=>{});
-      }
+      if(hiddenVideo){ hiddenVideo.srcObject=null; hiddenVideo.load(); hiddenVideo.srcObject=cameraStream; await hiddenVideo.play().catch(()=>{}); }
       return cameraStream;
     },
     getStream(){return cameraStream;},
@@ -5409,16 +4926,11 @@ const audioRecorderService = useAudioRecorder();
 const videoRecorderService = useVideoRecorder();
 const mediaStreamService = useMediaStream();
 
-let mediaRecorder = null;
-let isRecording = false;
-let recordingLocked = false;
-let recordingCanceled = false;
+let mediaRecorder = null, isRecording = false, recordingLocked = false, recordingCanceled = false;
 let recordingMode = 'voice';
 let holdStartX = 0, holdStartY = 0, holdActive = false;
 let audioContext = null, audioAnalyser = null, audioLevelFrame = null;
-let recordTimer = null;
-let recordStartedAt = 0;
-let recordingFacingMode = 'user';
+let recordTimer = null, recordStartedAt = 0, recordingFacingMode = 'user';
 const waveformBars = 30;
 
 const recordingTimer = document.getElementById('recording-timer');
@@ -5433,8 +4945,6 @@ voiceWaveform.innerHTML = '<i></i>'.repeat(waveformBars);
 
 const MAX_RECORDING_SECONDS = 60;
 
-// Одна кнопка на оба режима — ровно как в Telegram: короткий тап
-// переключает голосовое/кружочек, удержание записывает в текущем режиме.
 function updateMediaButton(){
   mediaBtn.textContent = recordingMode === 'voice' ? '🎤' : '◉';
   mediaBtn.setAttribute('aria-label', recordingMode === 'voice'
@@ -5443,69 +4953,40 @@ function updateMediaButton(){
   mediaBtn.classList.toggle('is-video',recordingMode==='video');
 }
 
-function stopAudioLevel(){
-  if(audioLevelFrame) cancelAnimationFrame(audioLevelFrame);
-  audioLevelFrame = null;
-  if(audioContext){ audioContext.close().catch(()=>{}); audioContext=null; }
-  audioAnalyser=null;
-}
-
-function stopRecordingTimer(){
-  if(recordTimer) clearInterval(recordTimer);
-  recordTimer=null;
-}
+function stopAudioLevel(){ if(audioLevelFrame) cancelAnimationFrame(audioLevelFrame); audioLevelFrame = null; if(audioContext){ audioContext.close().catch(()=>{}); audioContext=null; } audioAnalyser=null; }
+function stopRecordingTimer(){ if(recordTimer) clearInterval(recordTimer); recordTimer=null; }
 
 function stopRecordingPreview(){
   recordingPreview.hidden = true;
   recordingPreview.classList.remove('voice-mode','is-recording','is-locked','is-video','is-voice');
   messageForm.classList.remove('is-recording');
-  recordingVoiceStage.hidden = true;
-  recordingVideoStage.hidden = true;
+  recordingVoiceStage.hidden = true; recordingVideoStage.hidden = true;
   cameraPreview.srcObject = null;
   if(recordingLock) recordingLock.hidden = true;
-  stopAudioLevel();
-  stopRecordingTimer();
+  stopAudioLevel(); stopRecordingTimer();
   recordingTimer.textContent='0:00';
-  recordingLabelReset();
-}
-
-function recordingLabelReset(){
   document.getElementById('recording-label').textContent = currentRecorderText().voice;
 }
 
-function formatTime(seconds){
-  if(!Number.isFinite(seconds)) return '0:00';
-  const total=Math.max(0,Math.floor(seconds));
-  return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;
-}
+function formatTime(seconds){ if(!Number.isFinite(seconds)) return '0:00'; const total=Math.max(0,Math.floor(seconds)); return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`; }
 
 function animateVoiceLevel(stream){
   stopAudioLevel();
   try{
     audioContext = new (window.AudioContext||window.webkitAudioContext)();
     audioAnalyser = audioContext.createAnalyser();
-    audioAnalyser.fftSize=256;
-    audioAnalyser.smoothingTimeConstant=.78;
+    audioAnalyser.fftSize=256; audioAnalyser.smoothingTimeConstant=.78;
     audioContext.createMediaStreamSource(stream).connect(audioAnalyser);
     const values=new Uint8Array(audioAnalyser.fftSize);
     const bars=[...voiceWaveform.children];
     function draw(){
       if(!audioAnalyser) return;
       audioAnalyser.getByteTimeDomainData(values);
-      let sum=0;
-      for(const v of values){ const n=(v-128)/128; sum+=n*n; }
+      let sum=0; for(const v of values){ const n=(v-128)/128; sum+=n*n; }
       const level=Math.min(1,Math.max(.02,Math.sqrt(sum/values.length)*3.4));
-      bars.forEach((bar,index)=>{
-        const factor=.45+(((index*11)%9)/12);
-        const h=6+level*30*factor;
-        bar.style.height=`${h}px`;
-        bar.style.opacity=`${.40+level*.60}`;
-      });
+      bars.forEach((bar,index)=>{ const factor=.45+(((index*11)%9)/12); const h=6+level*30*factor; bar.style.height=`${h}px`; bar.style.opacity=`${.40+level*.60}`; });
       const ring=document.querySelector('.recording-level-ring');
-      if(ring){
-        ring.style.transform=`scale(${1+level*.35})`;
-        ring.style.boxShadow=`0 0 ${10+level*20}px rgba(110,194,255,${.10+level*.18})`;
-      }
+      if(ring){ ring.style.transform=`scale(${1+level*.35})`; ring.style.boxShadow=`0 0 ${10+level*20}px rgba(110,194,255,${.10+level*.18})`; }
       audioLevelFrame=requestAnimationFrame(draw);
     }
     draw();
@@ -5518,19 +4999,14 @@ function updateRecordingUI(){
   messageForm.classList.add('is-recording');
   recordingVoiceStage.hidden=recordingMode!=='voice';
   recordingVideoStage.hidden=recordingMode!=='video';
-  recordingHint.textContent = recordingLocked
-    ? 'Запись готова к отправке'
-    : 'Идёт запись';
-  document.getElementById('recording-label').textContent =
-    recordingMode==='voice' ? currentRecorderText().voice : currentRecorderText().video;
+  recordingHint.textContent = 'Идёт запись';
+  document.getElementById('recording-label').textContent = recordingMode==='voice' ? currentRecorderText().voice : currentRecorderText().video;
 }
 
 function updateRecordingTimer(){
   const elapsed=Math.min(MAX_RECORDING_SECONDS,(Date.now()-recordStartedAt)/1000);
   recordingTimer.textContent=formatTime(elapsed);
-  if(elapsed>=MAX_RECORDING_SECONDS){
-    finishMediaRecording();
-  }
+  if(elapsed>=MAX_RECORDING_SECONDS) finishMediaRecording();
 }
 
 async function startMediaRecording(){
@@ -5540,28 +5016,21 @@ async function startMediaRecording(){
     let result;
     if(recordingMode==='voice'){
       result=await audioRecorderService.start();
-      mediaRecorder=result.recorder;
-      mediaStreamService.set(result.stream);
+      mediaRecorder=result.recorder; mediaStreamService.set(result.stream);
       animateVoiceLevel(result.stream);
     }else{
       result=await videoRecorderService.start();
-      mediaRecorder=result.recorder;
-      mediaStreamService.set(result.stream);
-      cameraPreview.srcObject=result.stream;
-      cameraPreview.muted=true;
-      cameraPreview.classList.remove('rear-camera');
-      cameraPreview.classList.add('front-camera');
+      mediaRecorder=result.recorder; mediaStreamService.set(result.stream);
+      cameraPreview.srcObject=result.stream; cameraPreview.muted=true;
+      cameraPreview.classList.remove('rear-camera'); cameraPreview.classList.add('front-camera');
     }
-
     updateRecordingUI();
     stopRecordingTimer();
     recordTimer=setInterval(updateRecordingTimer,250);
     Activity.startRec(recordingMode==='voice' ? 'voice' : 'video');
   }catch(err){
     mediaStreamService.stop();
-    showAttachError((recordingMode==='voice'
-      ? 'Не удалось получить доступ к микрофону: '
-      : 'Не удалось получить доступ к камере: ') + err.message);
+    showAttachError((recordingMode==='voice' ? 'Не удалось получить доступ к микрофону: ' : 'Не удалось получить доступ к камере: ') + err.message);
     isRecording=false; stopRecordingPreview();
   }
 }
@@ -5570,66 +5039,27 @@ async function finishMediaRecording(){
   if(!isRecording) return;
   Activity.stopRec();
   const mode=recordingMode;
-  isRecording=false;
-  stopRecordingTimer();
-  stopAudioLevel();
-
+  isRecording=false; stopRecordingTimer(); stopAudioLevel();
   try{
     let blob;
     if(mode==='voice') blob=await audioRecorderService.stop();
     else blob=await videoRecorderService.stop();
-    mediaStreamService.stop();
-    cameraPreview.srcObject=null;
-    stopRecordingPreview();
-
-    if(!recordingCanceled && blob?.size){
-      await sendRecordedMedia(blob,mode);
-    }
-  }catch(err){
-    showAttachError('Не удалось обработать запись: '+err.message);
-  }finally{
-    recordingCanceled=false;
-    recordingLocked=false;
-    mediaRecorder=null;
-    holdActive=false;
-    updateMediaButton();
-  }
-}
-
-function stopMediaRecording(){
-  if(!isRecording) return;
-  finishMediaRecording();
+    mediaStreamService.stop(); cameraPreview.srcObject=null; stopRecordingPreview();
+    if(!recordingCanceled && blob?.size) await sendRecordedMedia(blob,mode);
+  }catch(err){ showAttachError('Не удалось обработать запись: '+err.message); }
+  finally{ recordingCanceled=false; recordingLocked=false; mediaRecorder=null; holdActive=false; updateMediaButton(); }
 }
 
 function cancelMediaRecording(){
   if(!isRecording) return;
-  Activity.stopRec();
-  recordingCanceled=true;
-  isRecording=false;
-  stopRecordingTimer();
-  stopAudioLevel();
-  if(recordingMode==='voice') audioRecorderService.cancel();
-  else videoRecorderService.cancel();
-  mediaStreamService.stop();
-  cameraPreview.srcObject=null;
-  stopRecordingPreview();
-  recordingCanceled=false;
-  recordingLocked=false;
-  mediaRecorder=null;
-  holdActive=false;
-  updateMediaButton();
-}
-
-function lockMediaRecording(){
-  if(!isRecording) return;
-  recordingLocked=true;
-  recordingPreview.classList.add('is-locked');
-  recordingHint.textContent='Запись готова к отправке';
+  Activity.stopRec(); recordingCanceled=true; isRecording=false; stopRecordingTimer(); stopAudioLevel();
+  if(recordingMode==='voice') audioRecorderService.cancel(); else videoRecorderService.cancel();
+  mediaStreamService.stop(); cameraPreview.srcObject=null; stopRecordingPreview();
+  recordingCanceled=false; recordingLocked=false; mediaRecorder=null; holdActive=false; updateMediaButton();
 }
 
 async function sendRecordedMedia(blob,mode){
-  const me=getCurrentUser();
-  const chat=openChats.get(activeChatId);
+  const me=getCurrentUser(), chat=openChats.get(activeChatId);
   if(!me || !chat){ showAttachError('Не удалось определить чат'); return; }
   const isSpace = chat.kind==='group' || chat.kind==='channel';
   if(!canDo(chat, 'media')){ showAttachError('В этой группе вам запрещено отправлять голосовые и кружочки'); return; }
@@ -5637,15 +5067,13 @@ async function sendRecordedMedia(blob,mode){
   const pending = document.createElement('div');
   pending.className = 'msg out ' + (mode==='video' ? 'video-message' : 'voice-message');
   if(mode==='video'){
-    const pendingShell=document.createElement('div');
-    pendingShell.className='media-pending';
+    const pendingShell=document.createElement('div'); pendingShell.className='media-pending';
     pendingShell.innerHTML='<span class="media-pending-spinner"></span><span class="media-pending-label">UPLOAD</span>';
     pending.appendChild(pendingShell);
   }else{
     pending.innerHTML='<div class="voice-component"><span class="voice-play"><span class="media-pending-spinner" style="width:16px;height:16px;display:block"></span></span><span class="voice-duration">UPLOAD</span></div>';
   }
-  convMessages.appendChild(pending);
-  convMessages.scrollTop=convMessages.scrollHeight;
+  convMessages.appendChild(pending); convMessages.scrollTop=convMessages.scrollHeight;
 
   try{
     if(mode==='video' && blob.size > 10*1024*1024) throw new Error('Видео слишком большое. Запишите короткий кружочек и попробуйте снова.');
@@ -5654,74 +5082,35 @@ async function sendRecordedMedia(blob,mode){
     const body = isSpace
       ? { space_id:chat.id, from_user:me.id, type:mode, text:'', audio_data:data, reply_to:MsgUI.takeReplyId(chat.id) }
       : { from_user:me.id, to_user:chat.id, type:mode, text:'', audio_data:data, reply_to:MsgUI.takeReplyId(chat.id) };
-
     if(mode==='voice'){
-      body.waveform=JSON.stringify([...voiceWaveform.children].map(bar=>{
-        const px=parseFloat(bar.style.height)||8;
-        return Math.max(.12,Math.min(1,px/36));
-      }));
+      body.waveform=JSON.stringify([...voiceWaveform.children].map(bar=>{ const px=parseFloat(bar.style.height)||8; return Math.max(.12,Math.min(1,px/36)); }));
     }
-
     let res;
-    try{
-      res=await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(body)
-      });
-    }catch(networkErr){
-      throw new Error('Нет связи с сервером. Проверьте подключение и адрес сервера ('+API_BASE+').');
-    }
-    if(res.status===413){
-      throw new Error('Сервер отклонил запись — слишком большой размер запроса (413). Нужно увеличить лимит тела запроса на сервере (например, express.json({limit:"20mb"})) или уменьшить длительность записи.');
-    }
+    try{ res=await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+    catch(networkErr){ throw new Error('Нет связи с сервером. Проверьте подключение.'); }
+    if(res.status===413) throw new Error('Сервер отклонил запись — слишком большой размер запроса (413).');
     if(!res.ok) throw new Error(await messageError(res,'Медиа-сообщение не отправилось'));
-    pending.remove();
-    chat.lastCount = -1;
+    pending.remove(); chat.lastCount = -1;
     await refreshMessages(chat,{silent:false,force:true});
-  }catch(err){
-    pending.remove();
-    showAttachError(err.message || 'Не удалось отправить запись');
-  }
+  }catch(err){ pending.remove(); showAttachError(err.message || 'Не удалось отправить запись'); }
 }
 
-function cycleMediaMode(){
-  if(isRecording) return;
-  recordingMode=recordingMode==='voice'?'video':'voice';
-  updateMediaButton();
-}
+function cycleMediaMode(){ if(isRecording) return; recordingMode=recordingMode==='voice'?'video':'voice'; updateMediaButton(); }
 
-// Короткий тап (отпустили быстрее порога, и запись ещё не началась по-
-// настоящему) = переключить режим. Держишь дольше порога = запись
-// стартует сама, как только порог пройден — отпускание уже завершает её.
 const HOLD_THRESHOLD_MS = 220;
-let holdTimer = null;
-let holdTriggered = false;
+let holdTimer = null, holdTriggered = false;
 
 mediaBtn.addEventListener('pointerdown',event=>{
   if(!activeChatId){ showAttachError('Сначала выберите чат'); return; }
-  event.preventDefault();
-  holdStartX=event.clientX;
-  holdStartY=event.clientY;
-  holdActive=true;
-  holdTriggered=false;
+  event.preventDefault(); holdStartX=event.clientX; holdStartY=event.clientY;
+  holdActive=true; holdTriggered=false;
   mediaBtn.setPointerCapture?.(event.pointerId);
   mediaBtn.classList.add('is-recording-active');
   clearTimeout(holdTimer);
-  holdTimer=setTimeout(()=>{
-    if(!holdActive) return; // уже отпустили — это был тап, запись не начинаем
-    holdTriggered=true;
-    if(!isRecording) startMediaRecording();
-  }, HOLD_THRESHOLD_MS);
+  holdTimer=setTimeout(()=>{ if(!holdActive) return; holdTriggered=true; if(!isRecording) startMediaRecording(); }, HOLD_THRESHOLD_MS);
 });
-
 mediaBtn.addEventListener('pointermove',()=>{});
-mediaBtn.addEventListener('pointerup',()=>{
-  holdActive=false;
-  mediaBtn.classList.remove('is-recording-active');
-  clearTimeout(holdTimer);
-  if(!holdTriggered && !isRecording) cycleMediaMode(); // короткий тап — просто сменить режим
-});
+mediaBtn.addEventListener('pointerup',()=>{ holdActive=false; mediaBtn.classList.remove('is-recording-active'); clearTimeout(holdTimer); if(!holdTriggered && !isRecording) cycleMediaMode(); });
 mediaBtn.addEventListener('pointercancel',()=>{ holdActive=false; mediaBtn.classList.remove('is-recording-active'); clearTimeout(holdTimer); });
 
 recordingFlipBtn.addEventListener('click',async()=>{
@@ -5730,41 +5119,22 @@ recordingFlipBtn.addEventListener('click',async()=>{
     const next = await videoRecorderService.switchCamera();
     if(next){
       mediaStreamService.set(next);
-      // Reassigning the SAME stream object as srcObject is a no-op in most
-      // browsers even after a track swap, so the preview keeps showing the
-      // old camera. Force a rebind: detach, then reattach next frame.
-      cameraPreview.srcObject = null;
-      cameraPreview.load?.();
-      requestAnimationFrame(()=>{
-        cameraPreview.srcObject = next;
-        cameraPreview.play().catch(()=>{});
-      });
+      cameraPreview.srcObject = null; cameraPreview.load?.();
+      requestAnimationFrame(()=>{ cameraPreview.srcObject = next; cameraPreview.play().catch(()=>{}); });
       const actualTrack = next.getVideoTracks()[0];
       const actualFacing = actualTrack?.getSettings?.().facingMode;
-      // If the browser couldn't actually honor 'environment' (common on
-      // laptops with a single webcam — it silently keeps serving the same
-      // front camera), keep mirroring it like a front camera. Only treat
-      // it as a true rear camera when the track itself confirms it.
-      const rear = actualFacing
-        ? actualFacing === 'environment'
-        : videoRecorderService.getFacingMode() === 'environment';
-      cameraPreview.classList.toggle('rear-camera', rear);
-      cameraPreview.classList.toggle('front-camera', !rear);
+      const rear = actualFacing ? actualFacing === 'environment' : videoRecorderService.getFacingMode() === 'environment';
+      cameraPreview.classList.toggle('rear-camera', rear); cameraPreview.classList.toggle('front-camera', !rear);
     }
-  }catch(err){
-    showAttachError('Не удалось переключить камеру: ' + err.message);
-  }
+  }catch(err){ showAttachError('Не удалось переключить камеру: ' + err.message); }
 });
 
 recordingCancel.addEventListener('click',cancelMediaRecording);
 recordingSendBtn.addEventListener('click',()=>{ if(isRecording) finishMediaRecording(); });
-
-
 updateMediaButton();
 
 // ==========================================================
-// Скрепка: отправка фото и файлов (хранятся в базе как base64,
-// по тому же принципу, что голосовые и кружочки)
+// Скрепка: отправка фото и файлов
 // ==========================================================
 const attachBtn = document.getElementById('attach-btn');
 const attachMenu = document.getElementById('attach-menu');
@@ -5775,19 +5145,9 @@ const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
 const FILE_MAX_BYTES = 8 * 1024 * 1024;
 let attachErrorTimer = null;
 
-function showAttachError(text){
-  attachError.textContent = text;
-  attachError.hidden = false;
-  clearTimeout(attachErrorTimer);
-  attachErrorTimer = setTimeout(() => { attachError.hidden = true; }, 5000);
-}
-function hideAttachError(){
-  clearTimeout(attachErrorTimer);
-  attachError.hidden = true;
-}
+function showAttachError(text){ attachError.textContent = text; attachError.hidden = false; clearTimeout(attachErrorTimer); attachErrorTimer = setTimeout(() => { attachError.hidden = true; }, 5000); }
+function hideAttachError(){ clearTimeout(attachErrorTimer); attachError.hidden = true; }
 
-// Большие фото с камеры телефона ужимаем (до 1600px, JPEG) — иначе они
-// раздувают базу и медленно грузятся. Небольшие, GIF и SVG не трогаем.
 async function prepareImage(file){
   if(file.type === 'image/gif' || file.type === 'image/svg+xml' || file.size <= 1.5 * 1024 * 1024) return file;
   try{
@@ -5797,35 +5157,26 @@ async function prepareImage(file){
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
     return blob && blob.size < file.size ? blob : file;
-  }catch{
-    return file;
-  }
+  }catch{ return file; }
 }
 
 async function sendAttachment(kind, file){
-  const me = getCurrentUser();
-  const chat = openChats.get(activeChatId);
+  const me = getCurrentUser(), chat = openChats.get(activeChatId);
   if(!me || !chat || !file) return;
   const isSpace = chat.kind === 'group' || chat.kind === 'channel';
   hideAttachError();
-
   if(file.size === 0){ showAttachError('Файл пустой'); return; }
-
   let blob = file;
   if(kind === 'photo'){
     if(!String(file.type).startsWith('image/')){ showAttachError('Выберите изображение'); return; }
     blob = await prepareImage(file);
     if(blob.size > PHOTO_MAX_BYTES){ showAttachError('Фото слишком большое (максимум 6 МБ)'); return; }
-  }else if(blob.size > FILE_MAX_BYTES){
-    showAttachError('Файл слишком большой (максимум 8 МБ)');
-    return;
-  }
+  }else if(blob.size > FILE_MAX_BYTES){ showAttachError('Файл слишком большой (максимум 8 МБ)'); return; }
 
   const pending = document.createElement('div');
   if(kind === 'photo'){
@@ -5836,8 +5187,7 @@ async function sendAttachment(kind, file){
     const sp = document.createElement('span'); sp.className = 'fcard-dl'; sp.textContent = '⟳';
     pending.appendChild(fileCard(file.name || 'file', formatFileSize(file.size), sp));
   }
-  convMessages.appendChild(pending);
-  convMessages.scrollTop = convMessages.scrollHeight;
+  convMessages.appendChild(pending); convMessages.scrollTop = convMessages.scrollHeight;
 
   try{
     const dataUrl = await MediaRecorderService.blobToDataURL(blob);
@@ -5845,68 +5195,39 @@ async function sendAttachment(kind, file){
       ? { space_id: chat.id, from_user: me.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl, reply_to: MsgUI.takeReplyId(chat.id) }
       : { from_user: me.id, to_user: chat.id, type: kind === 'photo' ? 'image' : 'file', text: kind === 'file' ? (file.name || 'file') : '', audio_data: dataUrl, reply_to: MsgUI.takeReplyId(chat.id) };
     let res;
-    try{
-      res = await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    }catch{
-      throw new Error('Нет связи с сервером. Проверьте подключение.');
-    }
+    try{ res = await fetch(`${API_BASE}/api/${isSpace ? 'space-messages' : 'messages'}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+    catch{ throw new Error('Нет связи с сервером. Проверьте подключение.'); }
     if(!res.ok) throw new Error(await messageError(res, 'Не удалось отправить'));
-    pending.remove();
-    chat.lastCount = -1;
+    pending.remove(); chat.lastCount = -1;
     await refreshMessages(chat, { silent: false, force: true });
-  }catch(err){
-    pending.remove();
-    showAttachError(err.message || 'Не удалось отправить');
-  }
+  }catch(err){ pending.remove(); showAttachError(err.message || 'Не удалось отправить'); }
 }
 
-attachBtn.addEventListener('click', event => {
-  event.stopPropagation();
-  if(attachBtn.disabled) return;
-  attachMenu.hidden = !attachMenu.hidden;
-});
-attachMenu.querySelectorAll('[data-attach]').forEach(option => option.addEventListener('click', () => {
-  attachMenu.hidden = true;
-  (option.dataset.attach === 'photo' ? attachPhotoInput : attachFileInput).click();
-}));
-document.addEventListener('click', event => {
-  if(!attachMenu.hidden && !event.target.closest('#attach-menu')) attachMenu.hidden = true;
-});
+attachBtn.addEventListener('click', event => { event.stopPropagation(); if(attachBtn.disabled) return; attachMenu.hidden = !attachMenu.hidden; });
+attachMenu.querySelectorAll('[data-attach]').forEach(option => option.addEventListener('click', () => { attachMenu.hidden = true; (option.dataset.attach === 'photo' ? attachPhotoInput : attachFileInput).click(); }));
+document.addEventListener('click', event => { if(!attachMenu.hidden && !event.target.closest('#attach-menu')) attachMenu.hidden = true; });
+
 function confirmSend(kind, file){
   const back = document.createElement('div'); back.className = 'sp-backdrop';
   const card = document.createElement('div'); card.className = 'sp-card';
   const title = document.createElement('h3'); title.className = 'sp-title'; title.textContent = kind === 'photo' ? 'Отправить фото?' : 'Отправить файл?';
   card.appendChild(title);
   let url = null;
-  if(kind === 'photo' && String(file.type).startsWith('image/')){
-    url = URL.createObjectURL(file);
-    const img = document.createElement('img'); img.className = 'sp-image'; img.src = url; card.appendChild(img);
-  }else{
-    card.appendChild(fileCard(file.name || 'file', formatFileSize(file.size)));
-  }
+  if(kind === 'photo' && String(file.type).startsWith('image/')){ url = URL.createObjectURL(file); const img = document.createElement('img'); img.className = 'sp-image'; img.src = url; card.appendChild(img); }
+  else{ card.appendChild(fileCard(file.name || 'file', formatFileSize(file.size))); }
   const actions = document.createElement('div'); actions.className = 'sp-actions';
   const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Отмена';
   const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'primary'; ok.textContent = 'Отправить';
   const shut = () => { if(url) URL.revokeObjectURL(url); back.remove(); };
-  cancel.addEventListener('click', shut);
-  back.addEventListener('click', e => { if(e.target === back) shut(); });
+  cancel.addEventListener('click', shut); back.addEventListener('click', e => { if(e.target === back) shut(); });
   ok.addEventListener('click', () => { shut(); sendAttachment(kind, file); });
-  actions.append(cancel, ok); card.appendChild(actions); back.appendChild(card);
-  document.body.appendChild(back);
+  actions.append(cancel, ok); card.appendChild(actions); back.appendChild(card); document.body.appendChild(back);
 }
-attachPhotoInput.addEventListener('change', () => {
-  const file = attachPhotoInput.files?.[0];
-  attachPhotoInput.value = '';
-  if(file) confirmSend('photo', file);
-});
-attachFileInput.addEventListener('change', () => {
-  const file = attachFileInput.files?.[0];
-  attachFileInput.value = '';
-  if(file) confirmSend('file', file);
-});
+attachPhotoInput.addEventListener('change', () => { const file = attachPhotoInput.files?.[0]; attachPhotoInput.value = ''; if(file) confirmSend('photo', file); });
+attachFileInput.addEventListener('change', () => { const file = attachFileInput.files?.[0]; attachFileInput.value = ''; if(file) confirmSend('file', file); });
 
 // ==========================================================
-// Статус «в сети» / «был(а)…»
+// Статус «в сети»
 // ==========================================================
 const CLIENT_VERSION = 'v16-nogroupcall';
 async function presencePing(extra){
@@ -5935,8 +5256,7 @@ async function refreshPresence(){
     const res = await fetch(`${API_BASE}/api/presence/${encodeURIComponent(chat.id)}?viewer=${encodeURIComponent(me.id)}`, {cache:'no-store'});
     if(!res.ok || activeChatId !== chat.id) return;
     const info = await res.json();
-    el.textContent = lastSeenText(info);
-    el.classList.toggle('online', info.status === 'online');
+    el.textContent = lastSeenText(info); el.classList.toggle('online', info.status === 'online');
   }catch{}
 }
 let presenceTimer = null;
@@ -5949,33 +5269,23 @@ function startPresence(){
     if(info && info.visibility && sel && document.activeElement !== sel) sel.value = info.visibility;
     refreshPresence();
   };
-  tick();
-  presenceTimer = setInterval(tick, 15000);
+  tick(); presenceTimer = setInterval(tick, 15000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) tick(); });
 }
-document.getElementById('status-visibility').addEventListener('change', async event => {
-  await presencePing({status_visibility: event.target.value});
-});
+document.getElementById('status-visibility').addEventListener('change', async event => { await presencePing({status_visibility: event.target.value}); });
 fetch(`${API_BASE}/api/health`).then(r => r.json()).then(h => {
   { const me0 = getCurrentUser(); const n = document.getElementById('my-id-note'); if(n && me0) n.textContent = 'ID аккаунта: ' + me0.id; }
   document.getElementById('ver-note').textContent = `Версия: страница ${CLIENT_VERSION} · сервер ${h.version || 'старая (без номера)'}`;
 }).catch(() => {});
 
-
 // ==========================================================
-// v12: «печатает…», непрочитанные и уведомления, реакции, жалобы,
-// модерация, поиск по чату, установка как приложение, удаление аккаунта
+// v12: «печатает…», непрочитанные, уведомления, реакции, жалобы
 // ==========================================================
 const jsonPost = (path, body) => fetch(`${API_BASE}${path}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
 
-// ----- что я сейчас делаю (печатаю / пишу голосовое / кружок) -----
 const Activity = (() => {
   let lastSent = 0, lastKind = 'none', keep = null;
-  function send(kind){
-    const me = getCurrentUser(); if(!me || !activeChatId) return;
-    lastKind = kind; lastSent = Date.now();
-    jsonPost('/api/activity', {user_id: me.id, chat_id: activeChatId, kind}).catch(() => {});
-  }
+  function send(kind){ const me = getCurrentUser(); if(!me || !activeChatId) return; lastKind = kind; lastSent = Date.now(); jsonPost('/api/activity', {user_id: me.id, chat_id: activeChatId, kind}).catch(() => {}); }
   return {
     typing(){ if(lastKind !== 'typing' || Date.now() - lastSent > 2500) send('typing'); },
     stopTyping(){ if(lastKind === 'typing') send('none'); },
@@ -6011,7 +5321,6 @@ async function pollActivity(){
   }catch{}
 }
 
-// ----- непрочитанные, уведомления, звук -----
 window.unreadMap = {};
 const NotifCfg = {
   get(){ try{ return Object.assign({enabled:false, sound:true}, JSON.parse(localStorage.getItem('tgclone_notif') || '{}')); }catch{ return {enabled:false, sound:true}; } },
@@ -6028,9 +5337,7 @@ function beep(){
     setTimeout(() => ctx.close(), 500);
   }catch{}
 }
-function previewText(info){
-  return ({voice:'🎤 Голосовое сообщение', video:'⭕ Кружок', image:'🖼 Фото', file:'📄 Файл'})[info.type] || info.preview || 'Новое сообщение';
-}
+function previewText(info){ return ({voice:'🎤 Голосовое сообщение', video:'⭕ Кружок', image:'🖼 Фото', file:'📄 Файл'})[info.type] || info.preview || 'Новое сообщение'; }
 function notifyMessage(chatId, info){
   const chat = openChats.get(chatId);
   const title = chat ? (chat.kind ? chat.display_name : displayNameFor(chat)) : (info.sender || 'Mijer Chat');
@@ -6053,10 +5360,7 @@ async function pollUnread(){
   let map;
   try{ const r = await fetch(`${API_BASE}/api/unread/${encodeURIComponent(me.id)}`, {cache:'no-store'}); if(!r.ok) return; map = await r.json(); }catch{ return; }
   const active = activeChatId && document.visibilityState === 'visible' ? activeChatId : null;
-  if(active && map[active]){
-    const c = openChats.get(active);
-    if(c && c.kind) jsonPost('/api/space-read', {user_id: me.id, space_id: active}).catch(() => {});
-  }
+  if(active && map[active]){ const c = openChats.get(active); if(c && c.kind) jsonPost('/api/space-read', {user_id: me.id, space_id: active}).catch(() => {}); }
   if(unreadPrev !== null){
     for(const [id, info] of Object.entries(map)){
       if(id === active) continue;
@@ -6083,16 +5387,11 @@ document.getElementById('notif-enabled').addEventListener('change', async e => {
 document.getElementById('notif-sound').addEventListener('change', e => { const cfg = NotifCfg.get(); cfg.sound = e.target.checked; NotifCfg.set(cfg); if(cfg.sound) beep(); });
 (() => { const cfg = NotifCfg.get(); document.getElementById('notif-enabled').checked = cfg.enabled && ('Notification' in window) && Notification.permission === 'granted'; document.getElementById('notif-sound').checked = cfg.sound; })();
 
-// ----- реакции -----
 window.reactTo = async function(m, chat, emoji){
   const me = getCurrentUser(); if(!me) return;
-  try{
-    await jsonPost('/api/reactions', {message_id: m.id, user_id: me.id, emoji});
-    await refreshMessages(chat, {silent:false, force:true});
-  }catch{}
+  try{ await jsonPost('/api/reactions', {message_id: m.id, user_id: me.id, emoji}); await refreshMessages(chat, {silent:false, force:true}); }catch{}
 };
 
-// ----- жалобы -----
 const REPORT_REASONS = [['spam','Спам'],['abuse','Оскорбления, травля'],['scam','Мошенничество'],['inappropriate','Неприемлемый контент'],['other','Другое']];
 window.openReportDialog = function({targetId, messageId, name}){
   const me = getCurrentUser(); if(!me) return;
@@ -6101,7 +5400,7 @@ window.openReportDialog = function({targetId, messageId, name}){
   card.innerHTML = `<h3 class="sp-title">Пожаловаться${name ? ' на ' + escapeHtml(name) : ''}</h3>
     <div class="rp-reasons">${REPORT_REASONS.map(([k, l], i) => `<label><input type="radio" name="rp-reason" value="${k}" ${i === 0 ? 'checked' : ''}>${l}</label>`).join('')}</div>
     <textarea class="rp-text" id="rp-details" maxlength="500" placeholder="Что произошло? (необязательно)"></textarea>
-    <p class="section-note" style="margin:8px 0 0">К жалобе автоматически прикладывается это сообщение и несколько предыдущих в чате. Больше модератор ничего не увидит.</p>
+    <p class="section-note" style="margin:8px 0 0">К жалобе автоматически прикладывается это сообщение и несколько предыдущих в чате.</p>
     <label class="rp-check"><input type="checkbox" id="rp-block">Заблокировать этого человека у меня</label>
     <p class="auth-error" id="rp-error" hidden></p>
     <div class="sp-actions"><button type="button" id="rp-cancel">Отмена</button><button type="button" class="danger" id="rp-send">Отправить</button></div>`;
@@ -6132,16 +5431,9 @@ document.getElementById('profile-report-btn').addEventListener('click', () => {
   window.openReportDialog({targetId: chat.id, name: displayNameFor(chat)});
 });
 
-// ----- панель модерации (только для админа) -----
-let adminKey = '';   // секретный ключ хранится только в памяти страницы, на диск не пишется
-function adminFetch(path, opts){
-  opts = opts || {};
-  opts.headers = Object.assign({'X-Admin-Key': adminKey}, opts.headers || {});
-  return fetch(`${API_BASE}${path}`, opts);
-}
-function adminPost(path, body){
-  return adminFetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-}
+let adminKey = '';
+function adminFetch(path, opts){ opts = opts || {}; opts.headers = Object.assign({'X-Admin-Key': adminKey}, opts.headers || {}); return fetch(`${API_BASE}${path}`, opts); }
+function adminPost(path, body){ return adminFetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}); }
 async function openAdminPanel(){
   const me = getCurrentUser(); if(!me) return;
   const back = document.createElement('div'); back.className = 'sp-backdrop';
@@ -6149,7 +5441,7 @@ async function openAdminPanel(){
   back.appendChild(card); document.body.appendChild(back);
   back.addEventListener('click', e => { if(e.target === back) back.remove(); });
   function askKey(message){
-    card.innerHTML = `<h3 class="sp-title">Админ-ключ</h3><p class="section-note">Введите секретный ключ администратора (переменная ADMIN_KEY на сервере). Он хранится только до закрытия страницы.</p>
+    card.innerHTML = `<h3 class="sp-title">Админ-ключ</h3><p class="section-note">Введите секретный ключ администратора (переменная ADMIN_KEY на сервере).</p>
       <label class="profile-field"><input id="adm-key" type="password" autocomplete="off" placeholder="ключ"></label>
       <p class="auth-error" id="adm-key-err" ${message ? '' : 'hidden'}>${escapeHtml(message || '')}</p>
       <div class="sp-actions"><button type="button" id="adm-key-cancel">Отмена</button><button type="button" class="primary" id="adm-key-ok">Войти</button></div>`;
@@ -6163,10 +5455,7 @@ async function openAdminPanel(){
     if(!adminKey){ askKey(''); return; }
     card.innerHTML = '<h3 class="sp-title">Жалобы</h3><p class="section-note">Загрузка…</p>';
     const res = await adminFetch(`/api/admin/reports?admin=${encodeURIComponent(me.id)}`);
-    if(!res.ok){
-      let msg = 'Нет доступа'; try{ msg = (await res.json()).error || msg; }catch{}
-      adminKey = ''; askKey(msg); return;
-    }
+    if(!res.ok){ let msg = 'Нет доступа'; try{ msg = (await res.json()).error || msg; }catch{} adminKey = ''; askKey(msg); return; }
     const groups = await res.json();
     card.innerHTML = '<h3 class="sp-title">Жалобы</h3>';
     if(!groups.length) card.insertAdjacentHTML('beforeend', '<p class="section-note">Открытых жалоб нет.</p>');
@@ -6178,7 +5467,7 @@ async function openAdminPanel(){
           <div class="adm-ev">${r.evidence.map(e => `<div><b>${escapeHtml(e.from)}:</b> ${escapeHtml(e.text)}</div>`).join('') || 'Без приложенных сообщений'}</div></div>`).join('') +
         `<div class="adm-acts"><button data-a="dismiss">Отклонить</button><button class="danger" data-a="ban">Заблокировать аккаунт</button></div>`;
       box.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
-        if(b.dataset.a === 'ban' && !confirm(`Заблокировать @${g.target.username}? Он не сможет отправлять сообщения.`)) return;
+        if(b.dataset.a === 'ban' && !confirm(`Заблокировать @${g.target.username}?`)) return;
         await adminPost('/api/admin/resolve', {admin: me.id, target_user_id: g.target.id, action: b.dataset.a});
         load();
       });
@@ -6195,14 +5484,12 @@ async function openAdminPanel(){
       msg.textContent = '@' + u.username + ' разблокирован'; msg.hidden = false;
     };
     card.appendChild(un);
-    const close = document.createElement('div'); close.className = 'sp-actions';
-    close.innerHTML = '<button type="button">Закрыть</button>'; close.firstChild.onclick = () => back.remove(); card.appendChild(close);
+    const close = document.createElement('div'); close.className = 'sp-actions'; close.innerHTML = '<button type="button">Закрыть</button>'; close.firstChild.onclick = () => back.remove(); card.appendChild(close);
   }
   load();
 }
 document.getElementById('admin-open-btn').addEventListener('click', openAdminPanel);
 
-// ----- удаление аккаунта -----
 document.getElementById('delete-account-btn').addEventListener('click', () => {
   const me = getCurrentUser(); if(!me) return;
   const back = document.createElement('div'); back.className = 'sp-backdrop';
@@ -6225,24 +5512,15 @@ document.getElementById('delete-account-btn').addEventListener('click', () => {
   };
 });
 
-// ----- поиск по чату -----
 const chatSearch = {hits: [], idx: -1};
 const csBox = document.getElementById('conv-search'), csInput = document.getElementById('conv-search-input'), csCount = document.getElementById('conv-search-count');
 function applySearchMarks(jump){
   convMessages.querySelectorAll('.search-hit, .search-current').forEach(n => n.classList.remove('search-hit', 'search-current'));
-  chatSearch.hits.forEach((id, i) => {
-    const n = convMessages.querySelector(`[data-mid="${id}"]`); if(!n) return;
-    n.classList.add('search-hit'); if(i === chatSearch.idx) n.classList.add('search-current');
-  });
+  chatSearch.hits.forEach((id, i) => { const n = convMessages.querySelector(`[data-mid="${id}"]`); if(!n) return; n.classList.add('search-hit'); if(i === chatSearch.idx) n.classList.add('search-current'); });
   csCount.textContent = chatSearch.hits.length ? `${chatSearch.idx + 1}/${chatSearch.hits.length}` : (csInput.value.trim() ? '0' : '');
   if(jump){ const cur = convMessages.querySelector('.search-current'); if(cur) cur.scrollIntoView({block:'center', behavior:'smooth'}); }
 }
-function runChatSearch(){
-  const chat = openChats.get(activeChatId); const q = csInput.value.trim().toLowerCase();
-  chatSearch.hits = (chat && q) ? chat.messages.filter(m => m.type === 'text' && (m.text || '').toLowerCase().includes(q)).map(m => m.id) : [];
-  chatSearch.idx = chatSearch.hits.length - 1;
-  applySearchMarks(true);
-}
+function runChatSearch(){ const chat = openChats.get(activeChatId); const q = csInput.value.trim().toLowerCase(); chatSearch.hits = (chat && q) ? chat.messages.filter(m => m.type === 'text' && (m.text || '').toLowerCase().includes(q)).map(m => m.id) : []; chatSearch.idx = chatSearch.hits.length - 1; applySearchMarks(true); }
 function stepSearch(d){ if(!chatSearch.hits.length) return; chatSearch.idx = (chatSearch.idx + d + chatSearch.hits.length) % chatSearch.hits.length; applySearchMarks(true); }
 window.closeChatSearch = function(){ csBox.hidden = true; csInput.value = ''; chatSearch.hits = []; chatSearch.idx = -1; csCount.textContent = ''; convMessages.querySelectorAll('.search-hit, .search-current').forEach(n => n.classList.remove('search-hit', 'search-current')); };
 document.getElementById('conv-search-btn').addEventListener('click', () => { if(csBox.hidden){ csBox.hidden = false; csInput.focus(); } else closeChatSearch(); });
@@ -6253,30 +5531,23 @@ csInput.addEventListener('input', runChatSearch);
 csInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); stepSearch(e.shiftKey ? 1 : -1); } if(e.key === 'Escape') closeChatSearch(); });
 new MutationObserver(() => { if(!csBox.hidden && csInput.value.trim()){ const keep = chatSearch.idx; const chat = openChats.get(activeChatId); const q = csInput.value.trim().toLowerCase(); chatSearch.hits = chat ? chat.messages.filter(m => m.type === 'text' && (m.text || '').toLowerCase().includes(q)).map(m => m.id) : []; chatSearch.idx = Math.min(keep, chatSearch.hits.length - 1); applySearchMarks(false); } }).observe(convMessages, {childList: true});
 
-// ----- установка как приложение (PWA) -----
 let installPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; document.getElementById('install-app-btn').hidden = false; });
-document.getElementById('install-app-btn').addEventListener('click', async () => {
-  if(!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; document.getElementById('install-app-btn').hidden = true;
-});
+document.getElementById('install-app-btn').addEventListener('click', async () => { if(!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; document.getElementById('install-app-btn').hidden = true; });
 window.addEventListener('appinstalled', () => { document.getElementById('install-app-btn').hidden = true; });
 (() => {
   const ua = navigator.userAgent, hint = document.getElementById('install-hint');
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if(standalone) hint.textContent = 'Приложение уже установлено на это устройство ✓';
-  else if(/iPhone|iPad|iPod/.test(ua)) hint.textContent = 'iPhone: в Safari нажмите «Поделиться» → «На экран “Домой”».';
-  else hint.textContent = 'Нажмите кнопку выше или откройте меню браузера (⋮) → «Установить приложение» / «Добавить на главный экран».';
+  else if(/iPhone|iPad|iPod/.test(ua)) hint.textContent = 'iPhone: в Safari нажмите «Поделиться» → «На экран "Домой"».';
+  else hint.textContent = 'Нажмите кнопку выше или откройте меню браузера (⋮) → «Установить приложение».';
   if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();
 
-// ----- закреплённые чаты и «Избранное» -----
 window.pinnedIds = new Set();
 async function loadPinned(){
   const me = getCurrentUser(); if(!me) return;
-  try{
-    const r = await fetch(`${API_BASE}/api/pinned-chats/${encodeURIComponent(me.id)}`, {cache:'no-store'});
-    if(r.ok){ window.pinnedIds = new Set(await r.json()); renderChatList(); }
-  }catch{}
+  try{ const r = await fetch(`${API_BASE}/api/pinned-chats/${encodeURIComponent(me.id)}`, {cache:'no-store'}); if(r.ok){ window.pinnedIds = new Set(await r.json()); renderChatList(); } }catch{}
 }
 async function togglePin(chat){
   const me = getCurrentUser(); if(!me) return;
@@ -6285,8 +5556,7 @@ async function togglePin(chat){
     const r = await fetch(`${API_BASE}/api/pinned-chats`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id: me.id, chat_id: chat.id, pinned: want})});
     const body = await r.json();
     if(!r.ok){ alert(body.error || 'Не удалось закрепить'); return; }
-    window.pinnedIds = new Set(body);
-    renderChatList();
+    window.pinnedIds = new Set(body); renderChatList();
   }catch{}
 }
 function attachChatMenu(item, chat){
@@ -6297,29 +5567,20 @@ function attachChatMenu(item, chat){
     const btn = document.createElement('button'); btn.type = 'button';
     btn.textContent = window.pinnedIds.has(chat.id) ? '📌 Открепить' : '📌 Закрепить';
     btn.addEventListener('click', () => { menu.remove(); togglePin(chat); });
-    menu.appendChild(btn);
-    document.body.appendChild(menu);
+    menu.appendChild(btn); document.body.appendChild(menu);
     menu.style.left = Math.min(x, innerWidth - 170) + 'px';
     menu.style.top = Math.min(y, innerHeight - 70) + 'px';
     setTimeout(() => document.addEventListener('click', () => menu.remove(), {once:true}), 0);
   };
   item.addEventListener('contextmenu', e => { e.preventDefault(); open(e.clientX, e.clientY); });
-  item.addEventListener('touchstart', e => {
-    fired = false;
-    const t = e.touches[0];
-    timer = setTimeout(() => { fired = true; open(t.clientX, t.clientY); }, 550);
-  }, {passive:true});
+  item.addEventListener('touchstart', e => { fired = false; const t = e.touches[0]; timer = setTimeout(() => { fired = true; open(t.clientX, t.clientY); }, 550); }, {passive:true});
   const cancel = () => clearTimeout(timer);
   item.addEventListener('touchend', e => { cancel(); if(fired){ e.preventDefault(); } });
   item.addEventListener('touchmove', cancel, {passive:true});
   item.addEventListener('click', e => { if(fired){ e.stopImmediatePropagation(); fired = false; } }, true);
 }
-function ensureSavedChat(){
-  const me = getCurrentUser(); if(!me || openChats.has(me.id)) return;
-  openChats.set(me.id, { id: me.id, username: me.username, display_name: 'Избранное', messages: [], lastCount: 0, isSaved: true });
-}
+function ensureSavedChat(){ const me = getCurrentUser(); if(!me || openChats.has(me.id)) return; openChats.set(me.id, { id: me.id, username: me.username, display_name: 'Избранное', messages: [], lastCount: 0, isSaved: true }); }
 
-// ----- мгновенные обновления от сервера (WebSocket «sync») -----
 let syncTimer = null;
 window.onServerSync = msg => {
   if(!getCurrentUser()) return;
@@ -6329,35 +5590,25 @@ window.onServerSync = msg => {
     loadConversations();
     const chat = openChats.get(activeChatId);
     if(chat) refreshMessages(chat, { silent: true });
-    pollUnread();
-    pollActivity();
+    pollUnread(); pollActivity();
   }, 60);
 };
 
-// ----- запуск всего v12 после входа -----
 let v12Started = false;
 async function startV12(){
   const me = getCurrentUser(); if(!me) return;
   if(!v12Started){
     v12Started = true;
     let actTick = 0, unrTick = 0;
-    setInterval(() => {
-      const acting = document.getElementById('conv-header-status')?.dataset.act;
-      if(window.__wsLive && !acting && (++actTick % 6)) return;
-      pollActivity();
-    }, 1500);
+    setInterval(() => { const acting = document.getElementById('conv-header-status')?.dataset.act; if(window.__wsLive && !acting && (++actTick % 6)) return; pollActivity(); }, 1500);
     setInterval(() => { if(window.__wsLive && (++unrTick % 4)) return; pollUnread(); }, 2500);
   }
-  ensureSavedChat(); loadPinned(); renderChatList();
-  pollUnread();
-  try{
-    const r = await fetch(`${API_BASE}/api/admin/check?user=${encodeURIComponent(me.id)}`);
-    if(r.ok) document.getElementById('admin-open-btn').hidden = !(await r.json()).is_admin;
-  }catch{}
+  ensureSavedChat(); loadPinned(); renderChatList(); pollUnread();
+  try{ const r = await fetch(`${API_BASE}/api/admin/check?user=${encodeURIComponent(me.id)}`); if(r.ok) document.getElementById('admin-open-btn').hidden = !(await r.json()).is_admin; }catch{}
 }
 
 // ==========================================================
-// Профиль собеседника (попап по тапу на аватар/имя в шапке чата)
+// Профиль собеседника
 // ==========================================================
 const profileModal = document.getElementById('profile-modal');
 let profileModalUserId = null;
@@ -6371,74 +5622,34 @@ function openProfileModal(chat){
   document.getElementById('profile-modal-name').textContent = shownName;
   document.getElementById('profile-modal-tag').textContent = '@' + chat.username;
   document.getElementById('profile-modal-id').textContent = '@' + chat.username;
-  updateContactMenuItems();
-  updateBlockUi();
+  updateContactMenuItems(); updateBlockUi();
   document.getElementById('profile-more-menu').hidden = true;
   renderProfileTab('media');
   document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.profileTab === 'media'));
   openModal(profileModal);
 }
 
-function updateBlockUi(){
-  const blocked = blockedIds.has(profileModalUserId);
-  document.getElementById('profile-block-btn').textContent = blocked ? 'Разблокировать' : 'Заблокировать';
-  document.getElementById('profile-blocked-note').hidden = !blocked;
-}
+function updateBlockUi(){ const blocked = blockedIds.has(profileModalUserId); document.getElementById('profile-block-btn').textContent = blocked ? 'Разблокировать' : 'Заблокировать'; document.getElementById('profile-blocked-note').hidden = !blocked; }
 
-// Копирование с видимой обратной связью вместо alert()/native-тултипов —
-// подсвечиваем строку на секунду, чтобы было понятно, что сработало.
-function copyWithFeedback(rowEl, text){
-  navigator.clipboard?.writeText(text).then(() => {
-    rowEl.classList.add('copied');
-    setTimeout(() => rowEl.classList.remove('copied'), 1200);
-  }).catch(() => {});
-}
-document.getElementById('profile-my-id-copy').addEventListener('click', () => {
-  const row = document.getElementById('profile-my-id-copy').closest('.copy-id-row');
-  copyWithFeedback(row, document.getElementById('profile-my-id').textContent);
-});
-document.getElementById('profile-modal-id-copy').addEventListener('click', () => {
-  const row = document.getElementById('profile-modal-id-copy').closest('.copy-id-row');
-  copyWithFeedback(row, document.getElementById('profile-modal-id').textContent);
-});
+function copyWithFeedback(rowEl, text){ navigator.clipboard?.writeText(text).then(() => { rowEl.classList.add('copied'); setTimeout(() => rowEl.classList.remove('copied'), 1200); }).catch(() => {}); }
+document.getElementById('profile-my-id-copy').addEventListener('click', () => { const row = document.getElementById('profile-my-id-copy').closest('.copy-id-row'); copyWithFeedback(row, document.getElementById('profile-my-id').textContent); });
+document.getElementById('profile-modal-id-copy').addEventListener('click', () => { const row = document.getElementById('profile-modal-id-copy').closest('.copy-id-row'); copyWithFeedback(row, document.getElementById('profile-modal-id').textContent); });
 
-// Кнопка «+» в профиле переключается между «добавить»/«уже в контактах» —
-// видно результат сразу, без alert().
-// Пока человек не в контактах — в меню "⋮" только "Добавить в контакты".
-// Как только добавлен — вместо этого пункта появляется "Изменить никнейм"
-// (своя личная подпись для него, см. profile-alias-view).
-function updateContactMenuItems(){
-  const chat = openChats.get(profileModalUserId);
-  const already = !!chat?.isContact;
-  document.getElementById('profile-alias-btn').hidden = !already;
-  document.getElementById('profile-add-contact-btn').hidden = already;
-}
+function updateContactMenuItems(){ const chat = openChats.get(profileModalUserId); const already = !!chat?.isContact; document.getElementById('profile-alias-btn').hidden = !already; document.getElementById('profile-add-contact-btn').hidden = already; }
 
 function renderProfileTab(tab){
   const chat = openChats.get(profileModalUserId);
   const container = document.getElementById('profile-tab-content');
   if(!chat){ container.innerHTML = ''; return; }
-
   if(tab === 'media'){
-    // Фото и видео-кружочки из переписки.
     const items = chat.messages.filter(m => (m.type === 'video' || m.type === 'image') && m.audio_data);
     if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Фото и кружочков в этом чате пока нет</div>'; return; }
     container.innerHTML = '<div class="profile-media-grid"></div>';
     const grid = container.firstChild;
     items.forEach(m => {
-      const cell = document.createElement('div');
-      cell.className = 'profile-media-item';
-      if(m.type === 'image'){
-        const img = document.createElement('img');
-        img.src = m.audio_data;
-        img.alt = 'photo';
-        img.loading = 'lazy';
-        cell.appendChild(img);
-      }else{
-        const v = document.createElement('video');
-        v.src = m.audio_data; v.muted = true; v.playsInline = true;
-        cell.appendChild(v);
-      }
+      const cell = document.createElement('div'); cell.className = 'profile-media-item';
+      if(m.type === 'image'){ const img = document.createElement('img'); img.src = m.audio_data; img.alt = 'photo'; img.loading = 'lazy'; cell.appendChild(img); }
+      else{ const v = document.createElement('video'); v.src = m.audio_data; v.muted = true; v.playsInline = true; cell.appendChild(v); }
       grid.appendChild(cell);
     });
     return;
@@ -6451,98 +5662,53 @@ function renderProfileTab(tab){
     return;
   }
   if(tab === 'files'){
-    // Стопкой (сеткой), как и медиа — а не списком строк.
     const items = chat.messages.filter(m => m.type === 'file' && m.audio_data);
     if(!items.length){ container.innerHTML = '<div class="profile-empty-tab">Файлов в этом чате пока нет</div>'; return; }
     container.innerHTML = '<div class="profile-media-grid"></div>';
     const grid = container.firstChild;
     items.forEach(m => {
-      const link = document.createElement('a');
-      link.className = 'profile-media-item profile-media-file';
-      link.href = m.audio_data;
-      link.download = m.text || 'file';
+      const link = document.createElement('a'); link.className = 'profile-media-item profile-media-file'; link.href = m.audio_data; link.download = m.text || 'file';
       const icon = document.createElement('span'); icon.className = 'profile-media-file-icon'; icon.textContent = '📄';
       const name = document.createElement('span'); name.className = 'profile-media-file-name'; name.textContent = m.text || 'file';
-      link.append(icon, name);
-      grid.appendChild(link);
+      link.append(icon, name); grid.appendChild(link);
     });
     return;
   }
-  // Ссылки: собираем http(s)-адреса из текстовых сообщений переписки.
   const urls = [];
-  chat.messages.forEach(m => {
-    if(m.type && m.type !== 'text') return;
-    (String(m.text || '').match(/https?:\/\/[^\s<>"']+/gi) || []).forEach(u => { if(!urls.includes(u)) urls.push(u); });
-  });
+  chat.messages.forEach(m => { if(m.type && m.type !== 'text') return; (String(m.text || '').match(/https?:\/\/[^\s<>"']+/gi) || []).forEach(u => { if(!urls.includes(u)) urls.push(u); }); });
   if(!urls.length){ container.innerHTML = '<div class="profile-empty-tab">Ссылок в этом чате пока нет</div>'; return; }
   container.innerHTML = '';
   urls.forEach(u => {
-    const link = document.createElement('a');
-    link.className = 'profile-file-item';
-    link.href = u;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    const link = document.createElement('a'); link.className = 'profile-file-item'; link.href = u; link.target = '_blank'; link.rel = 'noopener noreferrer';
     const icon = document.createElement('span'); icon.textContent = '🔗';
     const name = document.createElement('span'); name.className = 'file-name'; name.textContent = u;
-    link.append(icon, name);
-    container.appendChild(link);
+    link.append(icon, name); container.appendChild(link);
   });
 }
 
-document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.addEventListener('click', () => {
-  document.querySelectorAll('#profile-tabs .profile-tab').forEach(t => t.classList.toggle('active', t === tab));
-  renderProfileTab(tab.dataset.profileTab);
-}));
-
+document.querySelectorAll('#profile-tabs .profile-tab').forEach(tab => tab.addEventListener('click', () => { document.querySelectorAll('#profile-tabs .profile-tab').forEach(t => t.classList.toggle('active', t === tab)); renderProfileTab(tab.dataset.profileTab); }));
 document.getElementById('profile-call-audio').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, displayNameFor(chat), false); closeModal(profileModal); });
 document.getElementById('profile-call-video').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(chat) CallManager.call(chat.id, displayNameFor(chat), true); closeModal(profileModal); });
-document.getElementById('profile-open-chat').addEventListener('click', () => {
-  const chat = openChats.get(profileModalUserId);
-  if(!chat) return;
-  closeModal(profileModal);
-  setActiveChat(chat.id);
-});
-
-document.getElementById('profile-more-btn').addEventListener('click', event => {
-  event.stopPropagation();
-  document.getElementById('profile-more-menu').hidden = !document.getElementById('profile-more-menu').hidden;
-});
-document.addEventListener('click', event => {
-  const menu = document.getElementById('profile-more-menu');
-  if(!menu.hidden && !event.target.closest('.profile-more-wrap')) menu.hidden = true;
-});
+document.getElementById('profile-open-chat').addEventListener('click', () => { const chat = openChats.get(profileModalUserId); if(!chat) return; closeModal(profileModal); setActiveChat(chat.id); });
+document.getElementById('profile-more-btn').addEventListener('click', event => { event.stopPropagation(); document.getElementById('profile-more-menu').hidden = !document.getElementById('profile-more-menu').hidden; });
+document.addEventListener('click', event => { const menu = document.getElementById('profile-more-menu'); if(!menu.hidden && !event.target.closest('.profile-more-wrap')) menu.hidden = true; });
 document.getElementById('profile-block-btn').addEventListener('click', async () => {
-  const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
-  if(!me || !chat) return;
+  const me = getCurrentUser(); const chat = openChats.get(profileModalUserId); if(!me || !chat) return;
   document.getElementById('profile-more-menu').hidden = true;
   try{
-    if(blockedIds.has(chat.id)){
-      await fetch(`${API_BASE}/api/blocks/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,blocked_id:chat.id})});
-      blockedIds.delete(chat.id);
-    }else{
-      await fetch(`${API_BASE}/api/blocks`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,username:chat.username})});
-      blockedIds.add(chat.id);
-    }
+    if(blockedIds.has(chat.id)){ await fetch(`${API_BASE}/api/blocks/remove`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,blocked_id:chat.id})}); blockedIds.delete(chat.id); }
+    else{ await fetch(`${API_BASE}/api/blocks`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocker_id:me.id,username:chat.username})}); blockedIds.add(chat.id); }
     updateBlockUi();
   }catch{}
 });
 
-// Экран "имя для контакта" — один и тот же для двух случаев:
-// 1) ещё не в контактах → "Добавить в контакты": окно просит ввести имя,
-//    по "Сохранить" человек и добавляется в контакты, и сразу получает
-//    это имя как личный никнейм — одним действием, а не молча в фоне.
-// 2) уже в контактах → "Изменить никнейм": то же окно, но просто меняет
-//    никнейм без повторного добавления.
 let profileAliasMode = 'rename';
 function openProfileAliasView(mode){
-  const chat = openChats.get(profileModalUserId);
-  if(!chat) return;
+  const chat = openChats.get(profileModalUserId); if(!chat) return;
   profileAliasMode = mode;
   document.getElementById('profile-more-menu').hidden = true;
   document.getElementById('profile-alias-title').textContent = mode === 'add' ? 'Добавить в контакты' : 'Никнейм для себя';
-  document.getElementById('profile-alias-hint').textContent = mode === 'add'
-    ? 'Придумайте имя для этого контакта — видно только вам.'
-    : 'Виден только вам, настоящее имя собеседника не меняется.';
+  document.getElementById('profile-alias-hint').textContent = mode === 'add' ? 'Придумайте имя для этого контакта — видно только вам.' : 'Виден только вам, настоящее имя собеседника не меняется.';
   document.getElementById('profile-alias-save-btn').textContent = mode === 'add' ? 'Добавить' : 'Сохранить';
   document.getElementById('profile-alias-input').value = mode === 'add' ? chat.display_name : (chat.alias || '');
   document.getElementById('profile-alias-error').hidden = true;
@@ -6552,22 +5718,16 @@ function openProfileAliasView(mode){
 }
 document.getElementById('profile-alias-btn').addEventListener('click', () => openProfileAliasView('rename'));
 document.getElementById('profile-add-contact-btn').addEventListener('click', () => openProfileAliasView('add'));
-document.getElementById('profile-alias-close').addEventListener('click', () => {
-  document.getElementById('profile-alias-view').hidden = true;
-  document.getElementById('profile-window-section').hidden = false;
-});
+document.getElementById('profile-alias-close').addEventListener('click', () => { document.getElementById('profile-alias-view').hidden = true; document.getElementById('profile-window-section').hidden = false; });
 document.getElementById('profile-alias-save-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); const chat = openChats.get(profileModalUserId);
-  const errEl = document.getElementById('profile-alias-error');
-  if(!me || !chat) return;
-  const alias = document.getElementById('profile-alias-input').value.trim();
-  errEl.hidden = true;
+  const errEl = document.getElementById('profile-alias-error'); if(!me || !chat) return;
+  const alias = document.getElementById('profile-alias-input').value.trim(); errEl.hidden = true;
   try{
     if(profileAliasMode === 'add'){
       const res = await fetch(`${API_BASE}/api/contacts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,username:chat.username})});
       if(!res.ok) throw new Error(await messageError(res,'Не удалось добавить'));
-      chat.isContact = true;
-      updateContactMenuItems();
+      chat.isContact = true; updateContactMenuItems();
     }
     const res2 = await fetch(`${API_BASE}/api/contacts/alias`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,contact_user_id:chat.id,alias})});
     if(!res2.ok) throw new Error(await messageError(res2,'Не удалось сохранить'));
@@ -6576,16 +5736,14 @@ document.getElementById('profile-alias-save-btn').addEventListener('click', asyn
     document.getElementById('profile-modal-avatar').textContent = initials(shownName);
     document.getElementById('profile-modal-name').textContent = shownName;
     if(activeChatId === chat.id){ convName.textContent = shownName; convAvatar.textContent = initials(shownName); }
-    renderChatList();
-    loadContacts();
+    renderChatList(); loadContacts();
     document.getElementById('profile-alias-view').hidden = true;
     document.getElementById('profile-window-section').hidden = false;
   }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
 });
 
 document.getElementById('conv-header-identity').addEventListener('click', () => {
-  const chat = openChats.get(activeChatId);
-  if(!chat || chat.isSaved) return;
+  const chat = openChats.get(activeChatId); if(!chat || chat.isSaved) return;
   if(chat.kind === 'group' || chat.kind === 'channel') openSpaceModal('edit', null, chat.id);
   else openProfileModal(chat);
 });
@@ -6597,21 +5755,14 @@ const spaceModal = document.getElementById('space-modal');
 const spaceModalState = { mode:'create', kind:'group', spaceId:null, background:null, photo:null };
 const spaceAvatarDisplay = document.getElementById('space-avatar-display');
 
-function setSpaceAvatarText(elId, text){
-  document.getElementById(elId).textContent = (text && text !== '+') ? text : (spaceModalState.kind === 'channel' ? '📢' : '👥');
-}
+function setSpaceAvatarText(elId, text){ document.getElementById(elId).textContent = (text && text !== '+') ? text : (spaceModalState.kind === 'channel' ? '📢' : '👥'); }
 
-// Фон чата для канала/группы — те же 8 пресетов, что и в личных настройках
-// (см. chatThemes выше), только теперь привязаны к конкретному пространству,
-// а не глобально ко всем чатам. Тап по цвету сразу сохраняет и возвращает
-// в меню — отдельной кнопки "сохранить" здесь нет, как и в Telegram.
 makeSwatches(chatThemes, 'space-theme-grid', 'space-theme');
 document.getElementById('space-theme-grid').addEventListener('click', async event => {
   const button = event.target.closest('[data-space-theme]');
   if(!button || !spaceModalState.spaceId) return;
   const me = getCurrentUser(); if(!me) return;
-  const errEl = document.getElementById('space-detail-error');
-  errEl.hidden = true;
+  const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
   document.querySelectorAll('#space-theme-grid [data-space-theme]').forEach(item => item.classList.toggle('active', item === button));
   try{
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, background:button.dataset.spaceTheme})});
@@ -6624,22 +5775,14 @@ document.getElementById('space-theme-grid').addEventListener('click', async even
 });
 
 function openSpaceModal(mode, kind, spaceId){
-  spaceModalState.mode = mode;
-  spaceModalState.kind = kind;
-  spaceModalState.spaceId = spaceId || null;
-  spaceModalState.background = null;
-  spaceModalState.selectedMembers = new Set();
-  spaceModalState.photo = null;
+  spaceModalState.mode = mode; spaceModalState.kind = kind; spaceModalState.spaceId = spaceId || null;
+  spaceModalState.background = null; spaceModalState.selectedMembers = new Set(); spaceModalState.photo = null;
   document.getElementById('space-error').hidden = true;
-
   const createView = document.getElementById('space-create-view');
   const menuView = document.getElementById('space-menu-view');
-  const detailView = document.getElementById('space-detail-view');
-  detailView.hidden = true;
-
+  const detailView = document.getElementById('space-detail-view'); detailView.hidden = true;
   if(mode === 'create'){
-    createView.hidden = false;
-    menuView.hidden = true;
+    createView.hidden = false; menuView.hidden = true;
     document.getElementById('space-modal-title').textContent = kind === 'channel' ? 'Новый канал' : 'Новая группа';
     document.getElementById('space-name-input').value = '';
     document.getElementById('space-description-input').value = '';
@@ -6649,17 +5792,12 @@ function openSpaceModal(mode, kind, spaceId){
     document.getElementById('space-avatar-display').classList.add('editable');
     renderInitialMembersPicker();
   }else{
-    const chat = openChats.get(spaceId);
-    if(!chat) return;
-    createView.hidden = true;
-    menuView.hidden = false;
-    renderSpaceMenu(chat);
+    const chat = openChats.get(spaceId); if(!chat) return;
+    createView.hidden = true; menuView.hidden = false; renderSpaceMenu(chat);
   }
   openModal(spaceModal);
 }
 
-// Меню настроек существующего канала/группы — список тапаемых пунктов,
-// как в самом Telegram, а не одна форма со всеми полями сразу.
 function renderSpaceMenu(chat){
   const manage = chat.my_role === 'owner' || chat.my_role === 'admin';
   setSpaceAvatarText('space-menu-avatar', initials(chat.display_name));
@@ -6667,7 +5805,6 @@ function renderSpaceMenu(chat){
   document.getElementById('space-menu-avatar').classList.toggle('editable', manage);
   document.getElementById('space-menu-title').textContent = chat.display_name;
   document.getElementById('space-menu-description').textContent = chat.description || (chat.kind === 'channel' ? 'Канал' : 'Группа');
-
   const rows = [];
   if(manage){
     rows.push({icon:'✎', label:'Изменить название', panel:'name'});
@@ -6677,18 +5814,12 @@ function renderSpaceMenu(chat){
   }
   if(canDo(chat, 'invite_link')) rows.push({icon:'🔗', label:'Ссылки-приглашения', panel:'invites'});
   rows.push({icon:'👥', label:'Участники', panel:'members'});
-
-  const list = document.getElementById('space-menu-list');
-  list.innerHTML = '';
+  const list = document.getElementById('space-menu-list'); list.innerHTML = '';
   rows.forEach(row => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'space-menu-row';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'space-menu-row';
     btn.innerHTML = `<span class="space-menu-row-icon">${row.icon}</span><span class="space-menu-row-label">${escapeHtml(row.label)}</span>${row.value ? `<span class="space-menu-row-value">${escapeHtml(row.value)}</span>` : ''}<span class="space-menu-row-arrow">›</span>`;
-    btn.addEventListener('click', () => openSpaceDetail(row.panel, chat, manage));
-    list.appendChild(btn);
+    btn.addEventListener('click', () => openSpaceDetail(row.panel, chat, manage)); list.appendChild(btn);
   });
-
   document.getElementById('space-danger-row').hidden = false;
   document.getElementById('space-leave-btn').hidden = chat.my_role === 'owner';
   document.getElementById('space-delete-btn').hidden = chat.my_role !== 'owner';
@@ -6700,47 +5831,27 @@ function openSpaceDetail(panel, chat, manage){
   document.getElementById('space-detail-error').hidden = true;
   document.querySelectorAll('.space-detail-panel').forEach(p => p.hidden = true);
   document.getElementById('space-detail-' + panel).hidden = false;
-
-  if(panel === 'name'){
-    document.getElementById('space-edit-name-input').value = chat.display_name;
-  }else if(panel === 'description'){
-    document.getElementById('space-edit-description-input').value = chat.description || '';
-  }else if(panel === 'background'){
-    document.querySelectorAll('#space-theme-grid [data-space-theme]').forEach(item => item.classList.toggle('active', item.dataset.spaceTheme === chat.background));
-  }else if(panel === 'privacy'){
-    document.getElementById('space-edit-private-input').checked = !!chat.is_private;
-  }else if(panel === 'members'){
-    document.getElementById('space-add-member-row').hidden = !canDo(chat, 'add_members');
-    loadSpaceMembers(chat.id, manage, getCurrentUser()?.id);
-  }else if(panel === 'perms'){
-    renderPermsPanel(chat);
-  }else if(panel === 'invites'){
-    loadInvites(chat);
-  }
+  if(panel === 'name') document.getElementById('space-edit-name-input').value = chat.display_name;
+  else if(panel === 'description') document.getElementById('space-edit-description-input').value = chat.description || '';
+  else if(panel === 'background') document.querySelectorAll('#space-theme-grid [data-space-theme]').forEach(item => item.classList.toggle('active', item.dataset.spaceTheme === chat.background));
+  else if(panel === 'privacy') document.getElementById('space-edit-private-input').checked = !!chat.is_private;
+  else if(panel === 'members'){ document.getElementById('space-add-member-row').hidden = !canDo(chat, 'add_members'); loadSpaceMembers(chat.id, manage, getCurrentUser()?.id); }
+  else if(panel === 'perms') renderPermsPanel(chat);
+  else if(panel === 'invites') loadInvites(chat);
 }
 
-function backToSpaceMenu(chat){
-  document.getElementById('space-detail-view').hidden = true;
-  document.getElementById('space-menu-view').hidden = false;
-  if(chat) renderSpaceMenu(chat);
-}
-
+function backToSpaceMenu(chat){ document.getElementById('space-detail-view').hidden = true; document.getElementById('space-menu-view').hidden = false; if(chat) renderSpaceMenu(chat); }
 document.getElementById('space-detail-back').addEventListener('click', () => backToSpaceMenu(openChats.get(spaceModalState.spaceId)));
 
 async function saveSpaceField(fieldKey, value, errEl){
-  const me = getCurrentUser();
-  if(!me || !spaceModalState.spaceId) return false;
+  const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return false;
   errEl.hidden = true;
   try{
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, [fieldKey]:value})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить'));
-    const chat = openChats.get(spaceModalState.spaceId);
-    if(chat) chat[fieldKey] = value;
+    const chat = openChats.get(spaceModalState.spaceId); if(chat) chat[fieldKey] = value;
     return true;
-  }catch(err){
-    errEl.textContent = err.message; errEl.hidden = false;
-    return false;
-  }
+  }catch(err){ errEl.textContent = err.message; errEl.hidden = false; return false; }
 }
 
 document.getElementById('space-save-name-btn').addEventListener('click', async () => {
@@ -6748,48 +5859,27 @@ document.getElementById('space-save-name-btn').addEventListener('click', async (
   const errEl = document.getElementById('space-detail-error');
   if(!value){ errEl.textContent = 'Введите название'; errEl.hidden = false; return; }
   if(await saveSpaceField('name', value, errEl)){
-    // В локальном объекте чата поле называется display_name (а не name,
-    // как в теле запроса к API) — досохраняем вручную, иначе шапка/список
-    // чатов продолжат показывать старое имя.
     const chat = openChats.get(spaceModalState.spaceId);
     if(chat) chat.display_name = value;
-    renderChatList();
-    if(activeChatId === spaceModalState.spaceId) convName.textContent = value;
+    renderChatList(); if(activeChatId === spaceModalState.spaceId) convName.textContent = value;
     backToSpaceMenu(chat);
   }
 });
-
-document.getElementById('space-save-description-btn').addEventListener('click', async () => {
-  const value = document.getElementById('space-edit-description-input').value.trim();
-  const errEl = document.getElementById('space-detail-error');
-  if(await saveSpaceField('description', value, errEl)) backToSpaceMenu(openChats.get(spaceModalState.spaceId));
-});
-
-document.getElementById('space-save-privacy-btn').addEventListener('click', async () => {
-  const value = document.getElementById('space-edit-private-input').checked;
-  const errEl = document.getElementById('space-detail-error');
-  if(await saveSpaceField('is_private', value, errEl)) backToSpaceMenu(openChats.get(spaceModalState.spaceId));
-});
+document.getElementById('space-save-description-btn').addEventListener('click', async () => { const value = document.getElementById('space-edit-description-input').value.trim(); const errEl = document.getElementById('space-detail-error'); if(await saveSpaceField('description', value, errEl)) backToSpaceMenu(openChats.get(spaceModalState.spaceId)); });
+document.getElementById('space-save-privacy-btn').addEventListener('click', async () => { const value = document.getElementById('space-edit-private-input').checked; const errEl = document.getElementById('space-detail-error'); if(await saveSpaceField('is_private', value, errEl)) backToSpaceMenu(openChats.get(spaceModalState.spaceId)); });
 
 function renderInitialMembersPicker(){
   const block = document.getElementById('space-initial-members-block');
   const list = document.getElementById('space-initial-members-list');
   const contacts = [...openChats.values()].filter(c => c.isContact && !c.kind);
   block.hidden = false;
-  if(!contacts.length){
-    list.innerHTML = '<div class="space-initial-members-empty">Пока нет контактов — можно добавить участников позже, в настройках</div>';
-    return;
-  }
+  if(!contacts.length){ list.innerHTML = '<div class="space-initial-members-empty">Пока нет контактов — можно добавить участников позже, в настройках</div>'; return; }
   list.innerHTML = '';
   contacts.forEach(c => {
-    const row = document.createElement('label');
-    row.className = 'space-initial-member-row';
+    const row = document.createElement('label'); row.className = 'space-initial-member-row';
     row.innerHTML = `<span class="avatar">${escapeHtml(initials(c.display_name))}</span><span class="sim-name">${escapeHtml(c.display_name)}</span><input type="checkbox">`;
     const checkbox = row.querySelector('input');
-    checkbox.addEventListener('change', () => {
-      if(checkbox.checked) spaceModalState.selectedMembers.add(c.username);
-      else spaceModalState.selectedMembers.delete(c.username);
-    });
+    checkbox.addEventListener('change', () => { if(checkbox.checked) spaceModalState.selectedMembers.add(c.username); else spaceModalState.selectedMembers.delete(c.username); });
     list.appendChild(row);
   });
 }
@@ -6799,53 +5889,28 @@ async function loadSpaceMembers(spaceId, manage, myId){
   if(!res.ok) return;
   const members = await res.json();
   document.getElementById('space-members-count').textContent = members.length;
-  const list = document.getElementById('space-members-list');
-  list.innerHTML = '';
+  const list = document.getElementById('space-members-list'); list.innerHTML = '';
   members.forEach(m => {
-    const row = document.createElement('div');
-    row.className = 'space-member-row';
+    const row = document.createElement('div'); row.className = 'space-member-row';
     const roleLabel = m.role === 'owner' ? 'владелец' : m.role === 'admin' ? 'админ' : '';
     row.innerHTML = `<span class="avatar">${escapeHtml(initials(m.display_name))}</span><span class="space-member-name">${escapeHtml(m.display_name)}${m.muted ? '<span class="space-member-muted">🔇 заглушён</span>' : ''}</span><span class="space-member-role">${roleLabel}</span>`;
     if(manage && m.role !== 'owner'){
-      const actions = document.createElement('div');
-      actions.className = 'space-member-actions';
-      const roleBtn = document.createElement('button');
-      roleBtn.type = 'button';
-      roleBtn.textContent = m.role === 'admin' ? 'разжаловать' : 'сделать админом';
-      roleBtn.addEventListener('click', async () => {
-        const me = getCurrentUser();
-        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,role: m.role === 'admin' ? 'member' : 'admin'})});
-        loadSpaceMembers(spaceId, manage, myId);
-      });
-      const muteBtn = document.createElement('button');
-      muteBtn.type = 'button';
-      muteBtn.textContent = m.muted ? 'разрешить писать' : 'заглушить';
+      const actions = document.createElement('div'); actions.className = 'space-member-actions';
+      const roleBtn = document.createElement('button'); roleBtn.type = 'button'; roleBtn.textContent = m.role === 'admin' ? 'разжаловать' : 'сделать админом';
+      roleBtn.addEventListener('click', async () => { const me = getCurrentUser(); await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,role: m.role === 'admin' ? 'member' : 'admin'})}); loadSpaceMembers(spaceId, manage, myId); });
+      const muteBtn = document.createElement('button'); muteBtn.type = 'button'; muteBtn.textContent = m.muted ? 'разрешить писать' : 'заглушить';
       if(m.role === 'admin') muteBtn.hidden = true;
-      muteBtn.addEventListener('click', async () => {
-        const me = getCurrentUser();
-        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}/mute`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,muted:!m.muted})});
-        loadSpaceMembers(spaceId, manage, myId);
-      });
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.textContent = '✕';
-      removeBtn.addEventListener('click', async () => {
-        const me = getCurrentUser();
-        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
-        loadSpaceMembers(spaceId, manage, myId);
-      });
-      actions.append(muteBtn, roleBtn, removeBtn);
-      row.appendChild(actions);
+      muteBtn.addEventListener('click', async () => { const me = getCurrentUser(); await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}/mute`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,muted:!m.muted})}); loadSpaceMembers(spaceId, manage, myId); });
+      const removeBtn = document.createElement('button'); removeBtn.type = 'button'; removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', async () => { const me = getCurrentUser(); await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(m.user_id)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})}); loadSpaceMembers(spaceId, manage, myId); });
+      actions.append(muteBtn, roleBtn, removeBtn); row.appendChild(actions);
     }
     list.appendChild(row);
   });
 }
 
 document.getElementById('space-add-member-btn').addEventListener('click', async () => {
-  const me = getCurrentUser();
-  const targetUsername = document.getElementById('space-add-member-input').value.trim().replace(/^@/,'');
-  const errorEl = document.getElementById('space-error');
-  errorEl.hidden = true;
+  const me = getCurrentUser(); const targetUsername = document.getElementById('space-add-member-input').value.trim().replace(/^@/,''); const errorEl = document.getElementById('space-error'); errorEl.hidden = true;
   if(!me || !targetUsername || !spaceModalState.spaceId) return;
   try{
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,username:targetUsername})});
@@ -6860,46 +5925,26 @@ document.getElementById('space-save-btn').addEventListener('click', async () => 
   const name = document.getElementById('space-name-input').value.trim();
   const description = document.getElementById('space-description-input').value.trim();
   const isPrivate = document.getElementById('space-private-input').checked;
-  const errorEl = document.getElementById('space-error');
-  errorEl.hidden = true;
+  const errorEl = document.getElementById('space-error'); errorEl.hidden = true;
   if(!name){ errorEl.textContent = 'Введите название'; errorEl.hidden = false; return; }
-
   try{
     const res = await fetch(`${API_BASE}/api/spaces`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_id:me.id,name,kind:spaceModalState.kind,description,is_private:isPrivate,photo:spaceModalState.photo})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось создать'));
     const created = await res.json();
-    // Участников, отмеченных галочкой, добавляем сразу же после создания
-    // — по одному через тот же эндпоинт, что и в меню настроек.
-    for(const username of spaceModalState.selectedMembers){
-      try{
-        await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(created.id)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,username})});
-      }catch{}
-    }
-    closeModal(spaceModal);
-    await loadSpaces();
+    for(const username of spaceModalState.selectedMembers){ try{ await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(created.id)}/members`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id,username})}); }catch{} }
+    closeModal(spaceModal); await loadSpaces();
   }catch(err){ errorEl.textContent = err.message; errorEl.hidden = false; }
 });
 
-// ----- фото группы -----
-document.getElementById('space-avatar-display').addEventListener('click', () => {
-  if(spaceModalState.mode === 'create') document.getElementById('space-photo-file').click();
-});
-document.getElementById('space-menu-avatar').addEventListener('click', () => {
-  const chat = openChats.get(spaceModalState.spaceId);
-  if(chat && (chat.my_role === 'owner' || chat.my_role === 'admin')) document.getElementById('space-photo-file').click();
-});
+document.getElementById('space-avatar-display').addEventListener('click', () => { if(spaceModalState.mode === 'create') document.getElementById('space-photo-file').click(); });
+document.getElementById('space-menu-avatar').addEventListener('click', () => { const chat = openChats.get(spaceModalState.spaceId); if(chat && (chat.my_role === 'owner' || chat.my_role === 'admin')) document.getElementById('space-photo-file').click(); });
 document.getElementById('space-photo-file').addEventListener('change', async event => {
   const file = event.target.files[0]; event.target.value = '';
   if(!file) return;
-  const errEl = document.getElementById(spaceModalState.mode === 'create' ? 'space-error' : 'space-detail-error');
-  errEl.hidden = true;
+  const errEl = document.getElementById(spaceModalState.mode === 'create' ? 'space-error' : 'space-detail-error'); errEl.hidden = true;
   try{
     const photo = await fileToAvatar(file);
-    if(spaceModalState.mode === 'create'){
-      spaceModalState.photo = photo;
-      paintAvatar(document.getElementById('space-avatar-display'), photo);
-      return;
-    }
+    if(spaceModalState.mode === 'create'){ spaceModalState.photo = photo; paintAvatar(document.getElementById('space-avatar-display'), photo); return; }
     const me = getCurrentUser();
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, photo})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить фото'));
@@ -6908,82 +5953,62 @@ document.getElementById('space-photo-file').addEventListener('change', async eve
   }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
 });
 
-// ----- права участников -----
 const PERM_LABELS = [
   ['send','Писать сообщения'], ['media','Голосовые, кружочки, файлы'], ['calls','Начинать групповой звонок'],
   ['add_members','Добавлять участников'], ['invite_link','Создавать ссылки-приглашения'], ['pin','Закреплять сообщения']
 ];
 function renderPermsPanel(chat){
-  const list = document.getElementById('space-perms-list');
-  list.innerHTML = '';
+  const list = document.getElementById('space-perms-list'); list.innerHTML = '';
   const perms = Object.assign({}, DEFAULT_PERMS, chat.permissions || {});
   PERM_LABELS.forEach(([key, label]) => {
-    const row = document.createElement('label');
-    row.className = 'perm-row';
+    const row = document.createElement('label'); row.className = 'perm-row';
     row.innerHTML = `<span>${escapeHtml(label)}</span><input type="checkbox" ${perms[key] ? 'checked' : ''}>`;
     row.querySelector('input').addEventListener('change', async event => {
-      const me = getCurrentUser();
-      const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
+      const me = getCurrentUser(); const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
       const value = event.target.checked;
       try{
         const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/permissions`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, permissions:{[key]:value}})});
         if(!res.ok) throw new Error(await messageError(res,'Не удалось сохранить права'));
-        const updated = await res.json();
-        chat.permissions = updated.permissions;
+        const updated = await res.json(); chat.permissions = updated.permissions;
       }catch(err){ event.target.checked = !value; errEl.textContent = err.message; errEl.hidden = false; }
     });
     list.appendChild(row);
   });
 }
 
-// ----- ссылки-приглашения -----
 function inviteUrl(code){ return location.origin + '/?join=' + encodeURIComponent(code); }
 function describeInvite(inv){
   const parts = [];
   if(inv.status === 'expired') parts.push('срок истёк');
   else if(inv.status === 'exhausted') parts.push('лимит исчерпан');
-  else if(inv.expires_at){
-    const left = new Date(inv.expires_at) - Date.now();
-    const h = Math.max(1, Math.round(left/3600000));
-    parts.push(h >= 48 ? `ещё ${Math.round(h/24)} дн.` : `ещё ${h} ч.`);
-  } else parts.push('без срока');
+  else if(inv.expires_at){ const left = new Date(inv.expires_at) - Date.now(); const h = Math.max(1, Math.round(left/3600000)); parts.push(h >= 48 ? `ещё ${Math.round(h/24)} дн.` : `ещё ${h} ч.`); }
+  else parts.push('без срока');
   parts.push(inv.max_uses ? `вступили ${inv.uses} из ${inv.max_uses}` : `вступили ${inv.uses}`);
   return parts.join(' · ');
 }
 async function loadInvites(chat){
-  const me = getCurrentUser();
-  const box = document.getElementById('invite-list');
-  box.innerHTML = '';
+  const me = getCurrentUser(); const box = document.getElementById('invite-list'); box.innerHTML = '';
   const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites?by=${encodeURIComponent(me.id)}`);
   if(!res.ok) return;
   (await res.json()).forEach(inv => {
-    const item = document.createElement('div');
-    item.className = 'invite-item' + (inv.status !== 'active' ? ' dead' : '');
+    const item = document.createElement('div'); item.className = 'invite-item' + (inv.status !== 'active' ? ' dead' : '');
     const url = inviteUrl(inv.code);
     item.innerHTML = `<div class="invite-link">${escapeHtml(url)}</div><div class="invite-meta">${escapeHtml(describeInvite(inv))}</div><div class="invite-actions"></div>`;
     const actions = item.querySelector('.invite-actions');
     if(inv.status === 'active'){
       const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Копировать';
-      copy.addEventListener('click', async () => {
-        try{ await navigator.clipboard.writeText(url); copy.textContent = 'Скопировано ✓'; }
-        catch{ prompt('Скопируйте ссылку:', url); }
-      });
+      copy.addEventListener('click', async () => { try{ await navigator.clipboard.writeText(url); copy.textContent = 'Скопировано ✓'; }catch{ prompt('Скопируйте ссылку:', url); } });
       actions.appendChild(copy);
     }
     const revoke = document.createElement('button'); revoke.type = 'button'; revoke.textContent = 'Отозвать';
-    revoke.addEventListener('click', async () => {
-      await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites/${encodeURIComponent(inv.code)}?by=${encodeURIComponent(me.id)}`, {method:'DELETE'});
-      loadInvites(chat);
-    });
-    actions.appendChild(revoke);
-    box.appendChild(item);
+    revoke.addEventListener('click', async () => { await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites/${encodeURIComponent(inv.code)}?by=${encodeURIComponent(me.id)}`, {method:'DELETE'}); loadInvites(chat); });
+    actions.appendChild(revoke); box.appendChild(item);
   });
 }
 document.getElementById('invite-create-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); const chat = openChats.get(spaceModalState.spaceId); if(!me || !chat) return;
   const errEl = document.getElementById('space-detail-error'); errEl.hidden = true;
-  const hours = document.getElementById('invite-hours').value;
-  const uses = document.getElementById('invite-uses').value;
+  const hours = document.getElementById('invite-hours').value; const uses = document.getElementById('invite-uses').value;
   try{
     const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(chat.id)}/invites`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id, hours: hours ? Number(hours) : null, max_uses: uses ? Number(uses) : null})});
     if(!res.ok) throw new Error(await messageError(res,'Не удалось создать ссылку'));
@@ -6991,13 +6016,9 @@ document.getElementById('invite-create-btn').addEventListener('click', async () 
   }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
 });
 
-// ----- вход по ссылке ?join=КОД -----
 async function handleJoinLink(){
   let code = null;
-  try{
-    code = new URLSearchParams(location.search).get('join') || localStorage.getItem('tgclone_pending_join');
-    localStorage.removeItem('tgclone_pending_join');
-  }catch{}
+  try{ code = new URLSearchParams(location.search).get('join') || localStorage.getItem('tgclone_pending_join'); localStorage.removeItem('tgclone_pending_join'); }catch{}
   if(!code) return;
   history.replaceState(null, '', location.pathname);
   const me = getCurrentUser(); if(!me) return;
@@ -7005,135 +6026,108 @@ async function handleJoinLink(){
     const res = await fetch(`${API_BASE}/api/invites/${encodeURIComponent(code)}`);
     if(!res.ok){ alert('Ссылка-приглашение не найдена'); return; }
     const info = await res.json();
-    if(info.status !== 'active'){
-      alert({revoked:'Ссылка отозвана', expired:'Срок действия ссылки истёк', exhausted:'Ссылка уже использована максимальное число раз'}[info.status] || 'Ссылка недействительна');
-      return;
-    }
+    if(info.status !== 'active'){ alert({revoked:'Ссылка отозвана', expired:'Срок действия ссылки истёк', exhausted:'Ссылка уже использована максимальное число раз'}[info.status] || 'Ссылка недействительна'); return; }
     if(!confirm(`Вступить в группу «${info.name}»?` + (info.description ? `\n\n${info.description}` : '') + `\n\nУчастников: ${info.members}`)) return;
     const join = await fetch(`${API_BASE}/api/invites/${encodeURIComponent(code)}/join`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
     if(!join.ok){ alert(await messageError(join,'Не удалось вступить')); return; }
-    const space = await join.json();
-    await loadSpaces();
+    const space = await join.json(); await loadSpaces();
     if(openChats.get(space.id)) openChat(openChats.get(space.id));
   }catch(err){ alert('Не удалось открыть ссылку'); }
 }
 
-// Права/фото/участие могут поменяться, пока человек в чате — подтягиваем раз в 8 секунд.
 setInterval(() => {
   if(!getCurrentUser() || document.hidden) return;
-  loadSpaces().then(() => {
-    const c = openChats.get(activeChatId);
-    if(c && c.kind) messageInput.disabled = !canDo(c, 'send');
-  }).catch(() => {});
+  loadSpaces().then(() => { const c = openChats.get(activeChatId); if(c && c.kind) messageInput.disabled = !canDo(c, 'send'); }).catch(() => {});
 }, 8000);
 
 document.getElementById('space-leave-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
   await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}/leave`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:me.id})});
-  openChats.delete(spaceModalState.spaceId);
-  if(activeChatId === spaceModalState.spaceId) activeChatId = null;
-  closeModal(spaceModal);
-  renderChatList();
+  openChats.delete(spaceModalState.spaceId); if(activeChatId === spaceModalState.spaceId) activeChatId = null;
+  closeModal(spaceModal); renderChatList();
 });
 
 document.getElementById('space-delete-btn').addEventListener('click', async () => {
   const me = getCurrentUser(); if(!me || !spaceModalState.spaceId) return;
   await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(spaceModalState.spaceId)}`, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({by:me.id})});
-  openChats.delete(spaceModalState.spaceId);
-  if(activeChatId === spaceModalState.spaceId) activeChatId = null;
-  closeModal(spaceModal);
-  renderChatList();
+  openChats.delete(spaceModalState.spaceId); if(activeChatId === spaceModalState.spaceId) activeChatId = null;
+  closeModal(spaceModal); renderChatList();
 });
 
 // ==========================================================
-// Перетаскиваемое окно своей камеры в звонке (как в Telegram/Zoom)
+// Перетаскиваемое окно своей камеры в звонке
 // ==========================================================
-// Своя камера и камера собеседника — это ДВЕ роли (большая на весь экран /
-// маленькая в углу), а не два навсегда закреплённых элемента. Маленькую
-// можно таскать пальцем по экрану (как раньше), а обычный тап без
-// перетаскивания — меняет большую и маленькую местами: что было маленьким,
-// становится большим, и наоборот (как в Zoom/Telegram).
 function resetCallVideoRoles(){
-  const remote = document.getElementById('call-remote-video');
-  const local = document.getElementById('call-local-video');
+  const remote = document.getElementById('call-remote-video'), local = document.getElementById('call-local-video');
   [remote, local].forEach(el => { el.style.left=''; el.style.top=''; el.style.right=''; el.style.bottom=''; });
   remote.classList.add('call-video-big'); remote.classList.remove('call-video-small');
   local.classList.add('call-video-small'); local.classList.remove('call-video-big');
 }
 
 (function enableCallVideoSwap(){
-  const remote = document.getElementById('call-remote-video');
-  const local = document.getElementById('call-local-video');
+  const remote = document.getElementById('call-remote-video'), local = document.getElementById('call-local-video');
   resetCallVideoRoles();
-
-  let dragging = false, moved = false, activeEl = null;
-  let startX = 0, startY = 0, originLeft = 0, originTop = 0;
-
-  function onPointerDown(event){
-    const el = event.currentTarget;
-    if(!el.classList.contains('call-video-small')) return; // маленькую можно трогать, большую — нет
-    dragging = true; moved = false; activeEl = el;
-    el.setPointerCapture?.(event.pointerId);
-    const rect = el.getBoundingClientRect();
-    startX = event.clientX; startY = event.clientY;
-    originLeft = rect.left; originTop = rect.top;
-  }
-  function onPointerMove(event){
-    if(!dragging || event.currentTarget !== activeEl) return;
-    const dx = event.clientX - startX, dy = event.clientY - startY;
-    if(Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
-    if(!moved) return; // пока сдвиг минимальный — считаем, что это ещё тап, не драг
-    const el = activeEl;
-    el.style.right = 'auto'; el.style.bottom = 'auto';
-    const maxLeft = window.innerWidth - el.offsetWidth - 8;
-    const maxTop = window.innerHeight - el.offsetHeight - 8;
-    el.style.left = Math.min(Math.max(8, originLeft + dx), maxLeft) + 'px';
-    el.style.top = Math.min(Math.max(8, originTop + dy), maxTop) + 'px';
-  }
-  function onPointerUp(event){
-    if(!dragging || event.currentTarget !== activeEl) return;
-    dragging = false;
-    if(!moved){
-      // Это был тап, а не перетаскивание — меняем большую/маленькую местами.
-      // Маленькая всегда возвращается в стандартный угол, а не остаётся
-      // там, где её когда-то утащили, — иначе после свапа легко потерять
-      // её с экрана.
-      [remote, local].forEach(el => { el.style.left=''; el.style.top=''; el.style.right=''; el.style.bottom=''; });
-      remote.classList.toggle('call-video-big');
-      remote.classList.toggle('call-video-small');
-      local.classList.toggle('call-video-big');
-      local.classList.toggle('call-video-small');
-    }
-    activeEl = null;
-  }
-
-  [remote, local].forEach(el => {
-    el.addEventListener('pointerdown', onPointerDown);
-    el.addEventListener('pointermove', onPointerMove);
-    el.addEventListener('pointerup', onPointerUp);
-    el.addEventListener('pointercancel', () => { dragging = false; activeEl = null; });
-  });
+  let dragging = false, moved = false, activeEl = null, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+  function onPointerDown(event){ const el = event.currentTarget; if(!el.classList.contains('call-video-small')) return; dragging = true; moved = false; activeEl = el; el.setPointerCapture?.(event.pointerId); const rect = el.getBoundingClientRect(); startX = event.clientX; startY = event.clientY; originLeft = rect.left; originTop = rect.top; }
+  function onPointerMove(event){ if(!dragging || event.currentTarget !== activeEl) return; const dx = event.clientX - startX, dy = event.clientY - startY; if(Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true; if(!moved) return; const el = activeEl; el.style.right = 'auto'; el.style.bottom = 'auto'; const maxLeft = window.innerWidth - el.offsetWidth - 8, maxTop = window.innerHeight - el.offsetHeight - 8; el.style.left = Math.min(Math.max(8, originLeft + dx), maxLeft) + 'px'; el.style.top = Math.min(Math.max(8, originTop + dy), maxTop) + 'px'; }
+  function onPointerUp(event){ if(!dragging || event.currentTarget !== activeEl) return; dragging = false; if(!moved){ [remote, local].forEach(el => { el.style.left=''; el.style.top=''; el.style.right=''; el.style.bottom=''; }); remote.classList.toggle('call-video-big'); remote.classList.toggle('call-video-small'); local.classList.toggle('call-video-big'); local.classList.toggle('call-video-small'); } activeEl = null; }
+  [remote, local].forEach(el => { el.addEventListener('pointerdown', onPointerDown); el.addEventListener('pointermove', onPointerMove); el.addEventListener('pointerup', onPointerUp); el.addEventListener('pointercancel', () => { dragging = false; activeEl = null; }); });
 })();
+
+// ==========================================================
+// Вход через Google
+// ==========================================================
+async function onGoogleCredential(response){
+  authError.hidden = true;
+  try{
+    const res = await fetch(`${API_BASE}/api/auth/google`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        credential: response.credential,
+        accepted_terms: document.getElementById('accept-terms').checked
+      })
+    });
+    if(!res.ok) throw new Error(await messageError(res, 'Не удалось войти через Google'));
+    const user = await res.json();
+    setCurrentUser({id:user.id, username:user.username, display_name:user.display_name});
+    enterApp();
+  }catch(err){
+    authError.textContent = err.message;
+    authError.hidden = false;
+  }
+}
+
+async function initGoogleSignIn(){
+  let cfg;
+  try{ cfg = await (await fetch(`${API_BASE}/api/config`, {cache:'no-store'})).json(); }catch{ return; }
+  if(!cfg.google_client_id) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  }).catch(() => null);
+  if(!window.google?.accounts?.id) return;
+  google.accounts.id.initialize({client_id: cfg.google_client_id, callback: onGoogleCredential});
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn'),
+    {theme:'filled_black', size:'large', shape:'pill', text:'continue_with', width:316});
+  document.getElementById('google-signin-wrap').hidden = false;
+}
 
 // ---------- инициализация ----------
 (function init(){
   document.querySelector('.app-shell')?.classList.remove('chat-open');
   conversation.classList.remove('open');
   const user = getCurrentUser();
-  if(user){
-    enterApp();
-  }else{
-    showScreen('auth');
-  }
+  if(user){ enterApp(); } else { showScreen('auth'); }
+  initGoogleSignIn();
 })();
 
 </script>
 
 <style id="v6-fixed-css">
-/* Фронтальная камера — зеркалим (как в настоящем зеркале, человек видит
-   себя так же, как при обычной съёмке на себя). Основная (задняя) камера —
-   НЕ зеркалим, показываем как есть, иначе объекты справа/слева меняются
-   местами и выглядит неправильно для окружающих предметов. */
+/* Фронтальная камера — зеркалим. Основная (задняя) камера — НЕ зеркалим. */
 .camera-preview.rear-camera { transform: scaleX(1) !important; }
 .camera-preview.front-camera { transform: scaleX(-1) !important; }
 </style>
@@ -7141,7 +6135,6 @@ function resetCallVideoRoles(){
 <style id="v8-theme">
 /* ==========================================================
    Единая цветовая система: ОДИН цвет на весь интерфейс и на чаты.
-   Палитра спокойная, без градиентов и свечения.
    ========================================================== */
 body[data-app-theme="c-blue"]{--accent:#3a78d8;}
 body[data-app-theme="c-teal"]{--accent:#1f8f8a;}
@@ -7166,15 +6159,12 @@ body[data-app-theme]{
 .app-theme-grid .theme-swatch{height:64px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);}
 
 .chat-tab[hidden],.create-action[hidden]{display:none!important;}
-/* пустой декоративный слой раздувал прокрутку и уводил короткие чаты за экран */
 .conv-messages::before{display:none!important;}
 
-/* фон чата — тот же цвет, очень мягкий оттенок; свои сообщения — сплошной цвет */
 body[data-ui-design] .conv-messages{background:color-mix(in srgb,var(--accent) 6%,var(--bg))!important;background-image:none!important;}
 body[data-ui-design] .msg.out{background:var(--accent)!important;color:#fff;}
 body[data-ui-design] .send-btn,body[data-ui-design] .settings-save{background:var(--accent);box-shadow:none;}
 
-/* дизайн «Мягкий» — приглушённые тона, крупные скругления */
 body[data-ui-design="soft"]{
   --bg:#1a1e27;--bg-alt:#202531;--surface:#272d3a;--surface-hi:#2f3645;--border:#363e50;--border-soft:#2e3544;
   --text:#e8ecf4;--text-dim:#a3acbd;--text-faint:#74809a;--radius-lg:26px;--radius-md:18px;--radius-sm:14px;
