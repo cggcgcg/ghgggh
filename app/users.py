@@ -90,6 +90,37 @@ def find_by_google_sub(sub):
     return _public(row) if row else None
 
 
+def find_by_email(email):
+    email = (email or "").strip()
+    if not email:
+        return None
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
+    return _public(row) if row else None
+
+
+def link_google_sub(user_id, sub):
+    """Привязывает Google к аккаунту, созданному по почте (если ещё не привязан)."""
+    with get_connection() as conn:
+        conn.execute("UPDATE users SET google_sub = ? WHERE id = ? AND google_sub IS NULL", (sub, user_id))
+        conn.commit()
+
+
+def create_verified_user(username, display_name, email, google_sub=None):
+    """Создаёт аккаунт после подтверждения почты / Google. Username выбирает сам пользователь."""
+    user_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO users (id, username, display_name, created_at, google_sub, email) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, username, display_name, created_at, google_sub, email),
+        )
+        conn.commit()
+    accept_terms(user_id)
+    return get_user(user_id)
+
+
 def _free_username(email, name):
     """Подбирает свободный username (3–20 символов: латиница, цифры, «_»)."""
     base = re.sub(r"[^a-zA-Z0-9_]", "", (email or "").split("@")[0]) \

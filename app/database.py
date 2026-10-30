@@ -232,6 +232,15 @@ def init_db():
             "ON users(google_sub) WHERE google_sub IS NOT NULL"
         )
 
+        # Вход по коду из письма.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS email_codes ("
+            "email TEXT PRIMARY KEY, code_hash TEXT, expires_at INTEGER NOT NULL DEFAULT 0, "
+            "attempts INTEGER NOT NULL DEFAULT 0, last_sent INTEGER NOT NULL DEFAULT 0, "
+            "window_start INTEGER NOT NULL DEFAULT 0, sends INTEGER NOT NULL DEFAULT 0, "
+            "ticket_hash TEXT, ticket_expires INTEGER NOT NULL DEFAULT 0)"
+        )
+
         # Права участников группы (JSON) и «заглушенные» участники.
         if not _column_exists(conn, "spaces", "permissions"):
             conn.execute("ALTER TABLE spaces ADD COLUMN permissions TEXT NOT NULL DEFAULT '{}'")

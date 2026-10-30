@@ -22,13 +22,15 @@ from app.workspace import (
 )
 from app.contacts import add_contact, get_contact_ids, remove_contact, get_contact_aliases, set_contact_alias
 from app.blocks import block_user, unblock_user, is_blocked, get_blocked_ids
-APP_VERSION = "v17-google"
+APP_VERSION = "v18-email-login"
 
 from app import workspace as invites
 from app import messages as messages_mod
 from app import workspace as pins_mod
 from app import blocks as blocks_mod
 from app import google_auth
+from app import email_auth
+import re
 try:
     from app import web_assets          # PWA и страницы правил (необязательный файл)
 except ImportError:
@@ -39,6 +41,24 @@ from app.space_messages import (
     set_space_pinned, delete_space_message, get_space_message,
 )
 from app import calls
+
+
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+
+
+def clean_profile(data):
+    """Проверяет username / имя / галочку правил при регистрации. Возвращает (username, name, error, status)."""
+    username = str(data.get("username", "")).strip()
+    display_name = str(data.get("display_name", "")).strip()
+    if not USERNAME_RE.match(username):
+        return None, None, "Username: 3–20 символов, латиница, цифры и «_»", 400
+    if not display_name or len(display_name) > 40:
+        return None, None, "Введите имя (до 40 символов)", 400
+    if not data.get("accepted_terms"):
+        return None, None, "Нужно принять правила и политику конфиденциальности", 400
+    if find_by_username(username):
+        return None, None, "Этот username уже занят", 409
+    return username, display_name, None, 200
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -321,7 +341,8 @@ class Handler(BaseHTTPRequestHandler):
 
         # Публичные настройки для страницы (Google Client ID не секретный)
         if self.path == "/api/config":
-            self.send_json(200, {"google_client_id": google_auth.client_id()})
+            self.send_json(200, {"google_client_id": google_auth.client_id(),
+                                 "email_login": email_auth.configured()})
             return
 
         # Проверка сервера
@@ -595,28 +616,94 @@ class Handler(BaseHTTPRequestHandler):
 
     def _do_post_inner(self):
 
-        # Вход / регистрация через Google
+        # Вход / регистрация через Google.
+        # Без username/имени: вход существующего или ответ needs_registration.
+        # С username/именем и галочкой: создание нового аккаунта.
         if self.path == "/api/auth/google":
             data = self.read_json_body() or {}
             claims, error = google_auth.verify_id_token(str(data.get("credential", "")))
             if error:
                 self.send_json(401, {"error": error})
                 return
+            email = str(claims.get("email", "")).strip().lower()
             user = users_mod.find_by_google_sub(claims["sub"])
+            if not user and email:
+                user = users_mod.find_by_email(email)
+                if user:
+                    users_mod.link_google_sub(user["id"], claims["sub"])
             if user:
                 if user.get("banned"):
                     self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
                     return
                 self.send_json(200, user)
                 return
-            if not data.get("accepted_terms"):
-                self.send_json(400, {"error": "Отметьте галочку «Я принимаю правила» и нажмите кнопку Google ещё раз"})
+            if not str(data.get("username", "")).strip() and not str(data.get("display_name", "")).strip():
+                self.send_json(200, {"needs_registration": True, "email": email,
+                                     "suggested_name": str(claims.get("name", ""))[:40]})
+                return
+            username, display_name, error, status = clean_profile(data)
+            if error:
+                self.send_json(status, {"error": error})
                 return
             try:
-                user = users_mod.create_google_user(claims["sub"], claims.get("email", ""), claims.get("name", ""))
+                user = users_mod.create_verified_user(username, display_name, email, claims["sub"])
                 self.send_json(201, user)
             except Exception as exc:
                 print("GOOGLE SIGNUP ERROR:", exc)
+                self.send_json(500, {"error": "Не удалось создать аккаунт"})
+            return
+
+        # Вход по коду из письма: 1) отправить код
+        if self.path == "/api/auth/email/send":
+            data = self.read_json_body() or {}
+            ip = (self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                  or self.client_address[0])
+            cooldown, error, status = email_auth.send_code(data.get("email", ""), ip)
+            if error:
+                self.send_json(status, {"error": error})
+                return
+            self.send_json(200, {"ok": True, "cooldown": cooldown})
+            return
+
+        # 2) проверить код: существующий аккаунт — вход, новый — needs_registration + ticket
+        if self.path == "/api/auth/email/verify":
+            data = self.read_json_body() or {}
+            email = email_auth.normalize_email(data.get("email", ""))
+            ticket, error, status = email_auth.verify_code(email, data.get("code", ""))
+            if error:
+                self.send_json(status, {"error": error})
+                return
+            user = users_mod.find_by_email(email)
+            if user:
+                email_auth.clear_ticket(email)
+                if user.get("banned"):
+                    self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
+                    return
+                self.send_json(200, user)
+                return
+            self.send_json(200, {"needs_registration": True, "ticket": ticket})
+            return
+
+        # 3) регистрация нового аккаунта по подтверждённой почте
+        if self.path == "/api/auth/email/register":
+            data = self.read_json_body() or {}
+            email = email_auth.normalize_email(data.get("email", ""))
+            if not email or not email_auth.check_ticket(email, str(data.get("ticket", ""))):
+                self.send_json(401, {"error": "Почта не подтверждена или время вышло. Запросите код заново"})
+                return
+            if users_mod.find_by_email(email):
+                self.send_json(409, {"error": "Аккаунт с этой почтой уже существует. Войдите по коду"})
+                return
+            username, display_name, error, status = clean_profile(data)
+            if error:
+                self.send_json(status, {"error": error})
+                return
+            try:
+                user = users_mod.create_verified_user(username, display_name, email)
+                email_auth.clear_ticket(email)
+                self.send_json(201, user)
+            except Exception as exc:
+                print("EMAIL SIGNUP ERROR:", exc)
                 self.send_json(500, {"error": "Не удалось создать аккаунт"})
             return
 

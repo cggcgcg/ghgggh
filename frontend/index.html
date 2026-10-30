@@ -1660,6 +1660,11 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
 .auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0 12px;color:var(--text-faint);font-size:12px;}
 .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--border);}
 #google-signin-btn{display:flex;justify-content:center;min-height:44px;}
+/* шаги входа: выбор способа → почта → код → регистрация */
+.auth-card[hidden]{display:none;}
+.auth-link{background:none;border:0;color:var(--accent-b);font-size:13px;cursor:pointer;padding:8px 4px;align-self:center;}
+.auth-link:disabled{opacity:.5;cursor:default;}
+#input-code{letter-spacing:6px;text-align:center;font-size:20px;}
 </style>
 <style id="v10-groups">
 .avatar.has-photo{background-size:cover;background-position:center;font-size:0;}
@@ -1794,7 +1799,7 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
     <div class="pulse-ring r3"></div>
   </div>
 
-  <form id="auth-form" class="auth-card" autocomplete="off">
+  <form id="auth-form" class="auth-card" autocomplete="off" hidden>
     <div class="auth-mark">
       <span class="auth-mark-dot"></span>
     </div>
@@ -1821,12 +1826,68 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
       <span class="btn-spinner" aria-hidden="true"></span>
     </button>
 
+    <button type="button" id="auth-back-reg" class="auth-link">← Назад</button>
+
+    <p id="auth-error" class="auth-error" hidden></p>
+  </form>
+
+  <!-- Шаг 1: выбор способа входа -->
+  <div id="auth-step-choose" class="auth-card">
+    <div class="auth-mark"><span class="auth-mark-dot"></span></div>
+    <h1 class="auth-title">Mijer Chat</h1>
+    <p class="auth-subtitle">Выберите способ входа</p>
+
+    <button id="auth-pick-email" type="button" class="btn-primary"><span class="btn-label">Войти через почту</span></button>
+
     <div id="google-signin-wrap" hidden>
       <div class="auth-divider">или</div>
       <div id="google-signin-btn"></div>
     </div>
 
-    <p id="auth-error" class="auth-error" hidden></p>
+    <p class="auth-error" hidden></p>
+  </div>
+
+  <!-- Шаг 2: ввод почты -->
+  <form id="auth-step-email" class="auth-card" autocomplete="off" hidden>
+    <div class="auth-mark"><span class="auth-mark-dot"></span></div>
+    <h1 class="auth-title">Mijer Chat</h1>
+    <p class="auth-subtitle">Введите почту, мы отправим код</p>
+
+    <label class="field">
+      <span class="field-label">Почта</span>
+      <input id="input-email" type="email" placeholder="name@gmail.com" required maxlength="254"
+             autocomplete="email" inputmode="email">
+    </label>
+
+    <button id="email-send-btn" type="submit" class="btn-primary">
+      <span class="btn-label">Получить код</span>
+      <span class="btn-spinner" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="auth-link" data-auth-back="choose">← Назад</button>
+
+    <p class="auth-error" hidden></p>
+  </form>
+
+  <!-- Шаг 3: код из письма -->
+  <form id="auth-step-code" class="auth-card" autocomplete="off" hidden>
+    <div class="auth-mark"><span class="auth-mark-dot"></span></div>
+    <h1 class="auth-title">Mijer Chat</h1>
+    <p class="auth-subtitle" id="code-sent-to">Код отправлен на почту</p>
+
+    <label class="field">
+      <span class="field-label">Код из письма</span>
+      <input id="input-code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             placeholder="000000" autocomplete="one-time-code" required>
+    </label>
+
+    <button id="code-verify-btn" type="submit" class="btn-primary">
+      <span class="btn-label">Подтвердить</span>
+      <span class="btn-spinner" aria-hidden="true"></span>
+    </button>
+    <button type="button" id="code-resend" class="auth-link">Отправить код ещё раз</button>
+    <button type="button" class="auth-link" data-auth-back="email">← Изменить почту</button>
+
+    <p class="auth-error" hidden></p>
   </form>
 </section>
 
@@ -3593,6 +3654,7 @@ function setCurrentUser(user){
 function showScreen(screen){
   authScreen.hidden = screen !== 'auth';
   appScreen.hidden  = screen !== 'app';
+  if(screen === 'auth') showAuthStep('choose');
 }
 
 // ---------- регистрация ----------
@@ -3609,14 +3671,20 @@ authForm.addEventListener('submit', async (e) => {
     return;
   }
 
+  if(!pendingAuth){ showAuthStep('choose'); return; }
+
   authSubmit.disabled = true;
   authSubmit.classList.add('loading');
 
   try{
-    const res = await fetch(`${API_BASE}/api/users`, {
+    const reqUrl = pendingAuth.method === 'google' ? '/api/auth/google' : '/api/auth/email/register';
+    const reqBody = pendingAuth.method === 'google'
+      ? { credential: pendingAuth.credential, username, display_name, accepted_terms: true }
+      : { email: pendingAuth.email, ticket: pendingAuth.ticket, username, display_name, accepted_terms: true };
+    const res = await fetch(`${API_BASE}${reqUrl}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, display_name, accepted_terms: true })
+      body: JSON.stringify(reqBody)
     });
 
     if(!res.ok){
@@ -3629,6 +3697,7 @@ authForm.addEventListener('submit', async (e) => {
     }
 
     const user = await res.json();
+    pendingAuth = null;
     // ожидаем { id, username, display_name, created_at }
     setCurrentUser({
       id: user.id,
@@ -3658,8 +3727,8 @@ async function enterApp(){
 
   try{
     const check = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'});
-    if(!check.ok){ localStorage.removeItem(STORAGE_KEY); showScreen('auth'); authError.textContent = 'Сессия устарела. Создайте пользователя заново.'; authError.hidden = false; return; }
-  }catch{ showScreen('auth'); authError.textContent = 'Сервер недоступен. Проверьте запуск backend.'; authError.hidden = false; return; }
+    if(!check.ok){ localStorage.removeItem(STORAGE_KEY); showScreen('auth'); setAuthError('Сессия устарела. Войдите заново.'); return; }
+  }catch{ showScreen('auth'); setAuthError('Сервер недоступен. Проверьте запуск backend.'); return; }
 
   try{
     const fresh = await (await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'})).json();
@@ -6077,24 +6146,170 @@ function resetCallVideoRoles(){
 // ==========================================================
 // Вход через Google
 // ==========================================================
+// ---------- шаги входа ----------
+const AUTH_STEPS = {choose:'auth-step-choose', email:'auth-step-email', code:'auth-step-code', register:'auth-form'};
+let authStep = 'choose';
+let pendingAuth = null;     // {method:'google', credential} | {method:'email', email, ticket}
+let pendingEmail = '';
+let resendTimer = null;
+
+function clearAuthErrors(){
+  document.querySelectorAll('#auth-screen .auth-error').forEach(el => { el.hidden = true; });
+}
+function showAuthStep(step){
+  authStep = step;
+  for(const [key, id] of Object.entries(AUTH_STEPS)){
+    const el = document.getElementById(id);
+    if(el) el.hidden = key !== step;
+  }
+  clearAuthErrors();
+}
+function setAuthError(message){
+  const el = document.querySelector(`#${AUTH_STEPS[authStep]} .auth-error`);
+  if(!el) return;
+  el.textContent = message === 'Failed to fetch' ? 'Не удаётся подключиться к серверу' : message;
+  el.hidden = false;
+}
+function setBusy(btn, busy){
+  btn.disabled = busy;
+  btn.classList.toggle('loading', busy);
+}
+function openRegistration(auth, suggestedName){
+  pendingAuth = auth;
+  usernameEl.value = '';
+  displayEl.value = suggestedName || '';
+  document.getElementById('accept-terms').checked = false;
+  showAuthStep('register');
+  usernameEl.focus();
+}
+
+document.getElementById('auth-pick-email').addEventListener('click', () => {
+  showAuthStep('email');
+  document.getElementById('input-email').focus();
+});
+document.querySelectorAll('[data-auth-back]').forEach(btn => {
+  btn.addEventListener('click', () => showAuthStep(btn.dataset.authBack));
+});
+document.getElementById('auth-back-reg').addEventListener('click', () => {
+  pendingAuth = null;
+  showAuthStep('choose');
+});
+
+function startResendCooldown(seconds){
+  const btn = document.getElementById('code-resend');
+  clearInterval(resendTimer);
+  let left = seconds;
+  const tick = () => {
+    if(left <= 0){
+      clearInterval(resendTimer);
+      btn.disabled = false;
+      btn.textContent = 'Отправить код ещё раз';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = `Отправить ещё раз через ${left} с`;
+    left--;
+  };
+  tick();
+  resendTimer = setInterval(tick, 1000);
+}
+
+async function sendEmailCode(email){
+  const res = await fetch(`${API_BASE}/api/auth/email/send`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({email})
+  });
+  if(!res.ok){
+    let msg = 'Не удалось отправить код';
+    try{ const d = await res.json(); if(d.error) msg = d.error; }catch{}
+    throw new Error(msg);
+  }
+  const data = await res.json().catch(() => ({}));
+  startResendCooldown(data.cooldown || 60);
+}
+
+document.getElementById('auth-step-email').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearAuthErrors();
+  const email = document.getElementById('input-email').value.trim().toLowerCase();
+  if(!email) return;
+  const btn = document.getElementById('email-send-btn');
+  setBusy(btn, true);
+  try{
+    await sendEmailCode(email);
+    pendingEmail = email;
+    document.getElementById('code-sent-to').textContent = `Код отправлен на ${email}`;
+    const codeEl = document.getElementById('input-code');
+    codeEl.value = '';
+    showAuthStep('code');
+    codeEl.focus();
+  }catch(err){
+    setAuthError(err.message);
+  }finally{
+    setBusy(btn, false);
+  }
+});
+
+document.getElementById('code-resend').addEventListener('click', async () => {
+  clearAuthErrors();
+  const btn = document.getElementById('code-resend');
+  btn.disabled = true;
+  try{ await sendEmailCode(pendingEmail); }
+  catch(err){ setAuthError(err.message); btn.disabled = false; }
+});
+
+document.getElementById('auth-step-code').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearAuthErrors();
+  const code = document.getElementById('input-code').value.replace(/\D/g, '');
+  if(code.length !== 6){ setAuthError('Введите 6 цифр из письма'); return; }
+  const btn = document.getElementById('code-verify-btn');
+  setBusy(btn, true);
+  try{
+    const res = await fetch(`${API_BASE}/api/auth/email/verify`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email: pendingEmail, code})
+    });
+    if(!res.ok){
+      let msg = 'Не удалось проверить код';
+      try{ const d = await res.json(); if(d.error) msg = d.error; }catch{}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    if(data.needs_registration){
+      openRegistration({method:'email', email: pendingEmail, ticket: data.ticket}, '');
+    }else{
+      setCurrentUser({id:data.id, username:data.username, display_name:data.display_name});
+      enterApp();
+    }
+  }catch(err){
+    setAuthError(err.message);
+  }finally{
+    setBusy(btn, false);
+  }
+});
+
+// Вход через Google
 async function onGoogleCredential(response){
-  authError.hidden = true;
+  clearAuthErrors();
   try{
     const res = await fetch(`${API_BASE}/api/auth/google`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        credential: response.credential,
-        accepted_terms: document.getElementById('accept-terms').checked
-      })
+      body: JSON.stringify({credential: response.credential})
     });
     if(!res.ok) throw new Error(await messageError(res, 'Не удалось войти через Google'));
-    const user = await res.json();
-    setCurrentUser({id:user.id, username:user.username, display_name:user.display_name});
+    const data = await res.json();
+    if(data.needs_registration){
+      openRegistration({method:'google', credential: response.credential}, data.suggested_name);
+      return;
+    }
+    setCurrentUser({id:data.id, username:data.username, display_name:data.display_name});
     enterApp();
   }catch(err){
-    authError.textContent = err.message;
-    authError.hidden = false;
+    setAuthError(err.message);
   }
 }
 
