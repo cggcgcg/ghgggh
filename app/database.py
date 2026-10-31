@@ -368,6 +368,12 @@ def _init_schema(conn):
     if not _column_exists(conn, "spaces", "invite_code"):
         conn.execute("ALTER TABLE spaces ADD COLUMN invite_code TEXT")
 
+    # Сеансы устройств: хэш токена входа и время последней активности.
+    if not _column_exists(conn, "devices", "token_hash"):
+        conn.execute("ALTER TABLE devices ADD COLUMN token_hash TEXT")
+    if not _column_exists(conn, "devices", "last_seen_at"):
+        conn.execute("ALTER TABLE devices ADD COLUMN last_seen_at TEXT")
+
     # Статус «в сети»: время последней активности и флаг «скрыть от всех».
     if not _column_exists(conn, "users", "last_seen"):
         conn.execute("ALTER TABLE users ADD COLUMN last_seen TEXT")

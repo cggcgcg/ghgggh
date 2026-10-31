@@ -29,6 +29,7 @@ from app import messages as messages_mod
 from app import workspace as pins_mod
 from app import blocks as blocks_mod
 from app import google_auth
+from app import devices as devices_mod
 from app import email_auth
 import re
 try:
@@ -82,6 +83,21 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _device_auth(self):
+        """Проверяет заголовки X-Device-Id / X-Device-Token. Возвращает (user_id, device_id) или (None, None)."""
+        device_id = str(self.headers.get("X-Device-Id", "")).strip()
+        user_id = devices_mod.authenticate(device_id, self.headers.get("X-Device-Token", ""))
+        return (user_id, device_id) if user_id else (None, None)
+
+    def _login_response(self, user):
+        """Ответ при входе: данные пользователя + id и токен нового сеанса устройства."""
+        result = dict(user)
+        try:
+            result.update(devices_mod.register_device(user["id"], self.headers.get("User-Agent", "")))
+        except Exception as exc:  # вход не должен ломаться из-за списка устройств
+            print("REGISTER DEVICE ERROR:", exc)
+        return result
 
     def send_json(self, status, data):
         self._status = status
@@ -456,9 +472,21 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, users)
             return
 
+        if self.path == "/api/session/check":
+            user_id, device_id = self._device_auth()
+            if not user_id:
+                self.send_json(401, {"error": "Сеанс завершён", "session_invalid": True})
+                return
+            self.send_json(200, {"ok": True, "device_id": device_id})
+            return
+
         if self.path.startswith("/api/devices/"):
-            user_id = self.path.replace("/api/devices/", "", 1)
-            self.send_json(200, get_devices(user_id))
+            requested = self.path.replace("/api/devices/", "", 1)
+            user_id, device_id = self._device_auth()
+            if not user_id or user_id != requested:
+                self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
+                return
+            self.send_json(200, devices_mod.list_devices(user_id, device_id))
             return
 
         # История переписки между двумя пользователями
@@ -635,7 +663,7 @@ class Handler(BaseHTTPRequestHandler):
                 if user.get("banned"):
                     self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
                     return
-                self.send_json(200, user)
+                self.send_json(200, self._login_response(user))
                 return
             if not str(data.get("username", "")).strip() and not str(data.get("display_name", "")).strip():
                 self.send_json(200, {"needs_registration": True, "email": email,
@@ -647,7 +675,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 user = users_mod.create_verified_user(username, display_name, email, claims["sub"])
-                self.send_json(201, user)
+                self.send_json(201, self._login_response(user))
             except Exception as exc:
                 print("GOOGLE SIGNUP ERROR:", exc)
                 self.send_json(500, {"error": "Не удалось создать аккаунт"})
@@ -679,7 +707,7 @@ class Handler(BaseHTTPRequestHandler):
                 if user.get("banned"):
                     self.send_json(403, {"error": "Ваш аккаунт заблокирован за нарушение правил"})
                     return
-                self.send_json(200, user)
+                self.send_json(200, self._login_response(user))
                 return
             self.send_json(200, {"needs_registration": True, "ticket": ticket})
             return
@@ -701,7 +729,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 user = users_mod.create_verified_user(username, display_name, email)
                 email_auth.clear_ticket(email)
-                self.send_json(201, user)
+                self.send_json(201, self._login_response(user))
             except Exception as exc:
                 print("EMAIL SIGNUP ERROR:", exc)
                 self.send_json(500, {"error": "Не удалось создать аккаунт"})
@@ -759,7 +787,7 @@ class Handler(BaseHTTPRequestHandler):
                 if data.get("accepted_terms"):
                     users_mod.accept_terms(user["id"])
 
-                self.send_json(201, user)
+                self.send_json(201, self._login_response(user))
 
             except Exception as error:
                 print("CREATE USER ERROR:", error)
@@ -1220,14 +1248,23 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(500, {"error": "Failed to send message"})
             return
 
-        if self.path == "/api/devices":
-            data = self.read_json_body() or {}
-            user_id = str(data.get("user_id", "")).strip()
-            name = str(data.get("name", "")).strip() or "Новое устройство"
-            if not user_id or not get_user(user_id):
-                self.send_json(404, {"error": "User not found"})
+        if self.path in ("/api/devices/revoke", "/api/devices/revoke-others", "/api/session/logout"):
+            user_id, device_id = self._device_auth()
+            if not user_id:
+                self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
                 return
-            self.send_json(201, create_device(user_id, name))
+            if self.path == "/api/session/logout":
+                devices_mod.revoke_device(user_id, device_id)
+                self.send_json(200, {"ok": True})
+            elif self.path == "/api/devices/revoke-others":
+                self.send_json(200, {"ok": True, "revoked": devices_mod.revoke_other_devices(user_id, device_id)})
+            else:
+                data = self.read_json_body() or {}
+                target = str(data.get("device_id", "")).strip()
+                if not target:
+                    self.send_json(400, {"error": "device_id is required"})
+                    return
+                self.send_json(200, {"ok": devices_mod.revoke_device(user_id, target)})
             return
 
         self.send_json(404, {

@@ -2076,7 +2076,7 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
 <button class="design-btn" data-design="soft" type="button"><strong>Мягкий</strong><small>Приглушённые спокойные тона и крупные скругления</small></button>
 </div></div>
         <div class="settings-section" data-settings-panel="language"><h3>Язык интерфейса</h3><p class="section-note">Выберите язык меню и подписей.</p><div class="language-grid" id="language-grid"></div></div>
-        <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button></div>
+        <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button><p class="section-note" id="device-hint" hidden></p></div>
       </div>
     </div>
   </section>
@@ -3085,6 +3085,11 @@ const GroupCall = (() => {
 // Если backend слушает не на 127.0.0.1:8000 — поменяй тут.
 const API_BASE = window.location.origin;
 const STORAGE_KEY = 'tgclone_user';
+const DEVICE_KEY = 'tgclone_device';
+function getDevice(){ try{ return JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null'); }catch{ return null; } }
+function storeDevice(data){ try{ if(data && data.device_id && data.device_token) localStorage.setItem(DEVICE_KEY, JSON.stringify({id:data.device_id, token:data.device_token})); }catch{} }
+function deviceHeaders(extra){ const h = Object.assign({}, extra || {}); const d = getDevice(); if(d){ h['X-Device-Id'] = d.id; h['X-Device-Token'] = d.token; } return h; }
+function clearLocalSession(){ localStorage.removeItem('tgclone_user'); localStorage.removeItem(DEVICE_KEY); }
 
 // ---------- DOM ----------
 const authScreen   = document.getElementById('auth-screen');
@@ -3543,8 +3548,77 @@ window.settingsReady = false;
 async function saveSettings(values){ const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}); }
 function applySettings(settings){ document.body.dataset.appTheme = normColor(settings.app_theme); delete document.body.dataset.chatTheme; document.body.dataset.uiDesign = normDesign(settings.design); document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('#app-theme-grid [data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === normColor(settings.app_theme))); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === normDesign(settings.design))); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
 async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!DESIGNS.includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!COLOR_IDS.includes(settings.app_theme)){ settings.app_theme='c-blue'; saveSettings({app_theme:'c-blue', chat_theme:'c-blue'}); } applySettings(settings); } window.settingsReady = true; }
-document.getElementById('add-device').addEventListener('click', async () => { const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/devices`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.id,name:'Новое устройство'})}); loadDevices(); });
-async function loadDevices(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`); if(!res.ok) return; const devices = await res.json(); document.getElementById('device-list').innerHTML = '<div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div>' + devices.map(device => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(device.name)}</strong><small>Подключено к аккаунту</small></div>`).join(''); }
+const DEVICE_TEXT = {
+  ru:{self:'Это устройство', online:'сейчас онлайн', active:'Активность', end:'Завершить сеанс', endAll:'Завершить все другие сеансы', confirmOne:'Завершить этот сеанс? Устройство будет выведено из аккаунта.', confirmAll:'Завершить все другие сеансы? Остальные устройства будут выведены из аккаунта.', addHint:'Чтобы добавить устройство, откройте Mijer Chat на нём и войдите в тот же аккаунт (через Google или почту). Все устройства работают с одним аккаунтом.', legacy:'Это старая сессия. Выйдите и войдите заново, чтобы видеть и завершать сеансы на других устройствах.', revoked:'Сеанс завершён. Войдите заново.'},
+  uz:{self:'Bu qurilma', online:'hozir onlayn', active:'Faolligi', end:'Seansni tugatish', endAll:'Boshqa barcha seanslarni tugatish', confirmOne:'Bu seans tugatilsinmi? Qurilma hisobdan chiqariladi.', confirmAll:'Boshqa barcha seanslar tugatilsinmi? Boshqa qurilmalar hisobdan chiqariladi.', addHint:'Qurilma qo\u02bbshish uchun unda Mijer Chat ilovasini oching va xuddi shu hisobga (Google yoki pochta orqali) kiring. Barcha qurilmalar bitta hisob bilan ishlaydi.', legacy:'Bu eski seans. Boshqa qurilmalardagi seanslarni ko\u02bbish va tugatish uchun chiqib, qayta kiring.', revoked:'Seans tugatildi. Qayta kiring.'},
+  en:{self:'This device', online:'online now', active:'Last active', end:'End session', endAll:'End all other sessions', confirmOne:'End this session? The device will be signed out of your account.', confirmAll:'End all other sessions? All other devices will be signed out of your account.', addHint:'To add a device, open Mijer Chat on it and sign in to the same account (with Google or email). All devices use one account.', legacy:'This is an old session. Sign out and sign in again to see and end sessions on other devices.', revoked:'Session ended. Please sign in again.'}
+};
+function formatDeviceTime(iso, t){
+  try{
+    const d = new Date(iso);
+    if(Date.now() - d.getTime() < 120000) return t.online;
+    return t.active + ': ' + d.toLocaleString(document.documentElement.lang || undefined, {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+  }catch{ return ''; }
+}
+function forceLogout(message){
+  stopPolling();
+  try{ CallManager.disconnect(); }catch{}
+  clearLocalSession();
+  openChats.clear();
+  activeChatId = null;
+  showScreen('auth');
+  setAuthError(message);
+}
+let sessionWatchTimer = null;
+function startSessionWatch(){
+  if(sessionWatchTimer) return;
+  const verify = async () => {
+    if(!getDevice()) return;
+    try{
+      const res = await fetch(`${API_BASE}/api/session/check`, {headers: deviceHeaders(), cache:'no-store'});
+      if(res.status === 401) forceLogout((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked);
+    }catch{}
+  };
+  sessionWatchTimer = setInterval(verify, 60000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) verify(); });
+}
+document.getElementById('add-device').addEventListener('click', () => {
+  const t = DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en;
+  const hint = document.getElementById('device-hint');
+  hint.textContent = t.addHint;
+  hint.hidden = !hint.hidden;
+});
+document.getElementById('device-list').addEventListener('click', async (ev) => {
+  const one = ev.target.closest('.device-end[data-device-id]');
+  const all = ev.target.closest('#device-end-all');
+  if(!one && !all) return;
+  const t = DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en;
+  if(!confirm(one ? t.confirmOne : t.confirmAll)) return;
+  try{
+    await fetch(`${API_BASE}${one ? '/api/devices/revoke' : '/api/devices/revoke-others'}`, {method:'POST', headers: deviceHeaders({'Content-Type':'application/json'}), body: JSON.stringify(one ? {device_id: one.dataset.deviceId} : {})});
+  }catch{}
+  loadDevices();
+});
+async function loadDevices(){
+  const user = getCurrentUser(); if(!user) return;
+  const t = DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en;
+  const dev = getDevice();
+  let list = [];
+  if(dev){
+    try{
+      const res = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(user.id)}`, {headers: deviceHeaders(), cache:'no-store'});
+      if(res.status === 401){ forceLogout(t.revoked); return; }
+      if(res.ok) list = await res.json();
+    }catch{ return; }
+  }
+  const me = list.find(d => d.current);
+  const others = list.filter(d => !d.current);
+  let html = `<div class="device-placeholder"><span>▣</span><strong>${escapeHtml(t.self)}</strong><small>${escapeHtml(me ? me.name : 'Mijer Chat Web')} · ${escapeHtml(t.online)}</small></div>`;
+  html += others.map(d => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(d.name)}</strong><small>${escapeHtml(formatDeviceTime(d.last_seen_at, t))}</small><button class="device-end" type="button" data-device-id="${escapeHtml(d.id)}">${escapeHtml(t.end)}</button></div>`).join('');
+  if(others.length) html += `<button class="device-end device-end-all" type="button" id="device-end-all">${escapeHtml(t.endAll)}</button>`;
+  if(!dev) html += `<p class="section-note">${escapeHtml(t.legacy)}</p>`;
+  document.getElementById('device-list').innerHTML = html;
+}
 async function loadSpaces(){
   const user = getCurrentUser(); if(!user) return;
   const res = await fetch(`${API_BASE}/api/spaces/${encodeURIComponent(user.id)}`);
@@ -3698,6 +3772,7 @@ authForm.addEventListener('submit', async (e) => {
 
     const user = await res.json();
     pendingAuth = null;
+    storeDevice(user);
     // ожидаем { id, username, display_name, created_at }
     setCurrentUser({
       id: user.id,
@@ -3727,16 +3802,22 @@ async function enterApp(){
 
   try{
     const check = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'});
-    if(!check.ok){ localStorage.removeItem(STORAGE_KEY); showScreen('auth'); setAuthError('Сессия устарела. Войдите заново.'); return; }
+    if(!check.ok){ clearLocalSession(); showScreen('auth'); setAuthError('Сессия устарела. Войдите заново.'); return; }
   }catch{ showScreen('auth'); setAuthError('Сервер недоступен. Проверьте запуск backend.'); return; }
 
   try{
     const fresh = await (await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'})).json();
     if(fresh && fresh.banned){
       alert('Ваш аккаунт заблокирован за нарушение правил.');
-      localStorage.removeItem(STORAGE_KEY); showScreen('auth'); return;
+      clearLocalSession(); showScreen('auth'); return;
     }
   }catch{}
+  if(getDevice()){
+    try{
+      const sc = await fetch(`${API_BASE}/api/session/check`, {headers: deviceHeaders(), cache:'no-store'});
+      if(sc.status === 401){ clearLocalSession(); showScreen('auth'); setAuthError((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked); return; }
+    }catch{}
+  }
   meName.textContent = user.display_name;
   meHandle.textContent = '@' + user.username;
   meAvatar.textContent = initials(user.display_name);
@@ -3747,6 +3828,7 @@ async function enterApp(){
   showScreen('app');
   loadSettings();
   loadDevices();
+  startSessionWatch();
   loadSpaces().then(handleJoinLink);
   startPresence();
   startV12();
@@ -3782,9 +3864,10 @@ async function loadConversations(){
 }
 
 logoutBtn.addEventListener('click', () => {
+  if(getDevice()){ try{ fetch(`${API_BASE}/api/session/logout`, {method:'POST', headers: deviceHeaders(), keepalive:true}).catch(()=>{}); }catch{} }
   stopPolling();
   CallManager.disconnect();
-  localStorage.removeItem(STORAGE_KEY);
+  clearLocalSession();
   openChats.clear();
   activeChatId = null;
   authForm.reset();
@@ -5576,7 +5659,7 @@ document.getElementById('delete-account-btn').addEventListener('click', () => {
     try{
       const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(me.id)}`, {method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({confirm: card.querySelector('#del-confirm').value})});
       if(!res.ok) throw new Error(await messageError(res, 'Не удалось удалить аккаунт'));
-      localStorage.removeItem(STORAGE_KEY); location.href = '/';
+      clearLocalSession(); location.href = '/';
     }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
   };
 });
@@ -6281,6 +6364,7 @@ document.getElementById('auth-step-code').addEventListener('submit', async (e) =
     if(data.needs_registration){
       openRegistration({method:'email', email: pendingEmail, ticket: data.ticket}, '');
     }else{
+      storeDevice(data);
       setCurrentUser({id:data.id, username:data.username, display_name:data.display_name});
       enterApp();
     }
@@ -6306,6 +6390,7 @@ async function onGoogleCredential(response){
       openRegistration({method:'google', credential: response.credential}, data.suggested_name);
       return;
     }
+    storeDevice(data);
     setCurrentUser({id:data.id, username:data.username, display_name:data.display_name});
     enterApp();
   }catch(err){
@@ -6389,6 +6474,10 @@ body[data-ui-design="soft"] .msg.out{border-bottom-right-radius:6px;}
 body[data-ui-design="soft"] .msg.in{border-bottom-left-radius:6px;background:var(--surface);border-color:transparent;}
 body[data-ui-design="soft"] .chat-item,body[data-ui-design="soft"] .search-box input,body[data-ui-design="soft"] .conv-input-bar input{border-radius:18px;}
 body[data-ui-design="soft"] .settings-window,body[data-ui-design="soft"] .create-sheet{border-radius:28px;}
+#device-list .device-placeholder{margin:10px 0}
+.device-end{grid-column:2;justify-self:start;margin-top:10px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:10px;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}
+.device-end:hover{color:inherit;border-color:var(--accent-b)}
+.device-end-all{display:block;grid-column:auto;margin:14px 0 0}
 </style>
 
 </body>
