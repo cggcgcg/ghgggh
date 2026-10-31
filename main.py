@@ -1410,6 +1410,10 @@ import os
 
 PORT = int(os.environ.get("PORT", 8000))
 
+# По умолчанию очередь входящих соединений всего 5 — при сотнях одновременных
+# пользователей соединения отваливались. Увеличиваем.
+ThreadingHTTPServer.request_queue_size = 512
+
 server = ThreadingHTTPServer(
     ("0.0.0.0", PORT),
     Handler
