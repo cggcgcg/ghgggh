@@ -3362,8 +3362,9 @@ function applyInterfaceLanguage(lang){
   document.querySelector('#add-user-action small').textContent=e.addUserHint;
   document.querySelector('[data-space-kind="group"] small').textContent=e.groupHint;
   document.querySelector('[data-space-kind="channel"] small').textContent=e.channelHint;
-  document.querySelector('#device-list .device-placeholder strong').textContent=e.deviceSelf;
-  document.querySelector('#device-list .device-placeholder small').textContent=e.deviceSession;
+  const devRow=document.querySelector('#device-list .device-placeholder');
+  if(devRow && !devRow.dataset.live) devRow.querySelector('strong').textContent=e.deviceSelf;
+  if(devRow && !devRow.dataset.live) devRow.querySelector('small').textContent=e.deviceSession;
   document.querySelector('#add-device').textContent=e.addDevice;
   document.querySelector('#recording-cancel').setAttribute('aria-label', (RECORDER_TEXT[lang]||RECORDER_TEXT.ru).cancelRecording);
   if(window.updateMediaButton) updateMediaButton();
@@ -3560,6 +3561,29 @@ function formatDeviceTime(iso, t){
     return t.active + ': ' + d.toLocaleString(document.documentElement.lang || undefined, {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
   }catch{ return ''; }
 }
+// Профиль хранится в браузере на каждом устройстве — подтягиваем свежий с сервера,
+// чтобы ник/имя, изменённые на другом устройстве, обновились и здесь.
+async function refreshMyProfile(){
+  const me = getCurrentUser(); if(!me) return;
+  try{
+    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(me.id)}`, {cache:'no-store'});
+    if(!res.ok) return;
+    const u = await res.json();
+    if(!u || !u.username || !u.display_name || u.banned) return;
+    if(u.username === me.username && u.display_name === me.display_name) return;
+    setCurrentUser({id: me.id, username: u.username, display_name: u.display_name});
+    meName.textContent = u.display_name;
+    meHandle.textContent = '@' + u.username;
+    meAvatar.textContent = initials(u.display_name);
+    const nameInput = document.getElementById('profile-name');
+    const userInput = document.getElementById('profile-username');
+    if(nameInput && document.activeElement !== nameInput) nameInput.value = u.display_name;
+    if(userInput && document.activeElement !== userInput) userInput.value = u.username;
+    const idLabel = document.getElementById('profile-my-id'); if(idLabel) idLabel.textContent = '@' + u.username;
+    const saved = openChats.get(me.id); if(saved) saved.username = u.username;
+    if(typeof renderChatList === 'function') renderChatList();
+  }catch{}
+}
 function forceLogout(message){
   stopPolling();
   try{ CallManager.disconnect(); }catch{}
@@ -3576,8 +3600,9 @@ function startSessionWatch(){
     if(!getDevice()) return;
     try{
       const res = await fetch(`${API_BASE}/api/session/check`, {headers: deviceHeaders(), cache:'no-store'});
-      if(res.status === 401) forceLogout((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked);
+      if(res.status === 401){ forceLogout((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked); return; }
     }catch{}
+    refreshMyProfile();
   };
   sessionWatchTimer = setInterval(verify, 60000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) verify(); });
@@ -3613,7 +3638,7 @@ async function loadDevices(){
   }
   const me = list.find(d => d.current);
   const others = list.filter(d => !d.current);
-  let html = `<div class="device-placeholder"><span>▣</span><strong>${escapeHtml(t.self)}</strong><small>${escapeHtml(me ? me.name : 'Mijer Chat Web')} · ${escapeHtml(t.online)}</small></div>`;
+  let html = `<div class="device-placeholder" data-live="1"><span>▣</span><strong>${escapeHtml(t.self)}</strong><small>${escapeHtml(me ? me.name : 'Mijer Chat Web')} · ${escapeHtml(t.online)}</small></div>`;
   html += others.map(d => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(d.name)}</strong><small>${escapeHtml(formatDeviceTime(d.last_seen_at, t))}</small><button class="device-end" type="button" data-device-id="${escapeHtml(d.id)}">${escapeHtml(t.end)}</button></div>`).join('');
   if(others.length) html += `<button class="device-end device-end-all" type="button" id="device-end-all">${escapeHtml(t.endAll)}</button>`;
   if(!dev) html += `<p class="section-note">${escapeHtml(t.legacy)}</p>`;
@@ -3818,6 +3843,10 @@ async function enterApp(){
       if(sc.status === 401){ clearLocalSession(); showScreen('auth'); setAuthError((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked); return; }
     }catch{}
   }
+  try{
+    const fresh2 = await (await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'})).json();
+    if(fresh2 && fresh2.username && fresh2.display_name){ user.username = fresh2.username; user.display_name = fresh2.display_name; setCurrentUser({id: user.id, username: user.username, display_name: user.display_name}); }
+  }catch{}
   meName.textContent = user.display_name;
   meHandle.textContent = '@' + user.username;
   meAvatar.textContent = initials(user.display_name);
@@ -5737,6 +5766,7 @@ let syncTimer = null;
 window.onServerSync = msg => {
   if(!getCurrentUser()) return;
   if(msg && msg.scope === 'activity'){ pollActivity(); return; }
+  if(msg && msg.scope === 'profile'){ refreshMyProfile(); return; }
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     loadConversations();

@@ -603,24 +603,26 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(data, dict):
             return None
         g = lambda k: str(data.get(k, "")).strip()
+        # Во все списки входит и сам автор действия: так его ДРУГИЕ устройства
+        # (ноутбук, пока пишешь с телефона) тоже сразу видят изменение.
         if path == "/api/messages":
-            return "msg", [g("to_user")]
+            return "msg", [g("to_user"), g("from_user")]
         if path == "/api/space-messages":
-            return "msg", [m["user_id"] for m in get_members(g("space_id")) if m["user_id"] != g("from_user")]
+            return "msg", [m["user_id"] for m in get_members(g("space_id"))] + [g("from_user")]
         if path == "/api/messages/read":
-            return "msg", [g("other_id")]
+            return "msg", [g("other_id"), g("reader_id")]
         if path in ("/api/messages/played", "/api/messages/pin", "/api/messages/delete", "/api/reactions"):
             m = messages_mod.get_message(g("message_id"))
             if m:
-                return "msg", [u for u in (m["from_user"], m["to_user"]) if u != g("user_id")]
+                return "msg", [m["from_user"], m["to_user"], g("user_id")]
             sm = get_space_message(g("message_id"))
             if sm:
-                return "msg", [x["user_id"] for x in get_members(sm["space_id"]) if x["user_id"] != g("user_id")]
+                return "msg", [x["user_id"] for x in get_members(sm["space_id"])] + [g("user_id")]
             return None
         if path in ("/api/space-messages/pin", "/api/space-messages/delete"):
             sm = get_space_message(g("message_id"))
             if sm:
-                return "msg", [x["user_id"] for x in get_members(sm["space_id"]) if x["user_id"] != g("user_id")]
+                return "msg", [x["user_id"] for x in get_members(sm["space_id"])] + [g("user_id")]
             return None
         if path == "/api/activity":
             chat = g("chat_id")
@@ -1287,6 +1289,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(409, {"error": "Username already exists"})
             else:
                 self.send_json(200, update_user(user_id, username, display_name))
+                calls.push(user_id, {"type": "sync", "scope": "profile"})
             return
 
         if self.path.startswith("/api/settings/"):

@@ -26,9 +26,14 @@ WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 # было видно, если два разных пользователя оказались на разных репликах.
 _REPLICA = os.environ.get("RAILWAY_REPLICA_ID", "local")[:8]
 
-# user_id -> connection handler currently holding that user's call socket.
+# user_id -> connection handler currently holding that user's call socket
+# (последнее подключённое устройство — именно ему идут сигналы звонков).
 _clients = {}
 _clients_lock = threading.Lock()
+
+# user_id -> ВСЕ живые соединения пользователя (телефон, ноутбук, вкладки).
+# Нужно, чтобы мгновенные обновления чата доходили на все устройства аккаунта.
+_all_clients = {}
 
 # user_id -> peer_id, for the two people in a ringing/active call.
 _active_calls = {}
@@ -378,15 +383,31 @@ def decode_frame(read):
 
 def register(user_id, handler):
     with _clients_lock:
+        conns = _all_clients.setdefault(user_id, [])
+        if handler not in conns:
+            conns.append(handler)
         _clients[user_id] = handler
     print(f"[calls][{_REPLICA}] register user={user_id} online_now={list(_clients.keys())}", flush=True)
 
 
 def unregister(user_id, handler):
     with _clients_lock:
-        if _clients.get(user_id) is handler:
+        conns = _all_clients.get(user_id)
+        if conns and handler in conns:
+            conns.remove(handler)
+        if not conns:
+            _all_clients.pop(user_id, None)
+        was_primary = _clients.get(user_id) is handler
+        if was_primary:
             del _clients[user_id]
+            if conns:
+                # Закрылось «главное» устройство, но есть другое живое — звонки идут на него.
+                _clients[user_id] = conns[-1]
     print(f"[calls][{_REPLICA}] unregister user={user_id} online_now={list(_clients.keys())}", flush=True)
+    if not was_primary:
+        # Закрылось второстепенное соединение (например, ноутбук, пока звонок идёт
+        # на телефоне) — звонки и группы пользователя не трогаем.
+        return
     if in_group_call(user_id):
         _later(DISCONNECT_GRACE, _leave_after_grace, user_id)
     peer_id = clear_call_pair(user_id)
@@ -411,16 +432,18 @@ def send_to(user_id, message):
 
 
 def push(user_id, message):
-    """Тихая отправка события пользователю (без логов) — для мгновенных обновлений чата."""
+    """Тихая отправка события на ВСЕ устройства пользователя (без логов) —
+    для мгновенных обновлений чата."""
     with _clients_lock:
-        handler = _clients.get(user_id)
-    if not handler:
-        return False
-    try:
-        handler.send_ws_json(message)
-        return True
-    except Exception:
-        return False
+        handlers = list(_all_clients.get(user_id, ()))
+    delivered = False
+    for handler in handlers:
+        try:
+            handler.send_ws_json(message)
+            delivered = True
+        except Exception:
+            pass
+    return delivered
 
 
 def is_online(user_id):
@@ -454,18 +477,10 @@ def handle_client_message(handler, state, message):
         if not user_id:
             return
 
-        # Если у этого user_id уже было открыто соединение (например, юзер
-        # обновил вкладку не закрыв старую) — выгоняем старое, иначе звонок
-        # может уйти в мёртвый сокет, пока в браузере уже новый.
-        with _clients_lock:
-            previous = _clients.get(user_id)
-        if previous is not None and previous is not handler:
-            try:
-                previous.send_ws_json({"type": "replaced"})
-            except Exception:
-                pass
-            previous.close_ws()
-
+        # Одно и то же устройство может быть открыто в нескольких местах (телефон +
+        # ноутбук). Старые соединения больше НЕ выгоняем: иначе устройства по кругу
+        # вытесняли друг друга. Звонки идут на последнее подключённое устройство,
+        # обновления чата — на все.
         register(user_id, handler)
         state["user_id"] = user_id
         handler.send_ws_json({"type": "hello-ack", "user_id": user_id})
