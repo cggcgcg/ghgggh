@@ -2057,7 +2057,7 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
       </nav>
       <div class="settings-content">
-        <div class="settings-section active" data-settings-panel="profile"><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p>
+        <div class="settings-section active" data-settings-panel="profile"><div id="accounts-box"></div><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p>
 <h4 style="margin:22px 0 4px">Статус «в сети»</h4><p class="section-note" style="margin:0 0 6px">Кто видит, когда вы онлайн и во сколько заходили. Остальным показывается «был(а) недавно».</p>
 <select id="status-visibility" class="vis-select"><option value="everyone">Видят все</option><option value="contacts">Только мои контакты</option><option value="nobody">Скрыт ото всех</option></select>
 <h4 style="margin:22px 0 4px">Уведомления</h4>
@@ -3089,7 +3089,51 @@ const DEVICE_KEY = 'tgclone_device';
 function getDevice(){ try{ return JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null'); }catch{ return null; } }
 function storeDevice(data){ try{ if(data && data.device_id && data.device_token) localStorage.setItem(DEVICE_KEY, JSON.stringify({id:data.device_id, token:data.device_token})); }catch{} }
 function deviceHeaders(extra){ const h = Object.assign({}, extra || {}); const d = getDevice(); if(d){ h['X-Device-Id'] = d.id; h['X-Device-Token'] = d.token; } return h; }
-function clearLocalSession(){ localStorage.removeItem('tgclone_user'); localStorage.removeItem(DEVICE_KEY); }
+const ACCOUNTS_KEY = 'tgclone_accounts';
+const MAX_ACCOUNTS = 5;
+function getAccounts(){ try{ const a = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => x && x.user && x.user.id) : []; }catch{ return []; } }
+function setAccounts(list){ try{ localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list)); }catch{} }
+// Записывает текущий (активный) аккаунт в общий список аккаунтов этого устройства.
+function saveAccountSnapshot(){
+  try{
+    const me = JSON.parse(localStorage.getItem('tgclone_user') || 'null');
+    if(!me || !me.id) return;
+    const entry = {user:{id:me.id, username:me.username, display_name:me.display_name}, device:getDevice()};
+    const list = getAccounts();
+    const i = list.findIndex(a => a.user.id === me.id);
+    if(i >= 0) list[i] = entry; else list.push(entry);
+    setAccounts(list.slice(0, MAX_ACCOUNTS));
+    sessionStorage.removeItem('tgclone_adding');
+  }catch{}
+}
+function activateAccount(entry){
+  localStorage.setItem('tgclone_user', JSON.stringify(entry.user));
+  if(entry.device && entry.device.id) localStorage.setItem(DEVICE_KEY, JSON.stringify(entry.device)); else localStorage.removeItem(DEVICE_KEY);
+}
+function reloadApp(){ location.reload(); }
+function clearLocalSession(){
+  try{
+    const me = JSON.parse(localStorage.getItem('tgclone_user') || 'null');
+    if(me && me.id) setAccounts(getAccounts().filter(a => a.user.id !== me.id));
+  }catch{}
+  localStorage.removeItem('tgclone_user'); localStorage.removeItem(DEVICE_KEY);
+}
+// Текущий сеанс закончился: если есть другие аккаунты — переключаемся на первый, иначе экран входа.
+function afterSessionEnded(message){
+  const rest = getAccounts();
+  if(rest.length){ activateAccount(rest[0]); reloadApp(); return; }
+  showScreen('auth');
+  if(message) setAuthError(message);
+}
+// Нет активного аккаунта, но в списке есть другие — берём первый (кроме режима «Добавить аккаунт»).
+function bootstrapAccounts(){
+  try{
+    if(localStorage.getItem('tgclone_user')) return;
+    if(sessionStorage.getItem('tgclone_adding') === '1') return;
+    const rest = getAccounts();
+    if(rest.length) activateAccount(rest[0]);
+  }catch{}
+}
 
 // ---------- DOM ----------
 const authScreen   = document.getElementById('auth-screen');
@@ -3313,6 +3357,7 @@ function applyInterfaceLanguage(lang){
   const x = UI_EXTRA[lang] || UI_EXTRA.ru;
   const c = UI_COMMON[lang] || UI_COMMON.ru;
   document.documentElement.lang = lang;
+  if(typeof renderAccounts === 'function') renderAccounts();
   document.querySelector('#nav-chats .app-nav-label').textContent=t.chats;
   document.querySelector('#nav-new-chat .app-nav-label').textContent=t.newChat;
   document.querySelector('#nav-settings .app-nav-label').textContent=t.settings;
@@ -3549,10 +3594,54 @@ window.settingsReady = false;
 async function saveSettings(values){ const user = getCurrentUser(); if(!user) return; await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)}); }
 function applySettings(settings){ document.body.dataset.appTheme = normColor(settings.app_theme); delete document.body.dataset.chatTheme; document.body.dataset.uiDesign = normDesign(settings.design); document.documentElement.dataset.uiFont = settings.font_size; document.documentElement.dataset.uiDensity = settings.density; applyInterfaceLanguage(settings.language); document.querySelectorAll('#app-theme-grid [data-app-theme]').forEach(item => item.classList.toggle('active', item.dataset.appTheme === normColor(settings.app_theme))); fontButtons.forEach(item => item.classList.toggle('active', item.dataset.font === settings.font_size)); document.querySelectorAll('[data-design]').forEach(item => item.classList.toggle('active', item.dataset.design === normDesign(settings.design))); document.querySelectorAll('[data-language]').forEach(item => item.classList.toggle('active', item.dataset.language === settings.language)); }
 async function loadSettings(){ const user = getCurrentUser(); if(!user) return; const res = await fetch(`${API_BASE}/api/settings/${encodeURIComponent(user.id)}`); if(res.ok){ const settings=await res.json(); if(!DESIGNS.includes(settings.design)){ settings.design='dark'; saveSettings({design:'dark'}); } if(!COLOR_IDS.includes(settings.app_theme)){ settings.app_theme='c-blue'; saveSettings({app_theme:'c-blue', chat_theme:'c-blue'}); } applySettings(settings); } window.settingsReady = true; }
+const ACCOUNT_TEXT = {
+  ru:{title:'Аккаунты', active:'Активный', add:'Добавить аккаунт', hint:'Можно держать до 5 аккаунтов и быстро переключаться между ними. Уведомления приходят только для активного аккаунта.', back:'← Вернуться к аккаунту'},
+  uz:{title:'Hisoblar', active:'Faol', add:'Hisob qo\u02bbshish', hint:'Beshtagacha hisobni saqlab, ular orasida tez almashtirish mumkin. Bildirishnomalar faqat faol hisob uchun keladi.', back:'\u2190 Hisobga qaytish'},
+  en:{title:'Accounts', active:'Active', add:'Add account', hint:'You can keep up to 5 accounts and switch between them. Notifications arrive only for the active account.', back:'← Back to account'}
+};
+function accountText(){ return ACCOUNT_TEXT[document.documentElement.lang] || ACCOUNT_TEXT.en; }
+function renderAccounts(){
+  const box = document.getElementById('accounts-box'); if(!box) return;
+  const me = getCurrentUser(); const list = getAccounts(); const t = accountText();
+  if(!me){ box.innerHTML = ''; return; }
+  const rows = list.map(a => {
+    const active = a.user.id === me.id;
+    return `<button type="button" class="account-row${active ? ' active' : ''}" data-account-id="${escapeHtml(a.user.id)}"><span class="avatar">${escapeHtml(initials(a.user.display_name || a.user.username || '?'))}</span><span><span class="account-name">${escapeHtml(a.user.display_name)}</span><small>@${escapeHtml(a.user.username)}</small></span>${active ? `<span class="account-badge">${escapeHtml(t.active)}</span>` : ''}</button>`;
+  }).join('');
+  box.innerHTML = `<h4 style="margin:0 0 6px">${escapeHtml(t.title)}</h4>${rows}${list.length < MAX_ACCOUNTS ? `<button class="settings-save" id="add-account" type="button">${escapeHtml(t.add)}</button>` : ''}<p class="section-note">${escapeHtml(t.hint)}</p>`;
+}
+function switchAccount(id){
+  saveAccountSnapshot();
+  const entry = getAccounts().find(a => a.user.id === id);
+  if(!entry) return;
+  activateAccount(entry);
+  reloadApp();
+}
+function addAccount(){
+  saveAccountSnapshot();
+  try{ sessionStorage.setItem('tgclone_adding', '1'); }catch{}
+  localStorage.removeItem('tgclone_user'); localStorage.removeItem(DEVICE_KEY);
+  reloadApp();
+}
+document.getElementById('accounts-box').addEventListener('click', (ev) => {
+  const row = ev.target.closest('.account-row');
+  if(row){ if(!row.classList.contains('active')) switchAccount(row.dataset.accountId); return; }
+  if(ev.target.closest('#add-account')) addAccount();
+});
+// На экране входа в режиме «Добавить аккаунт» даём путь назад.
+function addAuthBackButton(){
+  try{
+    if(getCurrentUser() || sessionStorage.getItem('tgclone_adding') !== '1' || !getAccounts().length) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'auth-link'; btn.id = 'auth-back-account'; btn.textContent = accountText().back;
+    btn.addEventListener('click', () => { sessionStorage.removeItem('tgclone_adding'); const rest = getAccounts(); if(rest.length){ activateAccount(rest[0]); reloadApp(); } });
+    authScreen.insertBefore(btn, authScreen.firstChild);
+  }catch{}
+}
 const DEVICE_TEXT = {
-  ru:{self:'Это устройство', online:'сейчас онлайн', active:'Активность', end:'Завершить сеанс', endAll:'Завершить все другие сеансы', confirmOne:'Завершить этот сеанс? Устройство будет выведено из аккаунта.', confirmAll:'Завершить все другие сеансы? Остальные устройства будут выведены из аккаунта.', addHint:'Чтобы добавить устройство, откройте Mijer Chat на нём и войдите в тот же аккаунт (через Google или почту). Все устройства работают с одним аккаунтом.', legacy:'Это старая сессия. Выйдите и войдите заново, чтобы видеть и завершать сеансы на других устройствах.', revoked:'Сеанс завершён. Войдите заново.'},
-  uz:{self:'Bu qurilma', online:'hozir onlayn', active:'Faolligi', end:'Seansni tugatish', endAll:'Boshqa barcha seanslarni tugatish', confirmOne:'Bu seans tugatilsinmi? Qurilma hisobdan chiqariladi.', confirmAll:'Boshqa barcha seanslar tugatilsinmi? Boshqa qurilmalar hisobdan chiqariladi.', addHint:'Qurilma qo\u02bbshish uchun unda Mijer Chat ilovasini oching va xuddi shu hisobga (Google yoki pochta orqali) kiring. Barcha qurilmalar bitta hisob bilan ishlaydi.', legacy:'Bu eski seans. Boshqa qurilmalardagi seanslarni ko\u02bbish va tugatish uchun chiqib, qayta kiring.', revoked:'Seans tugatildi. Qayta kiring.'},
-  en:{self:'This device', online:'online now', active:'Last active', end:'End session', endAll:'End all other sessions', confirmOne:'End this session? The device will be signed out of your account.', confirmAll:'End all other sessions? All other devices will be signed out of your account.', addHint:'To add a device, open Mijer Chat on it and sign in to the same account (with Google or email). All devices use one account.', legacy:'This is an old session. Sign out and sign in again to see and end sessions on other devices.', revoked:'Session ended. Please sign in again.'}
+  ru:{count:'Подключено устройств: ', self:'Это устройство', online:'сейчас онлайн', active:'Активность', end:'Завершить сеанс', endAll:'Завершить все другие сеансы', confirmOne:'Завершить этот сеанс? Устройство будет выведено из аккаунта.', confirmAll:'Завершить все другие сеансы? Остальные устройства будут выведены из аккаунта.', addHint:'Чтобы добавить устройство, откройте Mijer Chat на нём и войдите в тот же аккаунт (через Google или почту). Все устройства работают с одним аккаунтом.', legacy:'Это старая сессия. Выйдите и войдите заново, чтобы видеть и завершать сеансы на других устройствах.', revoked:'Сеанс завершён. Войдите заново.'},
+  uz:{count:'Ulangan qurilmalar: ', self:'Bu qurilma', online:'hozir onlayn', active:'Faolligi', end:'Seansni tugatish', endAll:'Boshqa barcha seanslarni tugatish', confirmOne:'Bu seans tugatilsinmi? Qurilma hisobdan chiqariladi.', confirmAll:'Boshqa barcha seanslar tugatilsinmi? Boshqa qurilmalar hisobdan chiqariladi.', addHint:'Qurilma qo\u02bbshish uchun unda Mijer Chat ilovasini oching va xuddi shu hisobga (Google yoki pochta orqali) kiring. Barcha qurilmalar bitta hisob bilan ishlaydi.', legacy:'Bu eski seans. Boshqa qurilmalardagi seanslarni ko\u02bbish va tugatish uchun chiqib, qayta kiring.', revoked:'Seans tugatildi. Qayta kiring.'},
+  en:{count:'Connected devices: ', self:'This device', online:'online now', active:'Last active', end:'End session', endAll:'End all other sessions', confirmOne:'End this session? The device will be signed out of your account.', confirmAll:'End all other sessions? All other devices will be signed out of your account.', addHint:'To add a device, open Mijer Chat on it and sign in to the same account (with Google or email). All devices use one account.', legacy:'This is an old session. Sign out and sign in again to see and end sessions on other devices.', revoked:'Session ended. Please sign in again.'}
 };
 function formatDeviceTime(iso, t){
   try{
@@ -3590,8 +3679,7 @@ function forceLogout(message){
   clearLocalSession();
   openChats.clear();
   activeChatId = null;
-  showScreen('auth');
-  setAuthError(message);
+  afterSessionEnded(message);
 }
 let sessionWatchTimer = null;
 function startSessionWatch(){
@@ -3638,7 +3726,8 @@ async function loadDevices(){
   }
   const me = list.find(d => d.current);
   const others = list.filter(d => !d.current);
-  let html = `<div class="device-placeholder" data-live="1"><span>▣</span><strong>${escapeHtml(t.self)}</strong><small>${escapeHtml(me ? me.name : 'Mijer Chat Web')} · ${escapeHtml(t.online)}</small></div>`;
+  let html = dev ? `<p class="section-note" id="device-count">${escapeHtml(t.count)}${list.length}</p>` : '';
+  html += `<div class="device-placeholder" data-live="1"><span>▣</span><strong>${escapeHtml(t.self)}</strong><small>${escapeHtml(me ? me.name : 'Mijer Chat Web')} · ${escapeHtml(t.online)}</small></div>`;
   html += others.map(d => `<div class="device-placeholder"><span>▤</span><strong>${escapeHtml(d.name)}</strong><small>${escapeHtml(formatDeviceTime(d.last_seen_at, t))}</small><button class="device-end" type="button" data-device-id="${escapeHtml(d.id)}">${escapeHtml(t.end)}</button></div>`).join('');
   if(others.length) html += `<button class="device-end device-end-all" type="button" id="device-end-all">${escapeHtml(t.endAll)}</button>`;
   if(!dev) html += `<p class="section-note">${escapeHtml(t.legacy)}</p>`;
@@ -3748,6 +3837,7 @@ function getCurrentUser(){
 
 function setCurrentUser(user){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  saveAccountSnapshot();
 }
 
 function showScreen(screen){
@@ -3827,26 +3917,28 @@ async function enterApp(){
 
   try{
     const check = await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'});
-    if(!check.ok){ clearLocalSession(); showScreen('auth'); setAuthError('Сессия устарела. Войдите заново.'); return; }
+    if(!check.ok){ clearLocalSession(); afterSessionEnded('Сессия устарела. Войдите заново.'); return; }
   }catch{ showScreen('auth'); setAuthError('Сервер недоступен. Проверьте запуск backend.'); return; }
 
   try{
     const fresh = await (await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'})).json();
     if(fresh && fresh.banned){
       alert('Ваш аккаунт заблокирован за нарушение правил.');
-      clearLocalSession(); showScreen('auth'); return;
+      clearLocalSession(); afterSessionEnded(''); return;
     }
   }catch{}
   if(getDevice()){
     try{
       const sc = await fetch(`${API_BASE}/api/session/check`, {headers: deviceHeaders(), cache:'no-store'});
-      if(sc.status === 401){ clearLocalSession(); showScreen('auth'); setAuthError((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked); return; }
+      if(sc.status === 401){ clearLocalSession(); afterSessionEnded((DEVICE_TEXT[document.documentElement.lang] || DEVICE_TEXT.en).revoked); return; }
     }catch{}
   }
   try{
     const fresh2 = await (await fetch(`${API_BASE}/api/users/${encodeURIComponent(user.id)}`, {cache:'no-store'})).json();
     if(fresh2 && fresh2.username && fresh2.display_name){ user.username = fresh2.username; user.display_name = fresh2.display_name; setCurrentUser({id: user.id, username: user.username, display_name: user.display_name}); }
   }catch{}
+  saveAccountSnapshot();
+  renderAccounts();
   meName.textContent = user.display_name;
   meHandle.textContent = '@' + user.username;
   meAvatar.textContent = initials(user.display_name);
@@ -3900,7 +3992,7 @@ logoutBtn.addEventListener('click', () => {
   openChats.clear();
   activeChatId = null;
   authForm.reset();
-  showScreen('auth');
+  afterSessionEnded('');
 });
 
 // ---------- поиск пользователей ----------
@@ -6449,9 +6541,11 @@ async function initGoogleSignIn(){
 (function init(){
   document.querySelector('.app-shell')?.classList.remove('chat-open');
   conversation.classList.remove('open');
+  bootstrapAccounts();
   const user = getCurrentUser();
   if(user){ enterApp(); } else { showScreen('auth'); }
   initGoogleSignIn();
+  addAuthBackButton();
 })();
 
 </script>
@@ -6508,6 +6602,13 @@ body[data-ui-design="soft"] .settings-window,body[data-ui-design="soft"] .create
 .device-end{grid-column:2;justify-self:start;margin-top:10px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:10px;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}
 .device-end:hover{color:inherit;border-color:var(--accent-b)}
 .device-end-all{display:block;grid-column:auto;margin:14px 0 0}
+#accounts-box{margin:0 0 20px}
+.account-row{display:flex;align-items:center;gap:12px;width:100%;margin:8px 0;padding:10px 12px;background:transparent;color:inherit;border:1px solid var(--border);border-radius:14px;font:inherit;text-align:left;cursor:pointer}
+.account-row:hover{border-color:var(--accent-b)}
+.account-row.active{border-color:var(--accent-b);cursor:default}
+.account-row .account-name{display:block;font-weight:600}
+.account-row small{display:block;opacity:.7}
+.account-badge{margin-left:auto;font-size:11px;opacity:.8}
 </style>
 
 </body>
