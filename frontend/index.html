@@ -2055,6 +2055,7 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
         <button class="settings-menu-btn" data-settings-section="chats" type="button">▣ Чаты</button>
         <button class="settings-menu-btn" data-settings-section="language" type="button">文 Язык</button>
         <button class="settings-menu-btn" data-settings-section="devices" type="button">▤ Устройства</button>
+<button class="settings-menu-btn" data-settings-section="backup" type="button">⛁ Резервная копия</button>
       </nav>
       <div class="settings-content">
         <div class="settings-section active" data-settings-panel="profile"><div id="accounts-box"></div><h3>Профиль</h3><p class="section-note">Ваши данные отображаются в списке чатов.</p><label class="profile-field">Имя<input id="profile-name" type="text"></label><label class="profile-field">Username <span class="field-hint">— дайте его другу, чтобы он мог добавить вас в контакты или в канал/группу</span><input id="profile-username" type="text"><span class="copy-id-row"><code id="profile-my-id">—</code><button class="icon-btn" id="profile-my-id-copy" type="button" title="Скопировать">⧉</button></span></label><button class="settings-save" id="profile-save" type="button">Сохранить изменения</button><p id="profile-save-error" class="auth-error" hidden></p>
@@ -2077,6 +2078,7 @@ input[type=checkbox]{accent-color:var(--accent,#3b7ddd);width:18px;height:18px;}
 </div></div>
         <div class="settings-section" data-settings-panel="language"><h3>Язык интерфейса</h3><p class="section-note">Выберите язык меню и подписей.</p><div class="language-grid" id="language-grid"></div></div>
         <div class="settings-section" data-settings-panel="devices"><h3>Устройства</h3><p class="section-note">Сессии, подключённые к вашему аккаунту.</p><div id="device-list"><div class="device-placeholder"><span>▣</span><strong>Это устройство</strong><small>Активная сессия · Mijer Chat Web</small></div></div><button class="settings-save" id="add-device" type="button">Добавить устройство</button><p class="section-note" id="device-hint" hidden></p></div>
+        <div class="settings-section" data-settings-panel="backup"><div id="backup-box"></div></div>
       </div>
     </div>
   </section>
@@ -3114,7 +3116,10 @@ function reloadApp(){ location.reload(); }
 function clearLocalSession(){
   try{
     const me = JSON.parse(localStorage.getItem('tgclone_user') || 'null');
-    if(me && me.id) setAccounts(getAccounts().filter(a => a.user.id !== me.id));
+    if(me && me.id){
+      setAccounts(getAccounts().filter(a => a.user.id !== me.id));
+      if(window.MijerBackup) window.MijerBackup.wipeLocal(me.id);
+    }
   }catch{}
   localStorage.removeItem('tgclone_user'); localStorage.removeItem(DEVICE_KEY);
 }
@@ -3358,6 +3363,7 @@ function applyInterfaceLanguage(lang){
   const c = UI_COMMON[lang] || UI_COMMON.ru;
   document.documentElement.lang = lang;
   if(typeof renderAccounts === 'function') renderAccounts();
+  if(window.MijerBackup) window.MijerBackup.render();
   document.querySelector('#nav-chats .app-nav-label').textContent=t.chats;
   document.querySelector('#nav-new-chat .app-nav-label').textContent=t.newChat;
   document.querySelector('#nav-settings .app-nav-label').textContent=t.settings;
@@ -3939,6 +3945,7 @@ async function enterApp(){
   }catch{}
   saveAccountSnapshot();
   renderAccounts();
+  if(window.MijerBackup) window.MijerBackup.onEnterApp();
   meName.textContent = user.display_name;
   meHandle.textContent = '@' + user.username;
   meAvatar.textContent = initials(user.display_name);
@@ -5778,8 +5785,17 @@ document.getElementById('delete-account-btn').addEventListener('click', () => {
   card.querySelector('#del-go').onclick = async () => {
     const errEl = card.querySelector('#del-error'); errEl.hidden = true;
     try{
-      const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(me.id)}`, {method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({confirm: card.querySelector('#del-confirm').value})});
+      const typed = card.querySelector('#del-confirm').value;
+      // Резервная копия в Google Drive пользователя тоже удаляется навсегда.
+      // Делаем это первым (окно Google должно открыться сразу по нажатию), но только
+      // если подтверждение введено верно — иначе аккаунт не удалится, а копия пропала бы зря.
+      let driveFailed = false;
+      if(window.MijerBackup && typed.trim().toLowerCase() === String(me.username).toLowerCase()){
+        try{ const dr = await window.MijerBackup.deleteForAccount(); driveFailed = !!(dr && dr.failed); }catch{ driveFailed = true; }
+      }
+      const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(me.id)}`, {method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({confirm: typed})});
       if(!res.ok) throw new Error(await messageError(res, 'Не удалось удалить аккаунт'));
+      if(driveFailed) alert('Аккаунт удалён, но файлы резервной копии не удалось стереть из Google Drive. Удалите их вручную: Google Drive → Настройки → Управление приложениями → Mijer Chat → Удалить скрытые данные.');
       clearLocalSession(); location.href = '/';
     }catch(err){ errEl.textContent = err.message; errEl.hidden = false; }
   };
@@ -6610,6 +6626,681 @@ body[data-ui-design="soft"] .settings-window,body[data-ui-design="soft"] .create
 .account-row small{display:block;opacity:.7}
 .account-badge{margin-left:auto;font-size:11px;opacity:.8}
 </style>
+
+<style id="backup-css">
+#backup-box .backup-code{font-family:var(--font-mono);font-size:15px;letter-spacing:.06em;line-height:1.7;padding:14px;border:1px dashed var(--border);border-radius:12px;word-break:break-all;user-select:all;margin:12px 0}
+#backup-box .backup-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+#backup-box .backup-btn{background:transparent;color:inherit;border:1px solid var(--border);border-radius:11px;padding:10px 14px;font:inherit;font-size:12px;cursor:pointer}
+#backup-box .backup-btn:hover{border-color:var(--accent-b)}
+#backup-box .backup-btn:disabled,#backup-box .settings-save:disabled{opacity:.5;cursor:default}
+#backup-box .backup-danger{color:#ff7b7b;border-color:rgba(255,123,123,.45)}
+#backup-box .backup-ok{color:#5bd68a;font-size:12px;margin:8px 0}
+#backup-box .backup-err{color:#ff7b7b;font-size:12px;margin:8px 0}
+#backup-box .backup-stats{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12px;margin:14px 0;color:var(--text-dim)}
+#backup-box .backup-stats b{color:var(--text);font-weight:600;word-break:break-all}
+#backup-box .backup-check{display:flex;gap:10px;align-items:flex-start;font-size:12px;margin:12px 0;color:var(--text-dim)}
+#backup-box .backup-check input{margin-top:2px;width:18px;height:18px}
+.ob-card{max-height:92vh;overflow:auto}
+.ob-card h3{margin:0 0 6px;font-size:18px;font-weight:700}
+.ob-card p.ob-lead{margin:0 0 4px;font-size:13px;color:var(--text-dim)}
+.ob-why{display:block;width:100%;text-align:left;background:rgba(255,92,92,.10);border:1px solid rgba(255,92,92,.55);color:#ff6b6b;border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;margin:12px 0 6px}
+.ob-why-text{color:#ff8d8d;font-size:12.5px;line-height:1.55;border-left:3px solid #ff6b6b;padding:8px 10px;margin:0 0 10px;background:rgba(255,92,92,.07);border-radius:0 10px 10px 0}
+.ob-warn{color:#ff6b6b;font-weight:700;font-size:14px;margin:10px 0 4px}
+.ob-card .backup-code{font-family:var(--font-mono);font-size:15px;letter-spacing:.06em;line-height:1.7;padding:14px;border:1px dashed var(--border);border-radius:12px;word-break:break-all;user-select:all;margin:10px 0}
+.ob-card .backup-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.ob-card .backup-btn{background:transparent;color:inherit;border:1px solid var(--border);border-radius:11px;padding:10px 14px;font:inherit;font-size:12px;cursor:pointer}
+.ob-card .backup-err{color:#ff7b7b;font-size:12px;margin:8px 0}
+.ob-card .backup-ok{color:#5bd68a;font-size:13px;margin:10px 0}
+.ob-card .backup-check{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;margin:12px 0;color:var(--text-dim)}
+.ob-card .backup-check input{margin-top:2px;width:18px;height:18px}
+.ob-card .profile-field{display:block;color:var(--text-dim);font-size:12px;margin:10px 0}
+.ob-card .profile-field input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-alt);color:var(--text);outline:none}
+.ob-card button:disabled{opacity:.5;cursor:default}
+</style>
+<script id="backup-e2e">
+/* Резервная копия истории в Google Drive пользователя.
+   Всё шифруется на устройстве (AES-GCM). Пароль и ключи на сервер не отправляются.
+   Файлы лежат в скрытой папке приложения в Drive (scope drive.appdata). */
+(function(){
+'use strict';
+
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const SCOPES = 'openid email ' + DRIVE_SCOPE;
+const PBKDF2_ITER = 600000;
+const MIN_ITER = 100000;
+const FORMAT = 1;
+const AUTO_DELAY_MS = 5 * 60 * 1000;
+
+// ---------------- тексты ----------------
+const TEXTS = {
+  ru:{nav:'Резервная копия', title:'Резервная копия в Google Drive',
+    intro:'История чатов шифруется на вашем устройстве и сохраняется в скрытую папку вашего Google Drive. Ни Google, ни сервер не могут её прочитать — только вы, по паролю.',
+    enable:'Включить резервную копию', connecting:'Подключаем Google Drive…', working:'Подождите…',
+    createTitle:'Придумайте пароль', createHint:'Пароль нужен, чтобы открыть копию на новом телефоне. Если забудете и пароль, и код восстановления — историю не вернёт никто.',
+    pw:'Пароль', pw2:'Повторите пароль', pwShort:'Пароль слишком короткий: минимум 8 символов', pwMismatch:'Пароли не совпадают', create:'Создать копию',
+    recTitle:'Код восстановления', recHint:'Сохраните этот код в надёжном месте (запишите или сделайте скрин). Он показывается один раз. С ним можно сбросить пароль, если вы его забудете.',
+    recCopy:'Скопировать', recCopied:'Скопировано', recConfirm:'Я сохранил код восстановления', recDone:'Готово', recNeed:'Отметьте, что код сохранён',
+    unlockTitle:'Найдена резервная копия', unlockHint:'Введите пароль, чтобы открыть её на этом устройстве.', unlock:'Открыть', useCode:'Забыли пароль? Ввести код восстановления', usePw:'Ввести пароль',
+    codeLabel:'Код восстановления', wrongPw:'Неверный пароль', wrongCode:'Неверный код восстановления',
+    lockedTitle:'Копия закрыта на этом устройстве', lockedHint:'Подключите Google Drive и введите пароль, чтобы продолжить.', reconnect:'Подключить Google Drive',
+    status:'Резервная копия включена', account:'Google-аккаунт', last:'Последняя копия', never:'ещё не создавалась', chats:'Чатов', messages:'Сообщений',
+    backupNow:'Сохранить сейчас', backingUp:'Сохраняем', backedUp:'Готово. Сохранено сообщений: ', verify:'Проверить копию', verifying:'Проверяем', verified:'Копия исправна. Чатов: %c, сообщений: %m.', verifyBad:'Копия повреждена или изменена. Создайте её заново.',
+    changePw:'Сменить пароль', oldPw:'Текущий пароль', newPw:'Новый пароль', save:'Сохранить', cancel:'Отмена', pwChanged:'Пароль изменён. История остаётся доступной.',
+    newRec:'Новый код восстановления', newRecHint:'Старый код перестанет работать.', newRecTitle:'Новый код восстановления',
+    del:'Удалить копию из Drive', delConfirm:'Удалить резервную копию из Google Drive? Это навсегда.', deleted:'Копия удалена из Google Drive.',
+    expired:'Доступ к Drive закончился. Нажмите «Подключить снова», чтобы продолжить.', reconnectAgain:'Подключить снова',
+    err:'Ошибка: ', noCrypto:'Шифрование недоступно в этом браузере. Откройте приложение по https.',
+    popupClosed:'Окно Google закрыто. Попробуйте ещё раз.', noScope:'Не выдан доступ к Drive. В окне Google отметьте разрешение на данные приложения.', noGoogle:'Не удалось загрузить Google. Проверьте интернет.',
+    obTitle:'Защитите свои данные', obLead:'Придумайте пароль. Он нужен для резервной копии ваших данных в вашем Google-аккаунте.', obWhyPw:'Зачем нужен пароль?',
+    obWhyPwText:'Этот пароль нужен, чтобы сохранить ваши данные в вашем Google-аккаунте в зашифрованном виде. Прочитать копию не может ни сервер, ни Google — только вы, по паролю. Если вы потеряете телефон или добавите новое устройство, пароль поможет вернуть и синхронизировать ваши данные.',
+    obWhyPwRelay:'Этот пароль нужен, чтобы сохранить ваши данные в вашем Google-аккаунте. Сервер не хранит ни переписки, ни фото, ни голосовые — все данные хранятся только у вас. Если вы потеряете телефон или добавите новое устройство, пароль поможет вернуть и синхронизировать все данные.',
+    obContinue:'Продолжить', obLater:'Позже', obLockedTitle:'Введите пароль', obLockedLead:'Подключите Google Drive и введите пароль от резервной копии.',
+    obFound:'Найдена ваша резервная копия. Введённый пароль к ней не подходит. Введите пароль, который вы придумывали раньше, или код восстановления.', obNoBackup:'Резервная копия не найдена. Придумайте новый пароль.',
+    obCodeTitle:'Ваш код восстановления', obCodeWarn:'Сохраните эти символы. Их невозможно увидеть снова.', obWhyCode:'Зачем это нужно?',
+    obWhyCodeText:'Запишите эти символы куда-нибудь: на бумагу или в надёжное место. Они нужны, чтобы вернуть ваши данные, если вы забудете пароль или потеряете доступ. Это тоже код доступа к вашим данным — никому его не показывайте.',
+    obSaved:'Я записал(а) эти символы', obDone:'Готово', obSuccess:'Готово! Ваши данные защищены.',
+    note:'Копия обновляется автоматически, пока открыт доступ к Drive, и по кнопке «Сохранить сейчас».'},
+  uz:{nav:'Zaxira nusxa', title:'Google Drive\u02bbdagi zaxira nusxa',
+    intro:'Chatlar tarixi qurilmangizda shifrlanadi va Google Drive\u02bbingizdagi yashirin papkaga saqlanadi. Uni na Google, na server o\u02bbqiy oladi \u2014 faqat siz, parol bilan.',
+    enable:'Zaxira nusxani yoqish', connecting:'Google Drive ulanmoqda\u2026', working:'Biroz kuting\u2026',
+    createTitle:'Parol o\u02bbylab toping', createHint:'Parol yangi telefonda nusxani ochish uchun kerak. Parol va tiklash kodini unutsangiz, tarixni hech kim qaytara olmaydi.',
+    pw:'Parol', pw2:'Parolni takrorlang', pwShort:'Parol juda qisqa: kamida 8 belgi', pwMismatch:'Parollar mos kelmadi', create:'Nusxa yaratish',
+    recTitle:'Tiklash kodi', recHint:'Bu kodni ishonchli joyda saqlang (yozib qo\u02bbying yoki skrinshot qiling). U faqat bir marta ko\u02bbrsatiladi. Parolni unutsangiz, shu kod bilan tiklaysiz.',
+    recCopy:'Nusxalash', recCopied:'Nusxalandi', recConfirm:'Tiklash kodini saqladim', recDone:'Tayyor', recNeed:'Kod saqlanganini belgilang',
+    unlockTitle:'Zaxira nusxa topildi', unlockHint:'Uni shu qurilmada ochish uchun parolni kiriting.', unlock:'Ochish', useCode:'Parolni unutdingizmi? Tiklash kodini kiriting', usePw:'Parolni kiritish',
+    codeLabel:'Tiklash kodi', wrongPw:'Parol noto\u02bbg\u02bbri', wrongCode:'Tiklash kodi noto\u02bbg\u02bbri',
+    lockedTitle:'Nusxa bu qurilmada yopiq', lockedHint:'Davom etish uchun Google Drive\u02bbni ulang va parolni kiriting.', reconnect:'Google Drive\u02bbni ulash',
+    status:'Zaxira nusxa yoqilgan', account:'Google hisobi', last:'Oxirgi nusxa', never:'hali yaratilmagan', chats:'Chatlar', messages:'Xabarlar',
+    backupNow:'Hozir saqlash', backingUp:'Saqlanmoqda', backedUp:'Tayyor. Saqlangan xabarlar: ', verify:'Nusxani tekshirish', verifying:'Tekshirilmoqda', verified:'Nusxa soz. Chatlar: %c, xabarlar: %m.', verifyBad:'Nusxa buzilgan yoki o\u02bbzgartirilgan. Uni qaytadan yarating.',
+    changePw:'Parolni almashtirish', oldPw:'Joriy parol', newPw:'Yangi parol', save:'Saqlash', cancel:'Bekor qilish', pwChanged:'Parol almashtirildi. Tarix saqlanib qoldi.',
+    newRec:'Yangi tiklash kodi', newRecHint:'Eski kod ishlamay qoladi.', newRecTitle:'Yangi tiklash kodi',
+    del:'Nusxani Drive\u02bbdan o\u02bbchirish', delConfirm:'Zaxira nusxa Google Drive\u02bbdan o\u02bbchirilsinmi? Bu qaytarilmaydi.', deleted:'Nusxa Google Drive\u02bbdan o\u02bbchirildi.',
+    expired:'Drive\u02bbga ruxsat tugadi. Davom etish uchun \u00abQayta ulash\u00bbni bosing.', reconnectAgain:'Qayta ulash',
+    err:'Xato: ', noCrypto:'Bu brauzerda shifrlash mavjud emas. Ilovani https orqali oching.',
+    popupClosed:'Google oynasi yopildi. Qayta urinib ko\u02bbring.', noScope:'Drive\u02bbga ruxsat berilmadi. Google oynasida ilova ma\u02bblumotlariga ruxsatni belgilang.', noGoogle:'Google yuklanmadi. Internetni tekshiring.',
+    obTitle:'Ma\u02bblumotlaringizni himoyalang', obLead:'Parol o\u02bbylab toping. U Google hisobingizdagi ma\u02bblumotlar nusxasi uchun kerak.', obWhyPw:'Parol nima uchun kerak?',
+    obWhyPwText:'Bu parol ma\u02bblumotlaringizni Google hisobingizda shifrlangan holda saqlash uchun kerak. Nusxani na server, na Google o\u02bbqiy oladi \u2014 faqat siz, parol bilan. Telefonni yo\u02bbqotsangiz yoki yangi qurilma qo\u02bbshsangiz, parol ma\u02bblumotlarni qaytarish va sinxronlashga yordam beradi.',
+    obWhyPwRelay:'Bu parol ma\u02bblumotlaringizni Google hisobingizda saqlash uchun kerak. Server hech qanday yozishma, rasm va ovozli xabarlarni saqlamaydi \u2014 barcha ma\u02bblumotlar faqat sizda saqlanadi. Telefonni yo\u02bbqotsangiz yoki yangi qurilma qo\u02bbshsangiz, parol barcha ma\u02bblumotlarni qaytarish va sinxronlashga imkon beradi.',
+    obContinue:'Davom etish', obLater:'Keyinroq', obLockedTitle:'Parolni kiriting', obLockedLead:'Google Drive\u02bbni ulang va zaxira nusxa parolini kiriting.',
+    obFound:'Sizning zaxira nusxangiz topildi. Kiritilgan parol unga mos kelmadi. Avval o\u02bbylab topgan parolingizni yoki tiklash kodini kiriting.', obNoBackup:'Zaxira nusxa topilmadi. Yangi parol o\u02bbylab toping.',
+    obCodeTitle:'Tiklash kodingiz', obCodeWarn:'Bu belgilarni saqlang. Ularni keyin qayta ko\u02bbrib bo\u02bblmaydi.', obWhyCode:'Bu nima uchun kerak?',
+    obWhyCodeText:'Bu belgilarni biror joyga yozib qo\u02bbying: qog\u02bboz yoki ishonchli joyga. Parolni unutsangiz yoki kirish imkoni yo\u02bbqolsa, ma\u02bblumotlarni qaytarish uchun kerak bo\u02bbladi. Bu ham ma\u02bblumotlaringizga kirish kodi \u2014 uni hech kimga ko\u02bbrsatmang.',
+    obSaved:'Bu belgilarni yozib oldim', obDone:'Tayyor', obSuccess:'Tayyor! Ma\u02bblumotlaringiz himoyalandi.',
+    note:'Drive\u02bbga ruxsat ochiq ekan, nusxa avtomatik yangilanadi, shuningdek \u00abHozir saqlash\u00bb tugmasi bilan.'},
+  en:{nav:'Backup', title:'Backup to Google Drive',
+    intro:'Your chat history is encrypted on your device and saved to a hidden folder in your own Google Drive. Neither Google nor the server can read it \u2014 only you, with your password.',
+    enable:'Turn on backup', connecting:'Connecting Google Drive\u2026', working:'Please wait\u2026',
+    createTitle:'Create a password', createHint:'You need the password to open the backup on a new phone. If you forget both the password and the recovery code, nobody can bring the history back.',
+    pw:'Password', pw2:'Repeat password', pwShort:'Password is too short: at least 8 characters', pwMismatch:'Passwords do not match', create:'Create backup',
+    recTitle:'Recovery code', recHint:'Keep this code somewhere safe (write it down or take a screenshot). It is shown only once. You can use it to reset your password if you forget it.',
+    recCopy:'Copy', recCopied:'Copied', recConfirm:'I saved the recovery code', recDone:'Done', recNeed:'Confirm that you saved the code',
+    unlockTitle:'Backup found', unlockHint:'Enter your password to open it on this device.', unlock:'Open', useCode:'Forgot password? Enter recovery code', usePw:'Enter password',
+    codeLabel:'Recovery code', wrongPw:'Wrong password', wrongCode:'Wrong recovery code',
+    lockedTitle:'Backup is locked on this device', lockedHint:'Connect Google Drive and enter your password to continue.', reconnect:'Connect Google Drive',
+    status:'Backup is on', account:'Google account', last:'Last backup', never:'not created yet', chats:'Chats', messages:'Messages',
+    backupNow:'Back up now', backingUp:'Saving', backedUp:'Done. Messages saved: ', verify:'Check backup', verifying:'Checking', verified:'Backup is healthy. Chats: %c, messages: %m.', verifyBad:'The backup is damaged or was modified. Create it again.',
+    changePw:'Change password', oldPw:'Current password', newPw:'New password', save:'Save', cancel:'Cancel', pwChanged:'Password changed. Your history stays available.',
+    newRec:'New recovery code', newRecHint:'The old code will stop working.', newRecTitle:'New recovery code',
+    del:'Delete backup from Drive', delConfirm:'Delete the backup from Google Drive? This cannot be undone.', deleted:'Backup deleted from Google Drive.',
+    expired:'Drive access has expired. Tap \u201cReconnect\u201d to continue.', reconnectAgain:'Reconnect',
+    err:'Error: ', noCrypto:'Encryption is not available in this browser. Open the app over https.',
+    popupClosed:'The Google window was closed. Please try again.', noScope:'Drive access was not granted. In the Google window, tick the permission for app data.', noGoogle:'Could not load Google. Check your connection.',
+    obTitle:'Protect your data', obLead:'Create a password. It is needed for the backup of your data in your Google account.', obWhyPw:'Why do I need a password?',
+    obWhyPwText:'This password is needed to save your data in your Google account in encrypted form. Neither the server nor Google can read the copy \u2014 only you, with the password. If you lose your phone or add a new device, the password lets you bring back and sync your data.',
+    obWhyPwRelay:'This password is needed to save your data in your Google account. The server stores no chats, photos or voice messages \u2014 all data is kept only with you. If you lose your phone or add a new device, the password lets you restore and sync all your data.',
+    obContinue:'Continue', obLater:'Later', obLockedTitle:'Enter your password', obLockedLead:'Connect Google Drive and enter your backup password.',
+    obFound:'Your backup was found. The password you entered does not match it. Enter the password you created earlier, or your recovery code.', obNoBackup:'No backup found. Create a new password.',
+    obCodeTitle:'Your recovery code', obCodeWarn:'Save these characters. They can never be shown again.', obWhyCode:'Why is this needed?',
+    obWhyCodeText:'Write these characters down somewhere: on paper or in a safe place. You need them to get your data back if you forget your password or lose access. This is also an access code to your data \u2014 do not show it to anyone.',
+    obSaved:'I wrote these characters down', obDone:'Done', obSuccess:'Done! Your data is protected.',
+    note:'The backup updates automatically while Drive access is open, and with the \u201cBack up now\u201d button.'}
+};
+function T(){ return TEXTS[document.documentElement.lang] || TEXTS.en; }
+
+// ---------------- мелкие помощники ----------------
+const enc = new TextEncoder(), dec = new TextDecoder();
+function toB64(buf){ const b = new Uint8Array(buf); let s = ''; for(let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
+function fromB64(str){ const s = atob(str); const b = new Uint8Array(s.length); for(let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+function rand(n){ return crypto.getRandomValues(new Uint8Array(n)); }
+function subtle(){ return window.crypto && window.crypto.subtle; }
+function cryptoOk(){ return !!(subtle() && window.indexedDB !== undefined); }
+async function sha256hex(text){ const d = await subtle().digest('SHA-256', enc.encode(text)); return Array.from(new Uint8Array(d)).map(x => x.toString(16).padStart(2, '0')).join(''); }
+function esc(s){ return escapeHtml(String(s == null ? '' : s)); }
+function me(){ return getCurrentUser(); }
+function prefix(){ const u = me(); return 'u_' + (u ? u.id : 'none') + '__'; }
+
+// ---------------- криптография ----------------
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function bytesToBase32(bytes){ let bits = 0, val = 0, out = ''; for(const b of bytes){ val = (val << 8) | b; bits += 8; while(bits >= 5){ out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if(bits > 0) out += B32[(val << (5 - bits)) & 31]; return out; }
+function base32ToBytes(str){ let bits = 0, val = 0; const out = []; for(const ch of str){ const i = B32.indexOf(ch); if(i < 0) return null; val = (val << 5) | i; bits += 5; if(bits >= 8){ out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); }
+function formatRecovery(bytes){ return (bytesToBase32(bytes).match(/.{1,4}/g) || []).join('-'); }
+function parseRecovery(code){ const clean = String(code || '').toUpperCase().replace(/[^A-Z2-7]/g, ''); if(clean.length !== 32) return null; return base32ToBytes(clean); }
+
+function aad(label){ return enc.encode('mijer:v' + FORMAT + ':' + label); }
+async function pbkdf2Key(password, salt, iter){
+  const base = await subtle().importKey('raw', enc.encode(String(password).normalize('NFKC')), 'PBKDF2', false, ['deriveKey']);
+  return subtle().deriveKey({name:'PBKDF2', hash:'SHA-256', salt, iterations: iter}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+async function hkdfKey(secret, salt){
+  const base = await subtle().importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+  return subtle().deriveKey({name:'HKDF', hash:'SHA-256', salt, info: enc.encode('mijer-recovery-v1')}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+async function seal(key, bytes, label){ const iv = rand(12); const ct = await subtle().encrypt({name:'AES-GCM', iv, additionalData: aad(label)}, key, bytes); return {iv: toB64(iv), ct: toB64(ct)}; }
+async function open(key, env, label){ return new Uint8Array(await subtle().decrypt({name:'AES-GCM', iv: fromB64(env.iv), additionalData: aad(label)}, key, fromB64(env.ct))); }
+
+async function wrapWithPassword(mkRaw, password){
+  const salt = rand(16); const kek = await pbkdf2Key(password, salt, PBKDF2_ITER);
+  return {salt: toB64(salt), iter: PBKDF2_ITER, ...(await seal(kek, mkRaw, 'mk-pw'))};
+}
+async function wrapWithRecovery(mkRaw){
+  const secret = rand(20); const salt = rand(16); const key = await hkdfKey(secret, salt);
+  return {rec: {salt: toB64(salt), ...(await seal(key, mkRaw, 'mk-rec'))}, code: formatRecovery(secret)};
+}
+// Создаёт новый главный ключ и «файл ключей» (его безопасно хранить в Drive).
+async function makeKeyfile(password){
+  const mkRaw = rand(32);
+  const pw = await wrapWithPassword(mkRaw, password);
+  const r = await wrapWithRecovery(mkRaw);
+  return {keyfile: {app:'mijer', v: FORMAT, created: new Date().toISOString(), pw, rec: r.rec}, recoveryCode: r.code, mkRaw};
+}
+async function unlockWithPassword(keyfile, password){
+  const pw = keyfile && keyfile.pw;
+  if(!pw || !(pw.iter >= MIN_ITER)) throw new Error('bad-keyfile');
+  const kek = await pbkdf2Key(password, fromB64(pw.salt), pw.iter);
+  try{ return await open(kek, pw, 'mk-pw'); }catch{ throw new Error('bad-password'); }
+}
+async function unlockWithRecovery(keyfile, code){
+  const secret = parseRecovery(code); const rec = keyfile && keyfile.rec;
+  if(!secret || !rec) throw new Error('bad-code');
+  const key = await hkdfKey(secret, fromB64(rec.salt));
+  try{ return await open(key, rec, 'mk-rec'); }catch{ throw new Error('bad-code'); }
+}
+function importMk(mkRaw){ return subtle().importKey('raw', mkRaw, {name:'AES-GCM'}, false, ['encrypt','decrypt']); }
+
+// сжатие (если браузер умеет) + шифрование файла данных
+async function gzip(bytes){ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()); }
+async function gunzip(bytes){ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()); }
+async function encryptJSON(mk, obj, name){
+  let data = enc.encode(JSON.stringify(obj)), z = 0;
+  try{ if(typeof CompressionStream !== 'undefined'){ data = await gzip(data); z = 1; } }catch{ data = enc.encode(JSON.stringify(obj)); z = 0; }
+  return JSON.stringify({app:'mijer', v: FORMAT, z, ...(await seal(mk, data, 'file:' + name + ':' + z))});
+}
+async function decryptJSON(mk, text, name){
+  const env = JSON.parse(text); const z = env.z | 0;
+  let data = await open(mk, env, 'file:' + name + ':' + z);
+  if(z) data = await gunzip(data);
+  return JSON.parse(dec.decode(data));
+}
+
+// ---------------- локальное хранилище (ключ + восстановленные данные) ----------------
+function dbName(){ const u = me(); return 'mijer_e2e_' + (u ? u.id : 'none'); }
+function idbOpen(){ return new Promise((res, rej) => { const r = indexedDB.open(dbName(), 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('history'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idb(store, mode, fn){ const db = await idbOpen(); try{ return await new Promise((res, rej) => { const tx = db.transaction(store, mode); const st = tx.objectStore(store); const out = fn(st); tx.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); } finally { db.close(); } }
+const kvGet = k => idb('kv', 'readonly', st => st.get(k));
+const kvPut = (k, v) => idb('kv', 'readwrite', st => { st.put(v, k); });
+const histPut = (k, v) => idb('history', 'readwrite', st => { st.put(v, k); });
+const histAll = () => idb('history', 'readonly', st => st.getAll());
+function wipeLocal(userId){
+  state.mk = null;
+  try{ indexedDB.deleteDatabase('mijer_e2e_' + (userId || (me() || {}).id)); }catch{}
+}
+
+// ---------------- состояние ----------------
+const state = { mk: null, loaded: false };
+const ui = { step: 'auto', busy: '', err: '', ok: '', keyfile: null, pendingMk: null, pendingKeyfile: null, code: '', codeKind: '', useCode: false, form: '' };
+function metaKey(){ return 'mijer_backup_' + (me() ? me().id : 'none'); }
+function readMeta(){ try{ return JSON.parse(localStorage.getItem(metaKey()) || '{}') || {}; }catch{ return {}; } }
+function writeMeta(patch){ try{ localStorage.setItem(metaKey(), JSON.stringify({...readMeta(), ...patch})); }catch{} }
+function clearMeta(){ try{ localStorage.removeItem(metaKey()); }catch{} }
+async function loadMk(){ try{ state.mk = (await kvGet('mk')) || null; }catch{ state.mk = null; } state.loaded = true; }
+async function saveMk(mkRaw){ state.mk = await importMk(mkRaw); try{ await kvPut('mk', state.mk); }catch{} }
+
+// ---------------- Google Drive ----------------
+class DriveError extends Error {}
+const drive = { token: null, exp: 0 };
+function tokKey(){ return 'mijer_drive_tok_' + (me() ? me().id : 'none'); }
+function restoreToken(){ try{ const t = JSON.parse(sessionStorage.getItem(tokKey()) || 'null'); if(t && t.exp > Date.now() + 30000){ drive.token = t.token; drive.exp = t.exp; } }catch{} }
+function tokenValid(){ return !!drive.token && Date.now() < drive.exp - 30000; }
+function storeToken(){ try{ sessionStorage.setItem(tokKey(), JSON.stringify({token: drive.token, exp: drive.exp})); }catch{} }
+async function loadGIS(){
+  if(window.google && window.google.accounts && window.google.accounts.oauth2) return;
+  if(!document.querySelector('script[src*="accounts.google.com/gsi/client"]')){
+    await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = res; s.onerror = () => rej(new Error('no-google')); document.head.appendChild(s); });
+  }
+  for(let i = 0; i < 50 && !(window.google && window.google.accounts && window.google.accounts.oauth2); i++) await new Promise(r => setTimeout(r, 100));
+  if(!(window.google && window.google.accounts && window.google.accounts.oauth2)) throw new Error('no-google');
+}
+let prep = null;
+function prepareGoogle(){
+  if(!prep){
+    prep = (async () => { const cfg = await (await fetch(API_BASE + '/api/config', {cache:'no-store'})).json(); await loadGIS(); return cfg; })();
+    prep.catch(() => { prep = null; });
+  }
+  return prep;
+}
+async function connectDrive(interactive){
+  if(tokenValid()) return drive.token;
+  if(!interactive) throw new DriveError('auth');
+  const cfg = await prepareGoogle();
+  if(!cfg.google_client_id) throw new Error('no-google');
+  const resp = await new Promise((resolve, reject) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: cfg.google_client_id, scope: SCOPES,
+      callback: r => r && r.error ? reject(new Error(r.error)) : resolve(r),
+      error_callback: e => reject(new Error((e && e.type) || 'popup_closed'))
+    });
+    client.requestAccessToken({prompt: ''});
+  });
+  const granted = (typeof google.accounts.oauth2.hasGrantedAllScopes === 'function')
+    ? google.accounts.oauth2.hasGrantedAllScopes(resp, DRIVE_SCOPE) : String(resp.scope || '').includes('drive.appdata');
+  if(!granted) throw new Error('no-scope');
+  drive.token = resp.access_token; drive.exp = Date.now() + (Number(resp.expires_in) || 3600) * 1000; storeToken();
+  try{ const ui2 = await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {headers:{Authorization:'Bearer ' + drive.token}})).json(); if(ui2 && ui2.email) writeMeta({email: ui2.email}); }catch{}
+  return drive.token;
+}
+async function driveFetch(url, opts){
+  const o = opts || {};
+  const res = await fetch(url, {...o, headers: {...(o.headers || {}), Authorization: 'Bearer ' + drive.token}});
+  if(res.status === 401){ drive.token = null; try{ sessionStorage.removeItem(tokKey()); }catch{} throw new DriveError('auth'); }
+  if(!res.ok) throw new DriveError('http-' + res.status);
+  return res;
+}
+async function driveList(){
+  let files = [], page = '';
+  do{
+    const u = 'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=1000&fields=' + encodeURIComponent('nextPageToken,files(id,name,modifiedTime)') + (page ? '&pageToken=' + encodeURIComponent(page) : '');
+    const j = await (await driveFetch(u)).json();
+    files = files.concat(j.files || []); page = j.nextPageToken || '';
+  }while(page);
+  const p = prefix();
+  return files.filter(f => f.name.startsWith(p));
+}
+async function driveWrite(name, text, existingId){
+  const b = 'mijer' + toB64(rand(9)).replace(/[^A-Za-z0-9]/g, 'x');
+  const meta = existingId ? {name} : {name, parents: ['appDataFolder']};
+  const body = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b + '\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
+  const url = existingId ? 'https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(existingId) + '?uploadType=multipart&fields=id,name'
+                         : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name';
+  return (await driveFetch(url, {method: existingId ? 'PATCH' : 'POST', headers: {'Content-Type': 'multipart/related; boundary=' + b}, body})).json();
+}
+async function driveRead(id){ return (await driveFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media')).text(); }
+async function driveDelete(id){ await driveFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id), {method: 'DELETE'}); }
+
+// ---------------- копирование и проверка ----------------
+async function getJSON(path){ const r = await fetch(API_BASE + path, {cache:'no-store'}); if(!r.ok) throw new Error('http-' + r.status); return r.json(); }
+async function collectChats(userId){
+  const out = [];
+  const convs = await getJSON('/api/conversations/' + encodeURIComponent(userId));
+  for(const c of convs){
+    const msgs = await getJSON('/api/messages?user_a=' + encodeURIComponent(userId) + '&user_b=' + encodeURIComponent(c.id) + '&viewer=' + encodeURIComponent(userId));
+    if(msgs.length) out.push({kind:'dm', id:c.id, title:c.id === userId ? 'Saved' : (c.display_name || c.username || ''), messages: msgs});
+  }
+  const spaces = await getJSON('/api/spaces/' + encodeURIComponent(userId));
+  for(const s of spaces){
+    const msgs = await getJSON('/api/space-messages/' + encodeURIComponent(s.id) + '?viewer=' + encodeURIComponent(userId));
+    if(msgs.length) out.push({kind:'sp', id:s.id, title:s.name || '', messages: msgs});
+  }
+  return out;
+}
+let running = null;
+function runBackup(opts){
+  const o = opts || {};
+  if(running) return running;
+  running = (async () => {
+    const u = me(); if(!u || !state.mk) throw new Error('locked');
+    await connectDrive(!o.auto);
+    const pre = prefix();
+    const files = await driveList(); const byName = new Map(files.map(f => [f.name, f.id]));
+    let manifest = {v: FORMAT, chats: {}};
+    const mname = pre + 'manifest.enc', mid = byName.get(mname);
+    if(mid){ try{ manifest = await decryptJSON(state.mk, await driveRead(mid), mname); if(!manifest.chats) manifest.chats = {}; }catch{ manifest = {v: FORMAT, chats: {}}; } }
+    const items = await collectChats(u.id);
+    let total = 0, uploaded = 0; const now = new Date().toISOString();
+    for(const it of items){
+      const key = it.kind + ':' + it.id, fname = pre + 'chat_' + it.kind + '_' + it.id + '.enc';
+      const hash = await sha256hex(JSON.stringify(it.messages)); total += it.messages.length;
+      const prev = manifest.chats[key];
+      if(!(prev && prev.hash === hash && byName.has(fname))){
+        const text = await encryptJSON(state.mk, {kind: it.kind, id: it.id, title: it.title, messages: it.messages}, fname);
+        const r = await driveWrite(fname, text, byName.get(fname)); byName.set(fname, r.id); uploaded++;
+      }
+      manifest.chats[key] = {file: fname, hash, count: it.messages.length, title: it.title, kind: it.kind, id: it.id, updated: now};
+      if(o.onProgress) o.onProgress(key);
+    }
+    manifest.updated = now;
+    await driveWrite(mname, await encryptJSON(state.mk, manifest, mname), mid);
+    writeMeta({last: now, chats: items.length, msgs: total});
+    return {chats: items.length, messages: total, uploaded};
+  })().finally(() => { running = null; });
+  return running;
+}
+// Скачивает и расшифровывает копию, проверяет целостность, кладёт в память устройства.
+async function verifyBackup(){
+  if(!state.mk) throw new Error('locked');
+  await connectDrive(true);
+  const pre = prefix(); const files = await driveList(); const byName = new Map(files.map(f => [f.name, f.id]));
+  const mname = pre + 'manifest.enc'; if(!byName.has(mname)) throw new Error('no-backup');
+  let manifest;
+  try{ manifest = await decryptJSON(state.mk, await driveRead(byName.get(mname)), mname); }catch(e){ if(e instanceof DriveError) throw e; throw new Error('corrupt'); }
+  let chats = 0, msgs = 0;
+  for(const [key, info] of Object.entries(manifest.chats || {})){
+    const id = byName.get(info.file); if(!id) throw new Error('corrupt');
+    let data;
+    try{ data = await decryptJSON(state.mk, await driveRead(id), info.file); }catch(e){ if(e instanceof DriveError) throw e; throw new Error('corrupt'); }
+    if(await sha256hex(JSON.stringify(data.messages)) !== info.hash) throw new Error('corrupt');
+    await histPut(key, {kind: data.kind, id: data.id, title: data.title, messages: data.messages, restoredAt: new Date().toISOString()});
+    chats++; msgs += data.messages.length;
+  }
+  return {chats, messages: msgs};
+}
+async function deleteAllFiles(){
+  await connectDrive(true);
+  for(const f of await driveList()) await driveDelete(f.id);
+}
+async function readKeyfile(){
+  await connectDrive(true);
+  const f = (await driveList()).find(x => x.name === prefix() + 'keyfile.json');
+  return f ? {id: f.id, keyfile: JSON.parse(await driveRead(f.id))} : null;
+}
+// Вызывается при удалении аккаунта: стираем всё приложение из Drive пользователя.
+async function deleteForAccount(){
+  const meta = readMeta(); if(!meta.enabled) return {skipped: true};
+  try{ await deleteAllFiles(); clearMeta(); wipeLocal(); return {deleted: true}; }
+  catch(e){ return {failed: true, error: String(e && e.message || e)}; }
+}
+
+// ---------------- действия пользователя ----------------
+function explain(e){
+  const t = T(), m = String(e && e.message || e);
+  if(m === 'bad-password') return t.wrongPw;
+  if(m === 'bad-code') return t.wrongCode;
+  if(m === 'auth') return t.expired;
+  if(m === 'no-scope') return t.noScope;
+  if(m === 'no-google') return t.noGoogle;
+  if(m === 'corrupt' || m === 'bad-keyfile') return t.verifyBad;
+  if(/popup|access_denied/i.test(m)) return t.popupClosed;
+  return t.err + m;
+}
+function setBusy(text){ ui.busy = text || ''; ui.err = ''; ui.ok = ''; render(); }
+async function guarded(fn){
+  try{ await fn(); }
+  catch(e){ ui.err = explain(e); }
+  finally{ ui.busy = ''; render(); }
+}
+function pwOk(a, b){ const t = T(); if(String(a).length < 8) return t.pwShort; if(a !== b) return t.pwMismatch; return ''; }
+function val(id){ const el = document.getElementById(id); return el ? el.value : ''; }
+
+const actions = {
+  connect: () => guarded(async () => {
+    setBusy(T().connecting);
+    await connectDrive(true);
+    const found = await readKeyfile();
+    if(found){ ui.keyfile = found; ui.step = 'unlock'; ui.useCode = false; }
+    else { ui.step = 'create'; }
+  }),
+  create: () => guarded(async () => {
+    const pw = val('bk-pw'), pw2 = val('bk-pw2');
+    const bad = pwOk(pw, pw2);
+    if(bad){ ui.err = bad; return; }
+    setBusy(T().working);
+    const made = await makeKeyfile(pw);
+    ui.pendingKeyfile = made.keyfile; ui.pendingMk = made.mkRaw; ui.code = made.recoveryCode; ui.codeKind = 'create'; ui.step = 'recovery';
+  }),
+  recoveryDone: () => guarded(async () => {
+    if(ui.codeKind === 'create'){
+      const box = document.getElementById('bk-saved');
+      if(!box || !box.checked){ ui.err = T().recNeed; return; }
+      setBusy(T().working);
+      await connectDrive(true);
+      const files = await driveList(); const kf = files.find(f => f.name === prefix() + 'keyfile.json');
+      await driveWrite(prefix() + 'keyfile.json', JSON.stringify(ui.pendingKeyfile), kf && kf.id);
+      await saveMk(ui.pendingMk);
+      writeMeta({enabled: true}); ui.pendingMk = null; ui.pendingKeyfile = null; ui.code = ''; ui.step = 'auto';
+      setBusy(T().backingUp);
+      const r = await runBackup(); ui.ok = T().backedUp + r.messages;
+    }else{
+      ui.code = ''; ui.codeKind = ''; ui.step = 'auto';
+    }
+  }),
+  unlock: () => guarded(async () => {
+    const secret = ui.useCode ? val('bk-code') : val('bk-pw');
+    setBusy(T().working);
+    const mkRaw = ui.useCode ? await unlockWithRecovery(ui.keyfile.keyfile, secret) : await unlockWithPassword(ui.keyfile.keyfile, secret);
+    await saveMk(mkRaw); writeMeta({enabled: true}); ui.keyfile = null; ui.step = 'auto';
+  }),
+  toggleCode: () => { ui.useCode = !ui.useCode; ui.err = ''; render(); },
+  backup: () => guarded(async () => {
+    setBusy(T().backingUp);
+    const r = await runBackup(); ui.ok = T().backedUp + r.messages;
+  }),
+  verify: () => guarded(async () => {
+    setBusy(T().verifying);
+    const r = await verifyBackup();
+    ui.ok = T().verified.replace('%c', r.chats).replace('%m', r.messages);
+  }),
+  openForm: el => { ui.form = el.dataset.form; ui.err = ''; ui.ok = ''; render(); },
+  cancelForm: () => { ui.form = ''; ui.err = ''; render(); },
+  changePw: () => guarded(async () => {
+    const oldPw = val('bk-old'), newPw = val('bk-new'), newPw2 = val('bk-new2');
+    const bad = pwOk(newPw, newPw2); if(bad){ ui.err = bad; return; }
+    setBusy(T().working);
+    const found = await readKeyfile(); if(!found) throw new Error('no-backup');
+    const mkRaw = await unlockWithPassword(found.keyfile, oldPw);
+    found.keyfile.pw = await wrapWithPassword(mkRaw, newPw);
+    await driveWrite(prefix() + 'keyfile.json', JSON.stringify(found.keyfile), found.id);
+    ui.form = ''; ui.ok = T().pwChanged;
+  }),
+  newRecovery: () => guarded(async () => {
+    const oldPw = val('bk-old');
+    setBusy(T().working);
+    const found = await readKeyfile(); if(!found) throw new Error('no-backup');
+    const mkRaw = await unlockWithPassword(found.keyfile, oldPw);
+    const r = await wrapWithRecovery(mkRaw);
+    found.keyfile.rec = r.rec;
+    await driveWrite(prefix() + 'keyfile.json', JSON.stringify(found.keyfile), found.id);
+    ui.form = ''; ui.code = r.code; ui.codeKind = 'new'; ui.step = 'recovery';
+  }),
+  remove: () => guarded(async () => {
+    if(!confirm(T().delConfirm)) return;
+    setBusy(T().working);
+    await deleteAllFiles(); clearMeta(); wipeLocal(); ui.step = 'auto'; ui.ok = T().deleted;
+  }),
+  copy: async () => { try{ await navigator.clipboard.writeText(ui.code); ui.ok = T().recCopied; }catch{} render(); }
+};
+
+// ---------------- экран ----------------
+function fmtTime(iso){ try{ return new Date(iso).toLocaleString(document.documentElement.lang || undefined, {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); }catch{ return ''; } }
+function pwField(id, label){ return '<label class="profile-field">' + esc(label) + '<input type="password" id="' + id + '" autocomplete="off"></label>'; }
+function derivedStep(){
+  if(ui.step !== 'auto') return ui.step;
+  const meta = readMeta();
+  if(meta.enabled && state.mk) return 'ready';
+  if(meta.enabled) return 'locked';
+  return 'off';
+}
+function render(){
+  const t = T();
+  const navBtn = document.querySelector('[data-settings-section="backup"]'); if(navBtn) navBtn.textContent = '\u26c1 ' + t.nav;
+  const box = document.getElementById('backup-box'); if(!box) return;
+  if(!me()){ box.innerHTML = ''; return; }
+  const head = '<h3>' + esc(t.title) + '</h3>';
+  if(!cryptoOk()){ box.innerHTML = head + '<p class="section-note">' + esc(t.noCrypto) + '</p>'; return; }
+  const step = derivedStep(), dis = ui.busy ? ' disabled' : '';
+  let body = '';
+  if(step === 'off'){
+    body = '<p class="section-note">' + esc(t.intro) + '</p><div class="backup-row"><button class="settings-save" data-act="connect"' + dis + '>' + esc(t.enable) + '</button></div>';
+  }else if(step === 'create'){
+    body = '<h4>' + esc(t.createTitle) + '</h4><p class="section-note">' + esc(t.createHint) + '</p>' + pwField('bk-pw', t.pw) + pwField('bk-pw2', t.pw2) + '<div class="backup-row"><button class="settings-save" data-act="create"' + dis + '>' + esc(t.create) + '</button></div>';
+  }else if(step === 'recovery'){
+    const isNew = ui.codeKind === 'new';
+    body = '<h4>' + esc(isNew ? t.newRecTitle : t.recTitle) + '</h4><p class="section-note">' + esc(t.recHint) + '</p><div class="backup-code" id="bk-code-show">' + esc(ui.code) + '</div>'
+      + '<div class="backup-row"><button class="backup-btn" data-act="copy">' + esc(t.recCopy) + '</button></div>'
+      + (isNew ? '' : '<label class="backup-check"><input type="checkbox" id="bk-saved"><span>' + esc(t.recConfirm) + '</span></label>')
+      + '<div class="backup-row"><button class="settings-save" data-act="recoveryDone"' + dis + '>' + esc(isNew ? t.recDone : t.create) + '</button></div>';
+  }else if(step === 'unlock'){
+    body = '<h4>' + esc(t.unlockTitle) + '</h4><p class="section-note">' + esc(t.unlockHint) + '</p>'
+      + (ui.useCode ? '<label class="profile-field">' + esc(t.codeLabel) + '<input type="text" id="bk-code" autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>' : pwField('bk-pw', t.pw))
+      + '<div class="backup-row"><button class="settings-save" data-act="unlock"' + dis + '>' + esc(t.unlock) + '</button><button class="backup-btn" data-act="toggleCode">' + esc(ui.useCode ? t.usePw : t.useCode) + '</button></div>';
+  }else if(step === 'locked'){
+    body = '<h4>' + esc(t.lockedTitle) + '</h4><p class="section-note">' + esc(t.lockedHint) + '</p><div class="backup-row"><button class="settings-save" data-act="connect"' + dis + '>' + esc(t.reconnect) + '</button></div>';
+  }else{ // ready
+    const m = readMeta();
+    body = '<p class="section-note">' + esc(t.intro) + '</p><div class="backup-stats"><span>' + esc(t.status) + '</span><b>\u2713</b>'
+      + (m.email ? '<span>' + esc(t.account) + '</span><b>' + esc(m.email) + '</b>' : '')
+      + '<span>' + esc(t.last) + '</span><b>' + esc(m.last ? fmtTime(m.last) : t.never) + '</b>'
+      + (m.last ? '<span>' + esc(t.chats) + '</span><b>' + esc(m.chats) + '</b><span>' + esc(t.messages) + '</span><b>' + esc(m.msgs) + '</b>' : '') + '</div>'
+      + (tokenValid() ? '' : '<p class="backup-err">' + esc(t.expired) + '</p>')
+      + '<div class="backup-row"><button class="settings-save" data-act="backup"' + dis + '>' + esc(tokenValid() ? t.backupNow : t.reconnectAgain) + '</button><button class="backup-btn" data-act="verify"' + dis + '>' + esc(t.verify) + '</button></div>'
+      + '<div class="backup-row"><button class="backup-btn" data-act="openForm" data-form="pw">' + esc(t.changePw) + '</button><button class="backup-btn" data-act="openForm" data-form="rec">' + esc(t.newRec) + '</button><button class="backup-btn backup-danger" data-act="remove"' + dis + '>' + esc(t.del) + '</button></div>';
+    if(ui.form === 'pw') body += '<h4>' + esc(t.changePw) + '</h4>' + pwField('bk-old', t.oldPw) + pwField('bk-new', t.newPw) + pwField('bk-new2', t.pw2) + '<div class="backup-row"><button class="settings-save" data-act="changePw"' + dis + '>' + esc(t.save) + '</button><button class="backup-btn" data-act="cancelForm">' + esc(t.cancel) + '</button></div>';
+    if(ui.form === 'rec') body += '<h4>' + esc(t.newRec) + '</h4><p class="section-note">' + esc(t.newRecHint) + '</p>' + pwField('bk-old', t.oldPw) + '<div class="backup-row"><button class="settings-save" data-act="newRecovery"' + dis + '>' + esc(t.save) + '</button><button class="backup-btn" data-act="cancelForm">' + esc(t.cancel) + '</button></div>';
+    body += '<p class="section-note">' + esc(t.note) + '</p>';
+  }
+  box.innerHTML = head + body
+    + (ui.busy ? '<p class="section-note">' + esc(ui.busy) + '\u2026</p>' : '')
+    + (ui.ok ? '<p class="backup-ok">' + esc(ui.ok) + '</p>' : '')
+    + (ui.err ? '<p class="backup-err">' + esc(ui.err) + '</p>' : '');
+}
+
+// ---------------- окно «Защитите свои данные» сразу после входа ----------------
+// true — когда сервер перестанет хранить переписки: тогда в объяснении будет текст про «сервер ничего не хранит».
+const RELAY_ONLY = false;
+const SNOOZE_MS = 24 * 3600 * 1000;
+const ob = {el: null, step: 'pw', mode: 'create', pw: '', pw2: '', codeIn: '', err: '', busy: '', openPw: false, openCode: false, useCode: false, saved: false, pending: null, code: ''};
+function snoozeKey(){ return 'mijer_backup_snooze_' + (me() ? me().id : 'none'); }
+function snoozed(){ try{ return Number(localStorage.getItem(snoozeKey()) || 0) > Date.now(); }catch{ return false; } }
+function obClose(){ if(ob.el){ ob.el.remove(); ob.el = null; } ob.pending = null; ob.code = ''; ob.pw = ob.pw2 = ob.codeIn = ''; render(); }
+function obOpen(mode){
+  if(ob.el) return;
+  Object.assign(ob, {step: 'pw', mode, pw: '', pw2: '', codeIn: '', err: '', busy: '', openPw: false, openCode: false, useCode: false, saved: false, pending: null, code: ''});
+  const back = document.createElement('div'); back.className = 'sp-backdrop'; back.id = 'backup-onboard';
+  back.addEventListener('click', obClick);
+  back.addEventListener('input', e => { if(e.target.id === 'ob-pw') ob.pw = e.target.value; else if(e.target.id === 'ob-pw2') ob.pw2 = e.target.value; else if(e.target.id === 'ob-code') ob.codeIn = e.target.value; else if(e.target.id === 'ob-saved') ob.saved = e.target.checked; });
+  back.addEventListener('change', e => { if(e.target.id === 'ob-saved') ob.saved = e.target.checked; });
+  ob.el = back; document.body.appendChild(back); obRender();
+}
+function obWhy(flag, label, text){ return '<button type="button" class="ob-why" data-ob="' + flag + '">\u26a0 ' + esc(label) + '</button>' + (ob[flag] ? '<div class="ob-why-text">' + esc(text) + '</div>' : ''); }
+function obField(id, label, value, type){ return '<label class="profile-field">' + esc(label) + '<input type="' + (type || 'password') + '" id="' + id + '" autocomplete="off" value="' + esc(value) + '"></label>'; }
+function obRender(){
+  if(!ob.el) return;
+  const t = T(), dis = ob.busy ? ' disabled' : '';
+  let h = '';
+  if(ob.step === 'pw'){
+    const locked = ob.mode === 'locked';
+    h = '<h3>' + esc(locked ? t.obLockedTitle : t.obTitle) + '</h3><p class="ob-lead">' + esc(locked ? t.obLockedLead : t.obLead) + '</p>'
+      + obWhy('openPw', t.obWhyPw, RELAY_ONLY ? t.obWhyPwRelay : t.obWhyPwText)
+      + obField('ob-pw', t.pw, ob.pw) + (locked ? '' : obField('ob-pw2', t.pw2, ob.pw2))
+      + '<div class="backup-row"><button class="settings-save" data-ob="continue"' + dis + '>' + esc(t.obContinue) + '</button><button class="backup-btn" data-ob="later"' + dis + '>' + esc(t.obLater) + '</button></div>';
+  }else if(ob.step === 'unlock'){
+    h = '<h3>' + esc(t.unlockTitle) + '</h3>'
+      + (ob.useCode ? obField('ob-code', t.codeLabel, ob.codeIn, 'text') : obField('ob-pw', t.pw, ob.pw))
+      + '<div class="backup-row"><button class="settings-save" data-ob="unlock"' + dis + '>' + esc(t.unlock) + '</button><button class="backup-btn" data-ob="toggleCode"' + dis + '>' + esc(ob.useCode ? t.usePw : t.useCode) + '</button><button class="backup-btn" data-ob="later"' + dis + '>' + esc(t.obLater) + '</button></div>';
+  }else if(ob.step === 'code'){
+    h = '<h3>' + esc(t.obCodeTitle) + '</h3><div class="ob-warn">\u26a0 ' + esc(t.obCodeWarn) + '</div>'
+      + obWhy('openCode', t.obWhyCode, t.obWhyCodeText)
+      + '<div class="backup-code" id="ob-code-show">' + esc(ob.code) + '</div>'
+      + '<div class="backup-row"><button class="backup-btn" data-ob="copy">' + esc(t.recCopy) + '</button></div>'
+      + '<label class="backup-check"><input type="checkbox" id="ob-saved"' + (ob.saved ? ' checked' : '') + '><span>' + esc(t.obSaved) + '</span></label>'
+      + '<div class="backup-row"><button class="settings-save" data-ob="finish"' + dis + '>' + esc(t.obDone) + '</button></div>';
+  }else{ // done
+    h = '<h3>' + esc(t.obSuccess) + '</h3>';
+  }
+  h += (ob.busy ? '<p class="section-note">' + esc(ob.busy) + '\u2026</p>' : '') + (ob.err ? '<p class="backup-err">' + esc(ob.err) + '</p>' : '');
+  ob.el.innerHTML = '<div class="sp-card ob-card">' + h + '</div>';
+}
+async function obRun(fn){
+  try{ await fn(); }catch(e){ ob.err = explain(e); }
+  finally{ ob.busy = ''; obRender(); }
+}
+async function obFinish(mkRaw){
+  await saveMk(mkRaw); writeMeta({enabled: true});
+  ob.step = 'done'; ob.busy = ''; obRender();
+  try{ await runBackup(); }catch{}
+  setTimeout(obClose, 1400);
+}
+const obActions = {
+  openPw: () => { ob.openPw = !ob.openPw; obRender(); },
+  openCode: () => { ob.openCode = !ob.openCode; obRender(); },
+  toggleCode: () => { ob.useCode = !ob.useCode; ob.err = ''; obRender(); },
+  later: () => { try{ localStorage.setItem(snoozeKey(), String(Date.now() + SNOOZE_MS)); }catch{} obClose(); },
+  copy: async () => { try{ await navigator.clipboard.writeText(ob.code); }catch{} },
+  continue: () => obRun(async () => {
+    const t = T();
+    if(ob.mode === 'create'){ const bad = pwOk(ob.pw, ob.pw2); if(bad){ ob.err = bad; return; } }
+    else if(!ob.pw){ ob.err = t.pwShort; return; }
+    ob.err = ''; ob.busy = t.connecting; obRender();
+    await connectDrive(true);
+    const found = await readKeyfile();
+    if(found){
+      try{ await obFinish(await unlockWithPassword(found.keyfile, ob.pw)); return; }
+      catch(e){
+        if(String(e && e.message) !== 'bad-password') throw e;
+        ob.found = found; ob.step = 'unlock'; ob.pw = ''; ob.err = ob.mode === 'create' ? t.obFound : t.wrongPw; return;
+      }
+    }
+    if(ob.mode === 'locked'){ clearMeta(); ob.mode = 'create'; ob.err = t.obNoBackup; return; }
+    ob.busy = t.working; obRender();
+    const made = await makeKeyfile(ob.pw);
+    ob.pending = made; ob.code = made.recoveryCode; ob.step = 'code'; ob.saved = false;
+  }),
+  unlock: () => obRun(async () => {
+    const t = T(); ob.err = ''; ob.busy = t.working; obRender();
+    const kf = ob.found && ob.found.keyfile;
+    const mkRaw = ob.useCode ? await unlockWithRecovery(kf, ob.codeIn) : await unlockWithPassword(kf, ob.pw);
+    await obFinish(mkRaw);
+  }),
+  finish: () => obRun(async () => {
+    const t = T();
+    if(!ob.saved){ ob.err = t.recNeed; return; }
+    ob.busy = t.working; obRender();
+    await connectDrive(true);
+    const files = await driveList(); const kf = files.find(f => f.name === prefix() + 'keyfile.json');
+    await driveWrite(prefix() + 'keyfile.json', JSON.stringify(ob.pending.keyfile), kf && kf.id);
+    await obFinish(ob.pending.mkRaw);
+  })
+};
+function obClick(ev){
+  const el = ev.target.closest('[data-ob]'); if(!el || el.disabled) return;
+  if(ev.target === ob.el) return;
+  const fn = obActions[el.dataset.ob]; if(fn) fn(el);
+}
+function maybePrompt(){
+  if(!me() || !cryptoOk() || ob.el || snoozed()) return;
+  const meta = readMeta();
+  if(meta.enabled && state.mk) return;
+  obOpen(meta.enabled ? 'locked' : 'create');
+}
+function onEnterApp(){ if(!me()) return; loadMk().then(() => { render(); maybePrompt(); }); }
+
+// ---------------- запуск ----------------
+let autoTimer = null;
+function scheduleAuto(){
+  const meta = readMeta();
+  if(!meta.enabled || !state.mk || !tokenValid()) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => { runBackup({auto: true}).then(render).catch(() => {}); }, AUTO_DELAY_MS);
+}
+function init(){
+  const box = document.getElementById('backup-box'); if(!box) return;
+  box.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-act]'); if(!el || el.disabled) return;
+    const fn = actions[el.dataset.act]; if(fn) fn(el);
+  });
+  const navBtn = document.querySelector('[data-settings-section="backup"]');
+  if(navBtn) navBtn.addEventListener('click', render);
+  const prev = window.onServerSync;
+  window.onServerSync = function(msg){
+    try{ if(prev) prev(msg); }catch(e){ console.error(e); }
+    if(msg && msg.scope === 'msg') scheduleAuto();
+  };
+  restoreToken();
+  if(me()){ loadMk().then(render); prepareGoogle().catch(() => {}); } else render();
+}
+window.MijerBackup = {render, wipeLocal, deleteForAccount, runBackup, verifyBackup, onEnterApp, maybePrompt,
+  _: {ob, makeKeyfile, unlockWithPassword, unlockWithRecovery, wrapWithPassword, wrapWithRecovery, importMk, encryptJSON, decryptJSON, parseRecovery, formatRecovery, state, ui, readMeta, drive, loadMk, saveMk, histAll, connectDrive, driveList, prefix}};
+init();
+})();
+</script>
 
 </body>
 </html>
