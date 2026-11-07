@@ -1,4 +1,4 @@
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+\from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import json
@@ -30,6 +30,7 @@ from app import workspace as pins_mod
 from app import blocks as blocks_mod
 from app import google_auth
 from app import devices as devices_mod
+from app import relay as relay_mod
 from app import email_auth
 import re
 try:
@@ -358,7 +359,8 @@ class Handler(BaseHTTPRequestHandler):
         # Публичные настройки для страницы (Google Client ID не секретный)
         if self.path == "/api/config":
             self.send_json(200, {"google_client_id": google_auth.client_id(),
-                                 "email_login": email_auth.configured()})
+                                 "email_login": email_auth.configured(),
+                                 "relay_mode": relay_mod.enabled()})
             return
 
         # Проверка сервера
@@ -470,6 +472,21 @@ class Handler(BaseHTTPRequestHandler):
                     user["alias"] = aliases.get(contact_id)
                     users.append(user)
             self.send_json(200, users)
+            return
+
+        if self.path == "/api/relay/pull":
+            if not relay_mod.enabled():
+                self.send_json(404, {"error": "Relay mode is off"})
+                return
+            user_id, device_id = self._device_auth()
+            if not user_id:
+                self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
+                return
+            result = relay_mod.pull(user_id, device_id)
+            if result is None:
+                self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
+                return
+            self.send_json(200, result)
             return
 
         if self.path == "/api/session/check":
@@ -854,7 +871,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             result, error = blocks_mod.create_report(
                 rid, str(data.get("target_user_id", "")).strip() or None, str(data.get("reason", "")),
-                str(data.get("details", "")), str(data.get("message_id", "")).strip() or None)
+                str(data.get("details", "")), str(data.get("message_id", "")).strip() or None,
+                data.get("evidence") if isinstance(data.get("evidence"), list) else None,
+                str(data.get("space_id", "")).strip() or None)
             if error:
                 self.send_json(400, {"error": error})
             else:
@@ -1250,6 +1269,31 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(500, {"error": "Failed to send message"})
             return
 
+        if self.path in ("/api/relay/ack", "/api/relay/event"):
+            if not relay_mod.enabled():
+                self.send_json(404, {"error": "Relay mode is off"})
+                return
+            user_id, device_id = self._device_auth()
+            if not user_id:
+                self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
+                return
+            data = self.read_json_body() or {}
+            if self.path == "/api/relay/ack":
+                done = relay_mod.ack(user_id, device_id, data.get("ids"), data.get("level", 1))
+                if done is None:
+                    self.send_json(401, {"error": "Сеанс недействителен", "session_invalid": True})
+                    return
+                self.send_json(200, {"ok": True, "acked": done})
+                return
+            ev, targets = relay_mod.post_event(user_id, device_id, str(data.get("kind", "")), data.get("chat"), data.get("payload"))
+            if not ev:
+                self.send_json(400, {"error": targets})
+                return
+            for uid in targets:
+                calls.push(uid, {"type": "sync", "scope": "msg"})
+            self.send_json(201, ev)
+            return
+
         if self.path in ("/api/devices/revoke", "/api/devices/revoke-others", "/api/session/logout"):
             user_id, device_id = self._device_auth()
             if not user_id:
@@ -1458,6 +1502,16 @@ server = ThreadingHTTPServer(
     ("0.0.0.0", PORT),
     Handler
 )
+
+if relay_mod.enabled():
+    relay_mod.init()
+
+    def _notify_undelivered(user_ids):
+        for uid in user_ids:
+            calls.push(uid, {"type": "sync", "scope": "msg"})
+
+    threading.Thread(target=relay_mod.sweeper_loop, args=(_notify_undelivered, float(os.environ.get("RELAY_SWEEP_SECONDS", "60"))), daemon=True).start()
+    print("RELAY MODE: ON (сервер удаляет сообщения после подтверждения устройств)", flush=True)
 
 print(
     f"Mijer Chat server started on port {PORT} (replica={os.environ.get('RAILWAY_REPLICA_ID', 'local')[:8]})",

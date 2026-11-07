@@ -140,6 +140,31 @@ CREATE TABLE IF NOT EXISTS message_hidden (
     user_id TEXT NOT NULL,
     PRIMARY KEY (message_id, user_id)
 );
+
+-- Режим «сервер как труба» (RELAY_MODE): подтверждения получения от устройств
+-- и временные события (прочитано, реакции, закрепление, удаление).
+CREATE TABLE IF NOT EXISTS relay_acks (
+    item_id TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    level INTEGER NOT NULL DEFAULT 1,
+    acked_at TEXT NOT NULL,
+    PRIMARY KEY (item_id, device_id)
+);
+
+CREATE TABLE IF NOT EXISTS relay_events (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    chat TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    targets TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS relay_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -286,6 +311,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner_id)",
     "CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_reactions_message ON message_reactions(message_id)",
+    "CREATE INDEX IF NOT EXISTS idx_relay_acks_device ON relay_acks(device_id)",
+    "CREATE INDEX IF NOT EXISTS idx_relay_events_created ON relay_events(created_at)",
 )
 
 _INIT_LOCK_ID = 727301  # чтобы две реплики не создавали таблицы одновременно

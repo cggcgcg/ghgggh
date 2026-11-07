@@ -151,13 +151,30 @@ def _evidence(conn, reporter_id, message_id, target_id):
     return evidence, target_id, space_id
 
 
-def create_report(reporter_id, target_user_id, reason, details="", message_id=None):
+def _client_evidence(items):
+    """Доказательства, присланные приложением автора жалобы (в режиме «сервер как труба»
+    сообщений на сервере уже нет). Сильно ограничиваем и помечаем как присланные автором."""
+    out = []
+    for it in (items or [])[:10]:
+        if not isinstance(it, dict):
+            continue
+        out.append({"from": str(it.get("from", ""))[:80], "text": str(it.get("text", ""))[:300],
+                    "at": str(it.get("at", ""))[:40], "source": "reporter"})
+    return out
+
+
+def create_report(reporter_id, target_user_id, reason, details="", message_id=None, client_evidence=None, client_space_id=None):
     if reason not in REPORT_REASONS:
         return None, "Выберите причину жалобы"
     with get_connection() as conn:
         evidence, target_id, space_id = _evidence(conn, reporter_id, message_id, target_user_id)
-        if evidence is None:
-            return None, "Сообщение не найдено"
+        if evidence is None or (message_id and not evidence and client_evidence):
+            from app import relay as relay_mod
+            supplied = _client_evidence(client_evidence) if relay_mod.enabled() else []
+            if not supplied:
+                return None, "Сообщение не найдено"
+            # сообщения на сервере уже нет — берём то, что приложило приложение автора жалобы
+            evidence, target_id, space_id = supplied, target_user_id, client_space_id
         if not target_id or target_id == reporter_id:
             return None, "Нельзя пожаловаться на себя"
         if not conn.execute("SELECT 1 FROM users WHERE id = ?", (target_id,)).fetchone():

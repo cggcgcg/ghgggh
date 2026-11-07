@@ -2347,6 +2347,7 @@ const MsgUI = (() => {
   // увидел сообщение, ✓✓ синие — прослушал/посмотрел.
   function tickState(m){
     const media = m.type === 'voice' || m.type === 'video';
+    if(m.undelivered) return {text:'⚠', state:'failed'};
     if(!m.read_at) return {text:'✓', state:'sent'};
     if(media) return {text:'✓✓', state: m.played_at ? 'seen' : 'delivered'};
     return {text:'✓✓', state:'seen'};
@@ -3171,6 +3172,15 @@ const convActive    = document.getElementById('conv-active');
 const convAvatar    = document.getElementById('conv-avatar');
 const convName      = document.getElementById('conv-header-name');
 const convMessages  = document.getElementById('conv-messages');
+convMessages.addEventListener('click', async (ev) => {
+  const tick = ev.target.closest && ev.target.closest('.ticks[data-state="failed"]');
+  if(!tick || !window.MijerBackup) return;
+  const row = tick.closest('[data-mid]'); const chat = openChats.get(activeChatId);
+  if(!row || !chat) return;
+  const m = chat.messages.find(x => x.id === row.dataset.mid); if(!m) return;
+  const ok = await window.MijerBackup.relay.relayResend(chat, m);
+  if(ok && typeof refreshMessages === 'function') refreshMessages(chat, {silent: true, force: true});
+});
 const convBack      = document.getElementById('conv-back');
 const messageForm   = document.getElementById('message-form');
 const messageInput  = document.getElementById('message-input');
@@ -3991,7 +4001,8 @@ async function loadConversations(){
   }
 }
 
-logoutBtn.addEventListener('click', () => {
+logoutBtn.addEventListener('click', async () => {
+  if(window.MijerBackup && !(await window.MijerBackup.beforeLogout())) return;
   if(getDevice()){ try{ fetch(`${API_BASE}/api/session/logout`, {method:'POST', headers: deviceHeaders(), keepalive:true}).catch(()=>{}); }catch{} }
   stopPolling();
   CallManager.disconnect();
@@ -4256,7 +4267,7 @@ async function refreshMessages(chat, { silent, force = false }){
     const countChanged = messages.length !== chat.lastCount;
     // Структура (какие сообщения есть / какое закреплено) — перерисовываем.
     // Статусы ✓/✓✓ меняются «на месте», чтобы не обрывать воспроизведение.
-    const structSig = messages.map(m => m.id + (m.pinned ? '*' : '') + JSON.stringify(m.reactions || {})).join('|');
+    const structSig = messages.map(m => m.id + (m.pinned ? '*' : '') + (m.undelivered ? '!' : '') + JSON.stringify(m.reactions || {})).join('|');
     const structChanged = structSig !== chat.structSig;
     // Тихий фоновый опрос уже открытого чата: если ничего не изменилось —
     // незачем перерисовывать. НО при явном переключении/открытии чата
@@ -4267,6 +4278,7 @@ async function refreshMessages(chat, { silent, force = false }){
       id: m.id,
       read_at: m.read_at || null,
       played_at: m.played_at || null,
+      undelivered: !!m.undelivered,
       pinned: !!m.pinned,
       reactions: m.reactions || {},
       reply_to: m.reply_to || null,
@@ -6656,6 +6668,7 @@ body[data-ui-design="soft"] .settings-window,body[data-ui-design="soft"] .create
 .ob-card .profile-field{display:block;color:var(--text-dim);font-size:12px;margin:10px 0}
 .ob-card .profile-field input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-alt);color:var(--text);outline:none}
 .ob-card button:disabled{opacity:.5;cursor:default}
+.ticks[data-state="failed"]{color:#ff6b6b;cursor:pointer;font-weight:700}
 </style>
 <script id="backup-e2e">
 /* Резервная копия истории в Google Drive пользователя.
@@ -6699,6 +6712,7 @@ const TEXTS = {
     obCodeTitle:'Ваш код восстановления', obCodeWarn:'Сохраните эти символы. Их невозможно увидеть снова.', obWhyCode:'Зачем это нужно?',
     obWhyCodeText:'Запишите эти символы куда-нибудь: на бумагу или в надёжное место. Они нужны, чтобы вернуть ваши данные, если вы забудете пароль или потеряете доступ. Это тоже код доступа к вашим данным — никому его не показывайте.',
     obSaved:'Я записал(а) эти символы', obDone:'Готово', obSuccess:'Готово! Ваши данные защищены.',
+    relogin:'Приложение обновилось: войдите заново.', relayLoseWarn:'Ещё не сохранено в Google Drive сообщений: %n. Если выйти сейчас, они пропадут с этого устройства. Всё равно выйти?', relayOn:'Режим «сервер как труба»: сообщения хранятся только у вас и в вашем Drive.', relayUnsaved:'Ещё не сохранено в Drive: ', resendHint:'Не доставлено. Нажмите, чтобы отправить снова.',
     note:'Копия обновляется автоматически, пока открыт доступ к Drive, и по кнопке «Сохранить сейчас».'},
   uz:{nav:'Zaxira nusxa', title:'Google Drive\u02bbdagi zaxira nusxa',
     intro:'Chatlar tarixi qurilmangizda shifrlanadi va Google Drive\u02bbingizdagi yashirin papkaga saqlanadi. Uni na Google, na server o\u02bbqiy oladi \u2014 faqat siz, parol bilan.',
@@ -6726,6 +6740,7 @@ const TEXTS = {
     obCodeTitle:'Tiklash kodingiz', obCodeWarn:'Bu belgilarni saqlang. Ularni keyin qayta ko\u02bbrib bo\u02bblmaydi.', obWhyCode:'Bu nima uchun kerak?',
     obWhyCodeText:'Bu belgilarni biror joyga yozib qo\u02bbying: qog\u02bboz yoki ishonchli joyga. Parolni unutsangiz yoki kirish imkoni yo\u02bbqolsa, ma\u02bblumotlarni qaytarish uchun kerak bo\u02bbladi. Bu ham ma\u02bblumotlaringizga kirish kodi \u2014 uni hech kimga ko\u02bbrsatmang.',
     obSaved:'Bu belgilarni yozib oldim', obDone:'Tayyor', obSuccess:'Tayyor! Ma\u02bblumotlaringiz himoyalandi.',
+    relogin:'Ilova yangilandi: qaytadan kiring.', relayLoseWarn:'Google Drive\u02bbga saqlanmagan xabarlar: %n. Hozir chiqsangiz, ular bu qurilmadan yo\u02bbqoladi. Baribir chiqasizmi?', relayOn:'\u00abServer \u2014 quvur\u00bb rejimi: xabarlar faqat sizda va Drive\u02bbda saqlanadi.', relayUnsaved:'Drive\u02bbga hali saqlanmagan: ', resendHint:'Yetkazilmadi. Qayta yuborish uchun bosing.',
     note:'Drive\u02bbga ruxsat ochiq ekan, nusxa avtomatik yangilanadi, shuningdek \u00abHozir saqlash\u00bb tugmasi bilan.'},
   en:{nav:'Backup', title:'Backup to Google Drive',
     intro:'Your chat history is encrypted on your device and saved to a hidden folder in your own Google Drive. Neither Google nor the server can read it \u2014 only you, with your password.',
@@ -6753,6 +6768,7 @@ const TEXTS = {
     obCodeTitle:'Your recovery code', obCodeWarn:'Save these characters. They can never be shown again.', obWhyCode:'Why is this needed?',
     obWhyCodeText:'Write these characters down somewhere: on paper or in a safe place. You need them to get your data back if you forget your password or lose access. This is also an access code to your data \u2014 do not show it to anyone.',
     obSaved:'I wrote these characters down', obDone:'Done', obSuccess:'Done! Your data is protected.',
+    relogin:'The app was updated: please sign in again.', relayLoseWarn:'Not yet saved to Google Drive: %n messages. If you sign out now they will be lost from this device. Sign out anyway?', relayOn:'\u201cServer as a pipe\u201d mode: messages are stored only with you and in your Drive.', relayUnsaved:'Not yet saved to Drive: ', resendHint:'Not delivered. Tap to send again.',
     note:'The backup updates automatically while Drive access is open, and with the \u201cBack up now\u201d button.'}
 };
 function T(){ return TEXTS[document.documentElement.lang] || TEXTS.en; }
@@ -6842,7 +6858,10 @@ const histPut = (k, v) => idb('history', 'readwrite', st => { st.put(v, k); });
 const histAll = () => idb('history', 'readonly', st => st.getAll());
 function wipeLocal(userId){
   state.mk = null;
-  try{ indexedDB.deleteDatabase('mijer_e2e_' + (userId || (me() || {}).id)); }catch{}
+  const uid = userId || (me() || {}).id;
+  try{ relayStop(); }catch{}
+  try{ indexedDB.deleteDatabase('mijer_e2e_' + uid); }catch{}
+  try{ indexedDB.deleteDatabase('mijer_relay_' + uid); }catch{}
 }
 
 // ---------------- состояние ----------------
@@ -7056,6 +7075,7 @@ const actions = {
       await driveWrite(prefix() + 'keyfile.json', JSON.stringify(ui.pendingKeyfile), kf && kf.id);
       await saveMk(ui.pendingMk);
       writeMeta({enabled: true}); ui.pendingMk = null; ui.pendingKeyfile = null; ui.code = ''; ui.step = 'auto';
+      await afterKeyReady();
       setBusy(T().backingUp);
       const r = await runBackup(); ui.ok = T().backedUp + r.messages;
     }else{
@@ -7067,10 +7087,12 @@ const actions = {
     setBusy(T().working);
     const mkRaw = ui.useCode ? await unlockWithRecovery(ui.keyfile.keyfile, secret) : await unlockWithPassword(ui.keyfile.keyfile, secret);
     await saveMk(mkRaw); writeMeta({enabled: true}); ui.keyfile = null; ui.step = 'auto';
+    await afterKeyReady();
   }),
   toggleCode: () => { ui.useCode = !ui.useCode; ui.err = ''; render(); },
   backup: () => guarded(async () => {
     setBusy(T().backingUp);
+    if(RELAY.on){ await connectDrive(true); await relayFlush(); }
     const r = await runBackup(); ui.ok = T().backedUp + r.messages;
   }),
   verify: () => guarded(async () => {
@@ -7155,6 +7177,7 @@ function render(){
     if(ui.form === 'pw') body += '<h4>' + esc(t.changePw) + '</h4>' + pwField('bk-old', t.oldPw) + pwField('bk-new', t.newPw) + pwField('bk-new2', t.pw2) + '<div class="backup-row"><button class="settings-save" data-act="changePw"' + dis + '>' + esc(t.save) + '</button><button class="backup-btn" data-act="cancelForm">' + esc(t.cancel) + '</button></div>';
     if(ui.form === 'rec') body += '<h4>' + esc(t.newRec) + '</h4><p class="section-note">' + esc(t.newRecHint) + '</p>' + pwField('bk-old', t.oldPw) + '<div class="backup-row"><button class="settings-save" data-act="newRecovery"' + dis + '>' + esc(t.save) + '</button><button class="backup-btn" data-act="cancelForm">' + esc(t.cancel) + '</button></div>';
     body += '<p class="section-note">' + esc(t.note) + '</p>';
+    if(RELAY.on) body += '<p class="section-note" id="bk-relay">' + esc(t.relayOn) + ' ' + esc(t.relayUnsaved) + RELAY.dirtyCount + '</p>';
   }
   box.innerHTML = head + body
     + (ui.busy ? '<p class="section-note">' + esc(ui.busy) + '\u2026</p>' : '')
@@ -7164,7 +7187,7 @@ function render(){
 
 // ---------------- окно «Защитите свои данные» сразу после входа ----------------
 // true — когда сервер перестанет хранить переписки: тогда в объяснении будет текст про «сервер ничего не хранит».
-const RELAY_ONLY = false;
+let RELAY_ONLY = false;
 const SNOOZE_MS = 24 * 3600 * 1000;
 const ob = {el: null, step: 'pw', mode: 'create', pw: '', pw2: '', codeIn: '', err: '', busy: '', openPw: false, openCode: false, useCode: false, saved: false, pending: null, code: ''};
 function snoozeKey(){ return 'mijer_backup_snooze_' + (me() ? me().id : 'none'); }
@@ -7215,6 +7238,7 @@ async function obRun(fn){
 async function obFinish(mkRaw){
   await saveMk(mkRaw); writeMeta({enabled: true});
   ob.step = 'done'; ob.busy = ''; obRender();
+  await afterKeyReady();
   try{ await runBackup(); }catch{}
   setTimeout(obClose, 1400);
 }
@@ -7270,7 +7294,521 @@ function maybePrompt(){
   if(meta.enabled && state.mk) return;
   obOpen(meta.enabled ? 'locked' : 'create');
 }
-function onEnterApp(){ if(!me()) return; loadMk().then(() => { render(); maybePrompt(); }); }
+function onEnterApp(){ if(!me()) return; loadMk().then(() => { render(); maybePrompt(); return relayInit(); }).catch(e => console.error(e)); }
+
+// ================= РЕЖИМ «СЕРВЕР КАК ТРУБА» (клиентская часть) =================
+// Включается на сервере переменной RELAY_MODE=on. Тогда:
+//  • главная история лежит в памяти этого устройства (IndexedDB) и в вашем Google Drive;
+//  • сервер отдаёт сообщения и «события» (прочитано, реакции, закрепление, удаление),
+//    устройство забирает их, сохраняет, пишет пачкой в Drive и только потом подтверждает;
+//  • после подтверждений всех устройств сервер сообщение удаляет.
+const origFetch = window.fetch.bind(window);
+const RELAY = {on: false, cfg: false, uid: null, db: null, peers: new Map(), pulling: false, flushing: false, acking: false,
+  outboxing: false, flushTimer: null, pollTimer: null, armed: false, lastArm: 0, dirtyCount: 0, restoredAt: null, error: ''};
+const FLUSH_DELAY_MS = 2500;
+const POLL_MS = 20000;
+const COMPACT_AFTER = 40;
+const DELTA_MAX_RECORDS = 150;
+
+// ---------- локальная память ----------
+const rq = req => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+const txDone = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+function rdbOpen(uid){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('mijer_relay_' + uid, 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      const m = db.createObjectStore('msgs', {keyPath: 'id'}); m.createIndex('byChat', ['chat_key', 'created_at']);
+      db.createObjectStore('peers', {keyPath: 'id'});
+      db.createObjectStore('kv');
+      db.createObjectStore('dirty', {keyPath: 'id'});
+      db.createObjectStore('pending', {keyPath: 'id'});
+      db.createObjectStore('evq', {keyPath: 'id'});
+      db.createObjectStore('applied', {keyPath: 'id'});
+      db.createObjectStore('outbox', {keyPath: 'id'});
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const rget = (store, key) => rq(RELAY.db.transaction(store).objectStore(store).get(key));
+const rall = store => rq(RELAY.db.transaction(store).objectStore(store).getAll());
+async function rbatch(ops){ // ops: [[store, 'put'|'delete', value|key, outOfLineKey?]] — одной транзакцией
+  const stores = [...new Set(ops.map(o => o[0]))];
+  const tx = RELAY.db.transaction(stores, 'readwrite');
+  for(const [store, kind, val, key] of ops){ const os = tx.objectStore(store); if(kind === 'put') (key === undefined ? os.put(val) : os.put(val, key)); else os.delete(val); }
+  await txDone(tx);
+}
+const kvGet2 = k => rget('kv', k);
+const kvSet2 = (k, v) => rbatch([['kv', 'put', v, k]]);
+async function rchat(chatKey){ return rq(RELAY.db.transaction('msgs').objectStore('msgs').index('byChat').getAll(IDBKeyRange.bound([chatKey, ''], [chatKey, '\uffff']))); }
+const nowIso = () => new Date().toISOString();
+
+// ---------- форма сообщений ----------
+function chatKeyOf(m, uid){
+  if(m.kind === 'sp' || m.space_id) return 'sp:' + m.space_id;
+  return 'dm:' + (m.from_user === uid ? m.to_user : m.from_user);
+}
+function toApi(rec){ const o = {...rec}; delete o.kind; delete o.chat_key; delete o.hidden; delete o.upd; if(!o.reactions) o.reactions = {}; return o; }
+const stamp = rec => { rec.upd = nowIso(); return rec; };
+async function saveRec(rec){ stamp(rec); await rbatch([['msgs', 'put', rec], ['dirty', 'put', {id: rec.id, t: 'msg', at: Date.now()}]]); RELAY.dirtyCount++; }
+async function removeRec(id){ await rbatch([['msgs', 'delete', id], ['dirty', 'put', {id, t: 'del', at: Date.now()}]]); RELAY.dirtyCount++; }
+
+// ---------- приём сообщений и событий ----------
+async function ingestMessage(m, uid, {sent} = {}){
+  const rec = {...m}; delete rec.hidden_me;
+  rec.kind = m.kind || (m.space_id ? 'sp' : 'dm');
+  rec.chat_key = chatKeyOf(rec, uid);
+  rec.hidden = !!m.hidden_me; rec.reactions = m.reactions || {};
+  const existing = await rget('msgs', rec.id);
+  const ops = [];
+  if(!existing){ stamp(rec); ops.push(['msgs', 'put', rec], ['dirty', 'put', {id: rec.id, t: 'msg', at: Date.now()}]); }
+  const pend = await rget('pending', rec.id);
+  if(!pend) ops.push(['pending', 'put', {id: rec.id, l1: false, l2: false, durable: false}]);
+  if(ops.length) await rbatch(ops);
+  return !existing;
+}
+function isParticipant(rec, actor){ return rec.kind === 'sp' ? true : (rec.from_user === actor || rec.to_user === actor); }
+async function applyEvent(ev, uid){
+  if(await rget('applied', ev.id)) return 'dup';
+  const p = ev.payload || {}, actor = ev.actor_id;
+  let result = 'ok';
+  if(ev.kind === 'read'){
+    const peer = ev.chat.slice(3), ops = [];
+    // actor == я (другое моё устройство прочитало) либо собеседник прочитал МОИ сообщения
+    const chatKey = actor === uid ? 'dm:' + peer : 'dm:' + actor;
+    for(const m of await rchat(chatKey)){
+      const mine = actor === uid ? (m.to_user === uid && m.from_user !== uid) : (m.from_user === uid && m.to_user === actor);
+      if(mine && !m.read_at && (m.created_at || '') <= (p.upto || '9')){ m.read_at = ev.created_at; stamp(m); ops.push(['msgs', 'put', m], ['dirty', 'put', {id: m.id, t: 'msg', at: Date.now()}]); }
+    }
+    if(ops.length){ await rbatch(ops); RELAY.dirtyCount += ops.length / 2; }
+  }else if(ev.kind === 'space_read'){
+    const key = 'space_read_' + ev.chat.slice(3); const cur = await kvGet2(key);
+    if(!cur || cur < p.upto) await kvSet2(key, p.upto);
+  }else if(ev.kind === 'undelivered'){
+    const m = await rget('msgs', p.message_id);
+    if(!m){ result = 'wait'; } else if(ev.actor_id === 'system'){ m.undelivered = true; await saveRec(m); }
+  }else{
+    const m = await rget('msgs', p.message_id);
+    if(!m) result = 'wait';
+    else if(ev.kind === 'played'){
+      if(m.to_user === actor){ m.played_at = m.played_at || ev.created_at; m.read_at = m.read_at || ev.created_at; await saveRec(m); }
+    }else if(ev.kind === 'react'){
+      if(isParticipant(m, actor)){
+        const r = m.reactions || {};
+        for(const e of Object.keys(r)){ r[e] = (r[e] || []).filter(u => u !== actor); if(!r[e].length) delete r[e]; }
+        if(p.emoji){ (r[p.emoji] = r[p.emoji] || []).push(actor); }
+        m.reactions = r; await saveRec(m);
+      }
+    }else if(ev.kind === 'pin'){
+      if(isParticipant(m, actor)){
+        if(p.pinned) for(const o of await rchat(m.chat_key)) if(o.pinned && o.id !== m.id){ o.pinned = 0; await saveRec(o); }
+        m.pinned = p.pinned ? 1 : 0; await saveRec(m);
+      }
+    }else if(ev.kind === 'delete_all'){
+      if(m.from_user === actor) await removeRec(m.id);
+    }else if(ev.kind === 'delete_me'){
+      if(actor === uid){ m.hidden = true; await saveRec(m); }
+    }
+  }
+  if(result === 'wait'){
+    if(Date.now() - new Date(ev.created_at).getTime() < 5 * 86400000) await rbatch([['evq', 'put', ev]]);
+    return 'wait';
+  }
+  await rbatch([['applied', 'put', {id: ev.id, at: Date.now()}]]);
+  return result;
+}
+async function retryQueuedEvents(uid){
+  for(const ev of await rall('evq')){
+    await rbatch([['evq', 'delete', ev.id]]);
+    await applyEvent(ev, uid);
+  }
+}
+
+// ---------- подтверждения серверу ----------
+async function patchPending(ids, patch, drop){
+  const ops = [];
+  for(const id of ids){ const cur = await rget('pending', id); if(cur) ops.push(drop ? ['pending', 'delete', id] : ['pending', 'put', {...cur, ...patch}]); }
+  if(ops.length) await rbatch(ops);
+}
+async function relayPost(path, body){
+  return origFetch(API_BASE + path, {method: 'POST', headers: deviceHeaders({'Content-Type': 'application/json'}), body: JSON.stringify(body)});
+}
+function sendAcks(){
+  RELAY.ackChain = (RELAY.ackChain || Promise.resolve()).then(doAcks, doAcks);
+  return RELAY.ackChain;
+}
+async function doAcks(){
+  if(!RELAY.on) return;
+  try{
+    for(const level of [1, 2]){
+      const list = (await rall('pending')).filter(p => level === 1 ? !p.l1 : (p.durable && !p.l2)).slice(0, 500);
+      if(!list.length) continue;
+      const res = await relayPost('/api/relay/ack', {ids: list.map(p => p.id), level});
+      if(!res.ok){ if(res.status === 401) relayDeviceLost(); return; }
+      await patchPending(list.map(p => p.id), {l1: true}, level === 2);
+    }
+  }catch(e){ RELAY.error = String(e && e.message || e); }
+}
+function relayDeviceLost(){ /* сеанс устройства завершён — страницу выведет session watch */ }
+
+// ---------- события наружу (с повтором, если нет сети) ----------
+async function queueEvent(kind, chat, payload){
+  await rbatch([['outbox', 'put', {id: Date.now() + '_' + Math.random().toString(36).slice(2, 8), kind, chat, payload}]]);
+  flushOutbox();
+}
+async function flushOutbox(){
+  if(!RELAY.on || RELAY.outboxing) return;
+  RELAY.outboxing = true;
+  try{
+    const list = (await rall('outbox')).sort((a, b) => a.id < b.id ? -1 : 1);
+    for(const ev of list){
+      let res;
+      try{ res = await relayPost('/api/relay/event', {kind: ev.kind, chat: ev.chat, payload: ev.payload}); }catch{ break; }
+      if(res.status >= 500 || res.status === 401) break;
+      await rbatch([['outbox', 'delete', ev.id]]); // 2xx — отправлено; 4xx — событие недопустимо, выбрасываем
+    }
+  }finally{ RELAY.outboxing = false; }
+}
+
+// ---------- забор с сервера ----------
+async function relayPull(){
+  if(!RELAY.on) return;
+  // Сигнал «пришло новое» мог прийти, пока предыдущий забор ещё идёт: запоминаем и повторяем сразу после него.
+  if(RELAY.pulling){ RELAY.again = true; return; }
+  RELAY.pulling = true;
+  try{
+    do{ RELAY.again = false; await pullOnce(); }while(RELAY.again && RELAY.on);
+  }finally{ RELAY.pulling = false; }
+}
+async function pullOnce(){
+  let changed = false;
+  try{
+    for(let guard = 0; guard < 60; guard++){
+      const res = await origFetch(API_BASE + '/api/relay/pull', {headers: deviceHeaders(), cache: 'no-store'});
+      if(!res.ok) break;
+      const data = await res.json();
+      for(const m of data.messages || []) if(await ingestMessage(m, RELAY.uid)) changed = true;
+      const evs = (data.events || []).sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+      for(const ev of evs){
+        if(!(await rget('pending', ev.id))) await rbatch([['pending', 'put', {id: ev.id, l1: false, l2: false, durable: false}]]);
+        await applyEvent(ev, RELAY.uid); changed = true;
+      }
+      if(evs.length || (data.messages || []).length) await retryQueuedEvents(RELAY.uid);
+      await sendAcks();
+      if(!data.more || !((data.messages || []).length || (data.events || []).length)) break;
+    }
+    await flushOutbox();
+    if(changed){ scheduleFlush(); notifyApp(); }
+  }catch(e){ RELAY.error = String(e && e.message || e); }
+}
+function notifyApp(){ try{ if(relayPrevSync) relayPrevSync({type: 'sync', scope: 'msg'}); }catch(e){ console.error(e); } }
+
+// ---------- надёжное сохранение в Drive (маленькими пачками) ----------
+function scheduleFlush(){
+  if(!RELAY.on || RELAY.flushTimer) return;
+  RELAY.flushTimer = setTimeout(() => { RELAY.flushTimer = null; relayFlush(); }, FLUSH_DELAY_MS);
+}
+function armSilentRefresh(){
+  if(RELAY.armed || Date.now() - RELAY.lastArm < 60000) return;
+  RELAY.armed = true;
+  const h = () => {
+    document.removeEventListener('pointerdown', h, true); document.removeEventListener('keydown', h, true);
+    RELAY.armed = false; RELAY.lastArm = Date.now();
+    connectDrive(true).then(() => { relayFlush(); render(); }).catch(() => {});
+  };
+  document.addEventListener('pointerdown', h, true); document.addEventListener('keydown', h, true);
+}
+function deltaName(){ return prefix() + 'd_' + new Date().toISOString().replace(/[-:.TZ]/g, '') + '_' + Math.random().toString(36).slice(2, 6) + '.enc'; }
+async function relayFlush(){
+  if(!RELAY.on || RELAY.flushing) return;
+  const meta = readMeta();
+  if(!(meta.enabled && state.mk)) return;
+  if(!tokenValid()){ armSilentRefresh(); return; }
+  RELAY.flushing = true;
+  try{
+    const pendSnap = await rall('pending');
+    const dirty = await rall('dirty');
+    const deltas = (await kvGet2('deltas')) || [];
+    for(let i = 0; i < dirty.length; i += DELTA_MAX_RECORDS){
+      const part = dirty.slice(i, i + DELTA_MAX_RECORDS), msgs = [], dels = [];
+      for(const d of part){ const r = d.t === 'msg' ? await rget('msgs', d.id) : null; if(r) msgs.push(r); else dels.push(d.id); }
+      const name = deltaName();
+      await driveWrite(name, await encryptJSON(state.mk, {v: 1, t: nowIso(), msgs, dels}, name));
+      deltas.push(name);
+      // записи, которые не менялись с момента отправки, считаем сохранёнными
+      const ops = [];
+      for(const d of part){ const cur = await rget('dirty', d.id); if(cur && cur.at === d.at) ops.push(['dirty', 'delete', d.id]); }
+      if(ops.length) await rbatch(ops);
+      await kvSet2('deltas', deltas);
+    }
+    // всё, что было принято ДО начала этой записи, теперь надёжно сохранено
+    if(pendSnap.length) await patchPending(pendSnap.map(p => p.id), {durable: true});
+    RELAY.dirtyCount = (await rall('dirty')).length;
+    writeMeta({last: nowIso()});
+    await sendAcks();
+    if(deltas.length >= COMPACT_AFTER) await relayCompact();
+  }catch(e){
+    if(e instanceof DriveError && String(e.message) === 'auth') armSilentRefresh();
+    RELAY.error = String(e && e.message || e);
+  }finally{
+    RELAY.flushing = false;
+    try{ if(RELAY.db && (await rall('dirty')).length && tokenValid()) scheduleFlush(); }catch{}
+    render();
+  }
+}
+// Склеивает накопившиеся маленькие файлы в обычную копию по чатам.
+async function relayCompact(){
+  const cut = ((await kvGet2('deltas')) || []).slice();
+  if(!cut.length) return;
+  await runBackup({auto: true});
+  const files = await driveList(); const byName = new Map(files.map(f => [f.name, f.id]));
+  for(const n of cut) if(byName.has(n)) await driveDelete(byName.get(n));
+  const left = ((await kvGet2('deltas')) || []).filter(n => !cut.includes(n));
+  await kvSet2('deltas', left);
+}
+
+// ---------- восстановление истории из Drive (новое устройство) ----------
+async function relayRestore(){
+  if(!RELAY.on || !state.mk) return {skipped: true};
+  await connectDrive(true);
+  const pre = prefix(), files = await driveList(), byName = new Map(files.map(f => [f.name, f.id]));
+  // Собираем историю в памяти: сначала обычная копия по чатам, затем маленькие файлы-пачки по порядку
+  // (позже записанное важнее; отметки об удалении убирают сообщение).
+  const all = new Map();
+  const mname = pre + 'manifest.enc';
+  if(byName.has(mname)){
+    const manifest = await decryptJSON(state.mk, await driveRead(byName.get(mname)), mname);
+    for(const info of Object.values(manifest.chats || {})){
+      const id = byName.get(info.file); if(!id) continue;
+      const data = await decryptJSON(state.mk, await driveRead(id), info.file);
+      for(const m of data.messages || []){
+        const rec = {...m, kind: data.kind, chat_key: data.kind + ':' + data.id, hidden: false, reactions: m.reactions || {}};
+        if(data.kind === 'sp') rec.space_id = rec.space_id || data.id;
+        all.set(rec.id, rec);
+      }
+    }
+  }
+  const deltaNames = files.map(f => f.name).filter(n => n.startsWith(pre + 'd_')).sort();
+  for(const n of deltaNames){
+    const d = await decryptJSON(state.mk, await driveRead(byName.get(n)), n);
+    for(const rec of d.msgs || []) all.set(rec.id, rec);
+    for(const id of d.dels || []) all.delete(id);
+  }
+  let added = 0;
+  for(const rec of all.values()){
+    if(!(await rget('msgs', rec.id))){ await rbatch([['msgs', 'put', rec]]); added++; }
+  }
+  await kvSet2('restoredAt', nowIso()); RELAY.restoredAt = nowIso();
+  const known = new Set(((await kvGet2('deltas')) || []).concat(deltaNames)); await kvSet2('deltas', [...known].sort());
+  notifyApp();
+  return {added};
+}
+
+// ---------- подмена запросов к серверу ----------
+const jsonResp = (obj, status) => new Response(JSON.stringify(obj), {status: status || 200, headers: {'Content-Type': 'application/json'}});
+async function peerInfo(id){
+  if(RELAY.peers.has(id)) return RELAY.peers.get(id);
+  try{
+    const r = await origFetch(API_BASE + '/api/users/' + encodeURIComponent(id), {cache: 'no-store'});
+    if(r.ok){ const u = await r.json(); RELAY.peers.set(id, u); await rbatch([['peers', 'put', u]]); return u; }
+  }catch{}
+  return {id, username: '', display_name: '?'};
+}
+async function unreadMap(uid){
+  const out = {};
+  const msgs = await rq(RELAY.db.transaction('msgs').objectStore('msgs').getAll());
+  const byChat = new Map();
+  for(const m of msgs){ if(!byChat.has(m.chat_key)) byChat.set(m.chat_key, []); byChat.get(m.chat_key).push(m); }
+  const base = (await kvGet2('activatedAt')) || '1970';
+  for(const [key, list] of byChat){
+    list.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+    let unread;
+    if(key.startsWith('dm:')){
+      unread = list.filter(m => m.to_user === uid && m.from_user !== uid && !m.read_at && !m.hidden && m.type !== 'call');
+    }else{
+      const since = (await kvGet2('space_read_' + key.slice(3))) || base;
+      unread = list.filter(m => m.from_user !== uid && (m.created_at || '') > since && !m.hidden && m.type !== 'call');
+    }
+    if(!unread.length) continue;
+    const last = unread[unread.length - 1], id = key.slice(3);
+    const sender = key.startsWith('dm:') ? ((await peerInfo(id)).display_name || '') : (last.sender_name || '');
+    out[id] = {count: unread.length, sender, type: last.type || 'text', preview: (last.text || '').slice(0, 80)};
+  }
+  return out;
+}
+async function routeGet(path, uid){
+  const u = new URL(path, 'http://x');
+  if(u.pathname === '/api/messages'){
+    const other = u.searchParams.get('user_b');
+    return jsonResp((await rchat('dm:' + other)).filter(m => !m.hidden).map(toApi));
+  }
+  if(u.pathname.startsWith('/api/space-messages/')){
+    const id = decodeURIComponent(u.pathname.slice('/api/space-messages/'.length));
+    return jsonResp((await rchat('sp:' + id)).filter(m => !m.hidden).map(toApi));
+  }
+  if(u.pathname.startsWith('/api/conversations/')){
+    const ids = new Set();
+    for(const m of await rq(RELAY.db.transaction('msgs').objectStore('msgs').getAll())) if(m.chat_key.startsWith('dm:') && !m.hidden) ids.add(m.chat_key.slice(3));
+    return jsonResp(await Promise.all([...ids].map(peerInfo)));
+  }
+  if(u.pathname.startsWith('/api/unread/')) return jsonResp(await unreadMap(uid));
+  return null;
+}
+async function routePost(path, body, uid, input, init){
+  if(path === '/api/messages' || path === '/api/space-messages'){
+    const res = await origFetch(input, init);
+    if(res.ok){
+      try{
+        const m = await res.clone().json();
+        if(path === '/api/space-messages'){ const u = me(); m.sender_name = m.sender_name || (u && u.display_name); m.sender_username = m.sender_username || (u && u.username); m.space_id = m.space_id || body.space_id; }
+        m.kind = path === '/api/space-messages' ? 'sp' : 'dm';
+        await ingestMessage(m, uid, {sent: true});
+        await sendAcks(); scheduleFlush(); flushOutbox();
+      }catch(e){ console.error(e); }
+    }
+    return res;
+  }
+  if(path === '/api/messages/read'){
+    const other = body.other_id, now = nowIso(), ops = []; let n = 0;
+    for(const m of await rchat('dm:' + other)){
+      if(m.to_user === uid && m.from_user !== uid && !m.read_at){ m.read_at = now; stamp(m); ops.push(['msgs', 'put', m], ['dirty', 'put', {id: m.id, t: 'msg', at: Date.now()}]); n++; }
+    }
+    if(ops.length){ await rbatch(ops); RELAY.dirtyCount += n; scheduleFlush(); await queueEvent('read', 'dm:' + other, {upto: now}); }
+    return jsonResp({ok: true, updated: n});
+  }
+  if(path === '/api/messages/played'){
+    const m = await rget('msgs', body.message_id);
+    if(m && m.to_user === uid && !m.played_at){
+      m.played_at = nowIso(); m.read_at = m.read_at || m.played_at; await saveRec(m); scheduleFlush();
+      await queueEvent('played', 'dm:' + m.from_user, {message_id: m.id});
+    }
+    return jsonResp({ok: true});
+  }
+  if(path === '/api/messages/pin' || path === '/api/space-messages/pin'){
+    const m = await rget('msgs', body.message_id);
+    if(!m) return jsonResp({error: 'Message not found'}, 404);
+    if(body.pinned) for(const o of await rchat(m.chat_key)) if(o.pinned && o.id !== m.id){ o.pinned = 0; await saveRec(o); }
+    m.pinned = body.pinned ? 1 : 0; await saveRec(m); scheduleFlush();
+    await queueEvent('pin', m.chat_key, {message_id: m.id, pinned: !!body.pinned});
+    return jsonResp(toApi(m));
+  }
+  if(path === '/api/messages/delete' || path === '/api/space-messages/delete'){
+    const m = await rget('msgs', body.message_id);
+    if(!m) return jsonResp({error: 'Message not found'}, 404);
+    if(body.for_everyone && m.from_user === uid){ await removeRec(m.id); await queueEvent('delete_all', m.chat_key, {message_id: m.id}); }
+    else{ m.hidden = true; await saveRec(m); await queueEvent('delete_me', m.chat_key, {message_id: m.id}); }
+    scheduleFlush();
+    return jsonResp({ok: true});
+  }
+  if(path === '/api/reactions'){
+    const m = await rget('msgs', body.message_id);
+    if(!m) return jsonResp({error: 'Message not found'}, 404);
+    const r = m.reactions || {}; const had = (r[body.emoji] || []).includes(uid);
+    const final = (!body.emoji || had) ? null : body.emoji;
+    for(const e of Object.keys(r)){ r[e] = (r[e] || []).filter(x => x !== uid); if(!r[e].length) delete r[e]; }
+    if(final) (r[final] = r[final] || []).push(uid);
+    m.reactions = r; await saveRec(m); scheduleFlush();
+    await queueEvent('react', m.chat_key, {message_id: m.id, emoji: final});
+    return jsonResp({ok: true});
+  }
+  if(path === '/api/reports'){
+    // Сообщений на сервере уже нет — прикладываем само сообщение и до 9 предыдущих из памяти устройства.
+    const out = {...body};
+    if(body.message_id){
+      const m = await rget('msgs', body.message_id);
+      if(m){
+        const label = x => { const t = x.type || 'text'; if(t === 'text') return String(x.text || '').slice(0, 300); if(t === 'call') return '[звонок]'; return ({voice: '[голосовое]', video: '[кружок]', image: '[фото]', file: '[файл: ' + (x.text || '') + ']'})[t] || '[вложение]'; };
+        const prior = (await rchat(m.chat_key)).filter(x => !x.hidden && x.created_at <= m.created_at).slice(-10);
+        const nameOf = async x => x.from_user === uid ? ((me() || {}).display_name || '') : (x.kind === 'sp' ? (x.sender_name || '') : ((await peerInfo(x.from_user)).display_name || ''));
+        out.evidence = [];
+        for(const x of prior) out.evidence.push({from: await nameOf(x), text: label(x), at: x.created_at});
+        out.target_user_id = m.from_user; out.space_id = m.kind === 'sp' ? m.space_id : undefined;
+      }
+    }
+    return origFetch(API_BASE + '/api/reports', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(out)});
+  }
+  if(path === '/api/space-read'){
+    const now = nowIso(); await kvSet2('space_read_' + body.space_id, now);
+    await queueEvent('space_read', 'sp:' + body.space_id, {upto: now});
+    return jsonResp({ok: true});
+  }
+  return null;
+}
+function relayRoute(input, init){
+  const url = typeof input === 'string' ? input : ((input && input.url) || '');
+  if(!url.startsWith(API_BASE + '/api/')) return null;
+  const path = url.slice(API_BASE.length);
+  const method = String((init && init.method) || (typeof input !== 'string' && input && input.method) || 'GET').toUpperCase();
+  const u = path.split('?')[0];
+  const GETS = u === '/api/messages' || u.startsWith('/api/space-messages/') || u.startsWith('/api/conversations/') || u.startsWith('/api/unread/');
+  const POSTS = ['/api/messages', '/api/space-messages', '/api/messages/read', '/api/messages/played', '/api/messages/pin', '/api/space-messages/pin',
+    '/api/messages/delete', '/api/space-messages/delete', '/api/reactions', '/api/space-read', '/api/reports'];
+  if(method === 'GET' && GETS){
+    return routeGet(path, RELAY.uid).then(r => r || origFetch(input, init)).catch(e => jsonResp({error: String(e && e.message || e)}, 500));
+  }
+  if(method === 'POST' && POSTS.includes(u)){
+    let body = {}; try{ body = JSON.parse((init && init.body) || '{}'); }catch{}
+    return routePost(u, body, RELAY.uid, input, init).then(r => r || origFetch(input, init)).catch(e => jsonResp({error: String(e && e.message || e)}, 500));
+  }
+  return null;
+}
+window.fetch = function(input, init){
+  if(RELAY.on){ const p = relayRoute(input, init); if(p) return p; }
+  return origFetch(input, init);
+};
+
+// ---------- запуск / остановка ----------
+let relayPrevSync = null;
+async function relayInit(){
+  const u = me(); if(!u || RELAY.on || RELAY.starting) return;
+  RELAY.starting = true;
+  try{
+    let cfg; try{ cfg = await (await origFetch(API_BASE + '/api/config', {cache: 'no-store'})).json(); }catch{ return; }
+    RELAY.cfg = !!cfg.relay_mode; RELAY_ONLY = RELAY.cfg; render();
+    if(!RELAY.cfg) return;
+    if(!getDevice()){ forceLogout(T().relogin); return; } // старая сессия без токена устройства
+    if(!cryptoOk()) return;
+    RELAY.db = await rdbOpen(u.id); RELAY.uid = u.id;
+    for(const p of await rall('peers')) RELAY.peers.set(p.id, p);
+    if(!(await kvGet2('activatedAt'))) await kvSet2('activatedAt', nowIso());
+    RELAY.restoredAt = await kvGet2('restoredAt');
+    RELAY.dirtyCount = (await rall('dirty')).length;
+    RELAY.on = true;
+    await relayPull();
+    notifyApp();
+    if(!RELAY.pollTimer) RELAY.pollTimer = setInterval(() => relayPull(), POLL_MS);
+    window.addEventListener('online', () => { relayPull(); flushOutbox(); });
+    if(readMeta().enabled && state.mk && !RELAY.restoredAt && tokenValid()) relayRestore().then(() => relayPull()).catch(() => {});
+    scheduleFlush();
+  }finally{ RELAY.starting = false; }
+}
+function relayStop(){
+  RELAY.on = false;
+  clearInterval(RELAY.pollTimer); RELAY.pollTimer = null;
+  try{ if(RELAY.db){ RELAY.db.close(); RELAY.db = null; } }catch{}
+}
+async function beforeLogout(){
+  if(!RELAY.on) return true;
+  try{ await relayFlush(); }catch{}
+  const left = (await rall('dirty')).length;
+  if(!left) return true;
+  return confirm(T().relayLoseWarn.replace('%n', left));
+}
+async function relayResend(chat, m){
+  const u = me(); if(!u || !RELAY.on) return;
+  const space = !!chat.kind;
+  const body = space ? {space_id: chat.id, from_user: u.id, text: m.text, type: m.type, audio_data: m.audio_data, waveform: m.waveform ? JSON.stringify(m.waveform) : null, reply_to: m.reply_to}
+                     : {from_user: u.id, to_user: chat.id, text: m.text, type: m.type, audio_data: m.audio_data, waveform: m.waveform ? JSON.stringify(m.waveform) : null, reply_to: m.reply_to};
+  const res = await fetch(API_BASE + (space ? '/api/space-messages' : '/api/messages'), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if(res.ok){ await removeRec(m.id); scheduleFlush(); }
+  return res.ok;
+}
+
+async function afterKeyReady(){
+  if(!RELAY.cfg) return;
+  try{ await relayInit(); if(RELAY.on){ await relayRestore(); await relayPull(); scheduleFlush(); } }catch(e){ console.error(e); }
+}
 
 // ---------------- запуск ----------------
 let autoTimer = null;
@@ -7289,14 +7827,18 @@ function init(){
   const navBtn = document.querySelector('[data-settings-section="backup"]');
   if(navBtn) navBtn.addEventListener('click', render);
   const prev = window.onServerSync;
+  relayPrevSync = prev;
   window.onServerSync = function(msg){
+    // В режиме «труба» новое сообщение — это сигнал забрать его с сервера; интерфейс обновится после забора.
+    if(RELAY.on && msg && msg.scope === 'msg'){ relayPull(); return; }
     try{ if(prev) prev(msg); }catch(e){ console.error(e); }
     if(msg && msg.scope === 'msg') scheduleAuto();
   };
   restoreToken();
   if(me()){ loadMk().then(render); prepareGoogle().catch(() => {}); } else render();
 }
-window.MijerBackup = {render, wipeLocal, deleteForAccount, runBackup, verifyBackup, onEnterApp, maybePrompt,
+window.MijerBackup = {render, wipeLocal, deleteForAccount, runBackup, verifyBackup, onEnterApp, maybePrompt, beforeLogout,
+  relay: {RELAY, relayPull, relayFlush, relayRestore, relayResend, relayInit, rall, rget, rchat, scheduleFlush},
   _: {ob, makeKeyfile, unlockWithPassword, unlockWithRecovery, wrapWithPassword, wrapWithRecovery, importMk, encryptJSON, decryptJSON, parseRecovery, formatRecovery, state, ui, readMeta, drive, loadMk, saveMk, histAll, connectDrive, driveList, prefix}};
 init();
 })();
